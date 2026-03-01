@@ -1,0 +1,89 @@
+<Page
+    x:Class="English_Listen_WinUI.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="600" d:DesignWidth="800">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+            <Button Content="← 返回" Click="BackButton_Click" Width="80" Height="40" Margin="10"/>
+            <TextBlock Text="设置" FontSize="24" FontWeight="Bold" 
+                       VerticalAlignment="Center" Margin="20"/>
+        </StackPanel>
+
+        <!-- Settings Content -->
+        <ScrollViewer Grid.Row="1" Margin="20">
+            <StackPanel>
+                <!-- Theme Settings -->
+                <TextBlock Text="外观" FontSize="18" FontWeight="Bold" Margin="10"/>
+                <StackPanel Orientation="Horizontal" Margin="20">
+                    <ToggleSwitch x:Name="ThemeToggle" Header="深色模式" 
+                                  Toggled="ThemeToggle_Toggled"/>
+                </StackPanel>
+
+                <!-- Study Settings -->
+                <TextBlock Text="学习设置" FontSize="18" FontWeight="Bold" Margin="10"/>
+                <StackPanel Margin="20">
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="默认朗读间隔:" Width="150" VerticalAlignment="Center"/>
+                        <Slider x:Name="IntervalSlider" Width="200" 
+                                Minimum="1" Maximum="30" Value="5"
+                                ValueChanged="IntervalSlider_ValueChanged"/>
+                        <TextBlock x:Name="IntervalText" Text="5秒" 
+                                   VerticalAlignment="Center" Margin="10"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <ToggleSwitch x:Name="RandomOrderToggle" Header="随机播放" 
+                                      Toggled="RandomOrderToggle_Toggled"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Voice Settings -->
+                <TextBlock Text="语音设置" FontSize="18" FontWeight="Bold" Margin="10"/>
+                <StackPanel Margin="20">
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="语音引擎:" Width="150" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="SpeechEngineComboBox" Width="200"
+                                  SelectionChanged="SpeechEngineComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Windows SAPI" Tag="0"/>
+                            <ComboBoxItem Content="Flite" Tag="1"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="朗读语音:" Width="150" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="VoiceComboBox" Width="200"/>
+                        <Button Content="测试" Click="TestVoiceButton_Click" Margin="10"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- About -->
+                <TextBlock Text="关于" FontSize="18" FontWeight="Bold" Margin="10"/>
+                <StackPanel Margin="20">
+                    <TextBlock Text="English Listen v2.6.0" Margin="10"/>
+                    <TextBlock Text="智能英语听写训练系统" Margin="10" Foreground="Gray"/>
+                    <TextBlock Text="使用 WinUI3 + C# 开发" Margin="10" Foreground="Gray"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" 
+                    HorizontalAlignment="Center" Margin="20">
+            <Button Content="保存设置" Click="SaveButton_Click" 
+                    Width="120" Height="40" Margin="10"
+                    Style="{StaticResource AccentButtonStyle}"/>
+            <Button Content="← 返回主页" Click="BackButton_Click" 
+                    Width="120" Height="40" Margin="10"/>
+        </StackPanel>
+    </Grid>
+</Page>

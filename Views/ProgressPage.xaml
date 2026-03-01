@@ -1,0 +1,113 @@
+<Page
+    x:Class="English_Listen_WinUI.Views.ProgressPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="600" d:DesignWidth="800">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+            <Button Content="← 返回" Click="BackButton_Click" Width="80" Height="40" Margin="10"/>
+            <TextBlock Text="学习进度" FontSize="24" FontWeight="Bold" 
+                       VerticalAlignment="Center" Margin="20"/>
+        </StackPanel>
+
+        <!-- Summary Stats -->
+        <Grid Grid.Row="1" Margin="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                        Padding="15" Margin="5" CornerRadius="8">
+                <TextBlock Text="总测试次数" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="TotalTestsText" Text="0" FontSize="28" FontWeight="Bold" 
+                           HorizontalAlignment="Center" Foreground="{ThemeResource SystemAccentColor}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                        Padding="15" Margin="5" CornerRadius="8">
+                <TextBlock Text="平均正确率" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="AvgAccuracyText" Text="0%" FontSize="28" FontWeight="Bold" 
+                           HorizontalAlignment="Center" Foreground="{ThemeResource SystemAccentColor}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                        Padding="15" Margin="5" CornerRadius="8">
+                <TextBlock Text="总学习单词" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="TotalWordsText" Text="0" FontSize="28" FontWeight="Bold" 
+                           HorizontalAlignment="Center" Foreground="{ThemeResource SystemAccentColor}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="3" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                        Padding="15" Margin="5" CornerRadius="8">
+                <TextBlock Text="连续学习天数" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="StreakDaysText" Text="0" FontSize="28" FontWeight="Bold" 
+                           HorizontalAlignment="Center" Foreground="{ThemeResource SystemAccentColor}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- History List -->
+        <Grid Grid.Row="2" Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="测试历史记录" FontSize="18" FontWeight="Bold" Margin="10"/>
+
+            <ListView x:Name="HistoryListView" Grid.Row="1" Margin="10">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                                Padding="15" Margin="5" CornerRadius="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{Binding WordListName}" FontSize="16" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding TimestampFormatted}" FontSize="12" Foreground="Gray"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding CorrectCount}" FontSize="20" FontWeight="Bold" 
+                                               Foreground="{ThemeResource SystemAccentColor}"/>
+                                    <TextBlock Text="/" FontSize="20" VerticalAlignment="Center" Margin="5,0"/>
+                                    <TextBlock Text="{Binding TotalWords}" FontSize="20" VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="2" Text="{Binding AccuracyFormatted}" 
+                                           FontSize="24" FontWeight="Bold" Foreground="{ThemeResource SystemAccentColor}"
+                                           VerticalAlignment="Center" Margin="20,0,0,0"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="20">
+            <Button Content="导出记录" Click="ExportButton_Click" Width="120" Height="40" Margin="10"/>
+            <Button Content="清空记录" Click="ClearButton_Click" Width="120" Height="40" Margin="10"/>
+            <Button Content="← 返回主页" Click="BackButton_Click" Width="120" Height="40" Margin="10"/>
+        </StackPanel>
+    </Grid>
+</Page>

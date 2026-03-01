@@ -1,0 +1,59 @@
+<Page
+    x:Class="English_Listen_WinUI.Views.WordsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="600" d:DesignWidth="800">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+            <Button Content="← 返回" Click="BackButton_Click" Width="80" Height="40" Margin="10"/>
+            <TextBlock Text="单词管理" FontSize="24" FontWeight="Bold" 
+                       VerticalAlignment="Center" Margin="20"/>
+        </StackPanel>
+
+        <!-- Word List -->
+        <Grid Grid.Row="1" Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+                <TextBlock Text="当前词库:" VerticalAlignment="Center" Margin="5"/>
+                <ComboBox x:Name="WordListComboBox" Width="200" 
+                          SelectionChanged="WordListComboBox_SelectionChanged"/>
+                <Button Content="新建词库" Click="NewWordListButton_Click" Margin="10"/>
+                <Button Content="删除词库" Click="DeleteWordListButton_Click" Margin="10"/>
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="10">
+                <TextBox x:Name="WordsTextBox" 
+                         AcceptsReturn="True" 
+                         TextWrapping="Wrap"
+                         FontSize="14"
+                         MinHeight="300"/>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Footer Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" 
+                    HorizontalAlignment="Center" Margin="20">
+            <Button x:Name="SaveButton" Content="保存" 
+                    Click="SaveButton_Click" Width="100" Height="40" Margin="10"
+                    Style="{StaticResource AccentButtonStyle}"/>
+            <Button x:Name="ClearButton" Content="清空" 
+                    Click="ClearButton_Click" Width="100" Height="40" Margin="10"/>
+            <Button Content="← 返回主页" Click="BackButton_Click" Width="100" Height="40" Margin="10"/>
+        </StackPanel>
+    </Grid>
+</Page>

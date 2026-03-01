@@ -1,0 +1,73 @@
+<Page
+    x:Class="English_Listen_WinUI.Views.TestPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="600" d:DesignWidth="800">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+            <Button Content="停止" Click="StopButton_Click" Width="80" Height="40" Margin="10"/>
+            <TextBlock Text="听写测试" FontSize="24" FontWeight="Bold" 
+                       VerticalAlignment="Center" Margin="20"/>
+            <TextBlock x:Name="ProgressText" Text="0/0" 
+                       VerticalAlignment="Center" FontSize="16" Margin="20"/>
+        </StackPanel>
+
+        <!-- Main Content -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <!-- Countdown -->
+            <TextBlock x:Name="CountdownLabel" Text="5" 
+                       FontSize="72" FontWeight="Bold"
+                       HorizontalAlignment="Center" Margin="20"/>
+
+            <!-- Current Word Display -->
+            <Border x:Name="WordDisplayBorder" 
+                    Background="{ThemeResource SystemAccentColor}" 
+                    CornerRadius="10" Padding="40" Margin="20">
+                <TextBlock x:Name="CurrentWordText" Text="Ready" 
+                           FontSize="48" FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+            </Border>
+
+            <!-- Control Buttons -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="20">
+                <Button x:Name="PreviousButton" Content="◀ 上一词" 
+                        Click="PreviousButton_Click" Width="100" Height="40" Margin="10"/>
+                <Button x:Name="RepeatButton" Content="🔊 朗读" 
+                        Click="RepeatButton_Click" Width="100" Height="40" Margin="10"
+                        Style="{StaticResource AccentButtonStyle}"/>
+                <Button x:Name="PauseButton" Content="⏸ 暂停" 
+                        Click="PauseButton_Click" Width="100" Height="40" Margin="10"/>
+                <Button x:Name="NextButton" Content="下一词 ▶" 
+                        Click="NextButton_Click" Width="100" Height="40" Margin="10"/>
+            </StackPanel>
+
+            <!-- Settings -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="20">
+                <TextBlock Text="朗读间隔:" VerticalAlignment="Center" Margin="5"/>
+                <Slider x:Name="IntervalSlider" Width="150" 
+                        Minimum="1" Maximum="30" Value="5"
+                        ValueChanged="IntervalSlider_ValueChanged"/>
+                <TextBlock x:Name="IntervalText" Text="5秒" 
+                           VerticalAlignment="Center" Margin="5"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Hint -->
+        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="20">
+            <TextBlock Text="快捷键: 空格=朗读 | 左=上一词 | 右=下一词 | ESC=暂停" 
+                       FontSize="12" Foreground="Gray"/>
+        </StackPanel>
+    </Grid>
+</Page>
