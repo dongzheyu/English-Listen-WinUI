@@ -30,10 +30,10 @@ namespace English_Listen_WinUI.Models
         public int SpeechEngine { get; set; }
         public bool IsRandomOrder { get; set; }
 
-        public bool AllowDataCollection { get; set; }
-        public bool AllowCloudSync { get; set; }
-        public bool AllowAnalytics { get; set; }
-        public bool ShareLearningStats { get; set; }
+        public bool AllowDataCollection { get; set; } = true;
+        public bool AllowCloudSync { get; set; } = false;
+        public bool AllowAnalytics { get; set; } = true;
+        public bool ShareLearningStats { get; set; } = false;
     }
 
     public class AppSettings
@@ -44,5 +44,12 @@ namespace English_Listen_WinUI.Models
         public bool IsRandomOrder { get; set; } = true;
         public string WordlistDirPath { get; set; } = "./wordlist";
         public string? CurrentUser { get; set; }
+        public bool EncryptionEnabled { get; set; } = false;
+        public bool AllowDataCollection { get; set; } = true;
+        public bool AllowCloudSync { get; set; } = false;
+        public bool AllowAnalytics { get; set; } = true;
+        public bool ShareLearningStats { get; set; } = false;
     }
+
+
 }

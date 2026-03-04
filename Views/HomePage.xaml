@@ -9,57 +9,49 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header: Welcome + User Status -->
-        <Grid Grid.Row="0" Margin="20,20,20,10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <TextBlock x:Name="WelcomeLabel" Grid.Column="0" 
+        <!-- Welcome Message (Centered) -->
+        <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock x:Name="WelcomeLabel" 
                        Text="欢迎使用英语听写训练系统"
-                       FontSize="24" FontWeight="Bold" 
+                       FontSize="36" FontWeight="Bold" 
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
-
-            <TextBlock x:Name="UserStatusLabel" Grid.Column="1" 
-                       Text="👤 未登录"
-                       FontSize="14" Foreground="Gray" 
-                       VerticalAlignment="Center" Margin="20,0,0,0"/>
-        </Grid>
-
-        <!-- Word List Selection -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="20,10">
-            <TextBlock Text="当前词库:" VerticalAlignment="Center" Margin="10"/>
-            <ComboBox x:Name="WordListComboBox" Width="200" 
-                      SelectionChanged="WordListComboBox_SelectionChanged"/>
-            <Button Content="导入词库" Click="ImportButton_Click" Margin="10"/>
         </StackPanel>
 
-        <!-- Action Buttons -->
-        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-                <Button x:Name="ViewWordsButton" Content="查看单词" 
-                        Click="ViewWordsButton_Click" Width="140" Height="45" Margin="10"
-                        Style="{StaticResource AccentButtonStyle}"/>
-                <Button x:Name="SettingsButton" Content="设置" 
-                        Click="SettingsButton_Click" Width="140" Height="45" Margin="10"/>
-                <Button x:Name="StartButton" Content="开始听写测试" 
-                        Click="StartButton_Click" Width="140" Height="45" Margin="10"
-                        Style="{StaticResource AccentButtonStyle}"/>
+        <!-- User Status (Top Right) -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="20,20,20,0">
+                <TextBlock x:Name="UserStatusLabel" 
+                           Text="👤 未登录"
+                           FontSize="14" Foreground="Gray" 
+                           Tapped="UserStatusLabel_Tapped"/>
+                <Button x:Name="LogoutButton" Content="退出" 
+                        Click="LogoutButton_Click" 
+                        Visibility="Collapsed" 
+                        Margin="10,0,0,0" 
+                        Height="25" FontSize="12"/>
             </StackPanel>
+
+        <!-- Action Buttons -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-                <Button x:Name="ThemeButton" Content="切换主题" 
-                        Click="ThemeButton_Click" Width="140" Height="45" Margin="10"/>
-                <Button x:Name="AboutButton" Content="关于" 
-                        Click="AboutButton_Click" Width="140" Height="45" Margin="10"/>
+                <Button x:Name="StartButton" Content="开始听写测试" 
+                        Click="StartButton_Click" Width="160" Height="45" Margin="10"
+                        Style="{StaticResource AccentButtonStyle}"/>
+                <Button x:Name="ViewWordsButton" Content="查看单词" 
+                        Click="ViewWordsButton_Click" Width="120" Height="40" Margin="10"/>
                 <Button x:Name="ProgressButton" Content="学习进度" 
-                        Click="ProgressButton_Click" Width="140" Height="45" Margin="10"/>
+                        Click="ProgressButton_Click" Width="120" Height="40" Margin="10"
+                        IsEnabled="False"/>
+                <Button x:Name="SettingsButton" Content="设置" 
+                        Click="SettingsButton_Click" Width="120" Height="40" Margin="10"/>
+                <Button x:Name="AboutButton" Content="关于" 
+                        Click="AboutButton_Click" Width="120" Height="40" Margin="10"/>
+                <Button x:Name="GuideButton" Content="使用指南" 
+                        Click="GuideButton_Click" Width="120" Height="40" Margin="10"/>
             </StackPanel>
 
             <!-- Quick Stats -->
@@ -71,8 +63,8 @@
         </StackPanel>
 
         <!-- Footer -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-            <TextBlock Text="English Listen v2.6.0 | 智能英语听写训练系统" FontSize="12" Foreground="Gray"/>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+            <TextBlock Text="English Listen v2.7.0 | 智能英语听写训练系统" FontSize="12" Foreground="Gray"/>
         </StackPanel>
     </Grid>
 </Page>

@@ -1,21 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using English_Listen_WinUI.Models;
+using English_Listen_WinUI.Services;
 
 namespace English_Listen_WinUI.Services
 {
     public class SettingsService
     {
-        private static readonly string AppDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "EnglishListen");
+        private static readonly string AppDataPath = AppDomain.CurrentDomain.BaseDirectory;
 
         private static readonly string SettingsFilePath = Path.Combine(AppDataPath, "settings.json");
         private static readonly string WordlistGroupsFilePath = Path.Combine(AppDataPath, "wordlist_groups.ini");
         private static readonly string TestHistoryFilePath = Path.Combine(AppDataPath, "test_history.json");
+        private static readonly string UsersFilePath = Path.Combine(AppDataPath, "users.json");
 
         private AppSettings _settings = new();
 
@@ -28,11 +29,12 @@ namespace English_Listen_WinUI.Services
 
         private void EnsureDirectoryExists()
         {
+            // Ensure main directory exists
             if (!Directory.Exists(AppDataPath))
             {
                 Directory.CreateDirectory(AppDataPath);
             }
-
+            
             var wordlistDir = Path.Combine(AppDataPath, "wordlist");
             if (!Directory.Exists(wordlistDir))
             {
@@ -47,7 +49,16 @@ namespace English_Listen_WinUI.Services
                 if (File.Exists(SettingsFilePath))
                 {
                     var json = await File.ReadAllTextAsync(SettingsFilePath);
-                    _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                    // Check if file is encrypted
+                    if (json.StartsWith("ENCRYPTED:"))
+                    {
+                        // This is a placeholder - actual decryption would require password
+                        _settings = new AppSettings();
+                    }
+                    else
+                    {
+                        _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                    }
                 }
             }
             catch
@@ -62,6 +73,44 @@ namespace English_Listen_WinUI.Services
             {
                 var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
                 await File.WriteAllTextAsync(SettingsFilePath, json);
+            }
+            catch
+            {
+            }
+        }
+
+        public async Task<string> LoadEncryptedSettingsAsync(string password)
+        {
+            try
+            {
+                if (File.Exists(SettingsFilePath))
+                {
+                    var encryptedData = await File.ReadAllTextAsync(SettingsFilePath);
+                    if (encryptedData.StartsWith("ENCRYPTED:"))
+                    {
+                        var actualData = encryptedData.Substring(10);
+                        var decryptedJson = await EncryptionService.DecryptAsync(actualData, password);
+                        return decryptedJson;
+                    }
+                    else
+                    {
+                        // File is not encrypted, return as-is
+                        return encryptedData;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return "{}";
+        }
+
+        public async Task SaveEncryptedSettingsAsync(string jsonData, string password)
+        {
+            try
+            {
+                var encryptedData = await EncryptionService.EncryptAsync(jsonData, password);
+                await File.WriteAllTextAsync(SettingsFilePath, $"ENCRYPTED:{encryptedData}");
             }
             catch
             {
@@ -204,6 +253,56 @@ namespace English_Listen_WinUI.Services
         public string GetWordlistDirectory()
         {
             return Path.Combine(AppDataPath, "wordlist");
+        }
+
+        public async Task<List<UserData>> LoadUsersAsync()
+        {
+            var users = new List<UserData>();
+            try
+            {
+                if (File.Exists(UsersFilePath))
+                {
+                    var json = await File.ReadAllTextAsync(UsersFilePath);
+                    users = JsonSerializer.Deserialize<List<UserData>>(json) ?? new List<UserData>();
+                }
+            }
+            catch { }
+            return users;
+        }
+
+        public async Task SaveUsersAsync(List<UserData> users)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(users, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(UsersFilePath, json);
+            }
+            catch { }
+        }
+
+        public async Task<bool> CreateUserAsync(string username, string nickname, string password)
+        {
+            var users = await LoadUsersAsync();
+            
+            // Check if user already exists
+            if (users.Any(u => u.Username == username))
+            {
+                return false;
+            }
+
+            var newUser = new UserData
+            {
+                Username = username,
+                Nickname = nickname,
+                CreatedTime = DateTime.Now,
+                LastLoginTime = DateTime.Now,
+                IsActive = true
+            };
+
+            // TODO: Hash password before storing
+            users.Add(newUser);
+            await SaveUsersAsync(users);
+            return true;
         }
     }
 }

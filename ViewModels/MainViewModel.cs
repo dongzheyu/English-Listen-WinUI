@@ -11,7 +11,7 @@ using English_Listen_WinUI.Services;
 
 namespace English_Listen_WinUI.ViewModels
 {
-    public class TestResultViewModel : INotifyPropertyChanged
+    public class TestResultViewModel
     {
         public TestResult Result { get; set; } = new();
 
@@ -20,10 +20,6 @@ namespace English_Listen_WinUI.ViewModels
         public int CorrectCount => Result.CorrectCount;
         public int TotalWords => Result.TotalWords;
         public string AccuracyFormatted => $"{Result.Accuracy:F1}%";
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-#pragma warning disable CS0067
-#pragma warning restore CS0067
     }
 
     public class MainViewModel : ViewModelBase
@@ -45,6 +41,8 @@ namespace English_Listen_WinUI.ViewModels
         private List<string> _currentWords = new();
         private List<TestResult> _testHistory = new();
         private string _wordsText = "";
+        private bool _showAnswers;
+        private int _dictationMode; // 0 = 纸笔听写, 1 = 在线听写
 
         public string CurrentPage
         {
@@ -130,6 +128,20 @@ namespace English_Listen_WinUI.ViewModels
             get => _wordsText;
             set => SetProperty(ref _wordsText, value);
         }
+
+        public bool ShowAnswers
+        {
+            get => _showAnswers;
+            set => SetProperty(ref _showAnswers, value);
+        }
+
+        public int DictationMode
+        {
+            get => _dictationMode;
+            set => SetProperty(ref _dictationMode, value);
+        }
+
+        public int WordsCount => _currentWords.Count;
 
         public Services.SettingsService Settings => _settingsService;
 
@@ -373,7 +385,7 @@ namespace English_Listen_WinUI.ViewModels
             }
         }
 
-        private async Task LoadWordListFilesAsync()
+        public async Task LoadWordListFilesAsync()
         {
             WordListFiles.Clear();
             var files = await _settingsService.GetWordlistFilesAsync();

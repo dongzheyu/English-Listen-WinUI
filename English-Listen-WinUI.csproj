@@ -4,15 +4,39 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>English_Listen_WinUI</RootNamespace>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Platforms>x86;x64;ARM64</Platforms>
-    <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
-    <PublishProfile>win-$(Platform).pubxml</PublishProfile>
+    <Platform>x64</Platform>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+    <SelfContained>true</SelfContained>
+    <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
+  <ItemGroup>
+    <None Remove="logo.scale-100.png" />
+    <None Remove="logo.scale-125.png" />
+    <None Remove="logo.scale-150.png" />
+    <None Remove="logo.scale-200.png" />
+    <None Remove="logo.scale-400.png" />
+    <None Remove="logo.targetsize-16.png" />
+    <None Remove="logo.targetsize-16_altform-lightunplated.png" />
+    <None Remove="logo.targetsize-16_altform-unplated.png" />
+    <None Remove="logo.targetsize-24.png" />
+    <None Remove="logo.targetsize-24_altform-lightunplated.png" />
+    <None Remove="logo.targetsize-24_altform-unplated.png" />
+    <None Remove="logo.targetsize-256.png" />
+    <None Remove="logo.targetsize-256_altform-lightunplated.png" />
+    <None Remove="logo.targetsize-256_altform-unplated.png" />
+    <None Remove="logo.targetsize-32.png" />
+    <None Remove="logo.targetsize-32_altform-lightunplated.png" />
+    <None Remove="logo.targetsize-32_altform-unplated.png" />
+    <None Remove="logo.targetsize-48.png" />
+    <None Remove="logo.targetsize-48_altform-lightunplated.png" />
+    <None Remove="logo.targetsize-48_altform-unplated.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <Content Include="Assets\SplashScreen.scale-200.png" />
@@ -22,6 +46,31 @@
     <Content Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\Wide310x150Logo.scale-200.png" />
+    <Content Include="Assets\logo.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="logo.ico" />
+    <Content Include="Assets\logo.ico" />
+    <Content Include="logo.scale-100.png" />
+    <Content Include="logo.scale-125.png" />
+    <Content Include="logo.scale-150.png" />
+    <Content Include="logo.scale-200.png" />
+    <Content Include="logo.scale-400.png" />
+    <Content Include="logo.targetsize-16.png" />
+    <Content Include="logo.targetsize-16_altform-lightunplated.png" />
+    <Content Include="logo.targetsize-16_altform-unplated.png" />
+    <Content Include="logo.targetsize-24.png" />
+    <Content Include="logo.targetsize-24_altform-lightunplated.png" />
+    <Content Include="logo.targetsize-24_altform-unplated.png" />
+    <Content Include="logo.targetsize-256.png" />
+    <Content Include="logo.targetsize-256_altform-lightunplated.png" />
+    <Content Include="logo.targetsize-256_altform-unplated.png" />
+    <Content Include="logo.targetsize-32.png" />
+    <Content Include="logo.targetsize-32_altform-lightunplated.png" />
+    <Content Include="logo.targetsize-32_altform-unplated.png" />
+    <Content Include="logo.targetsize-48.png" />
+    <Content Include="logo.targetsize-48_altform-lightunplated.png" />
+    <Content Include="logo.targetsize-48_altform-unplated.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,5 +107,10 @@
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
+    <DefaultLanguage>zh-CN</DefaultLanguage>
+    <Win32Resource>D:\c++\WinUI3\English-Listen-WinUI\english_listen.res</Win32Resource>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Optimize>False</Optimize>
   </PropertyGroup>
 </Project>

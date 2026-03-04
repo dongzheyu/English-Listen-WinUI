@@ -5,7 +5,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    d:DesignHeight="600" d:DesignWidth="800">
+    d:DesignHeight="600" d:DesignWidth="800"
+    KeyDown="Page_KeyDown">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -16,7 +17,6 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-            <Button Content="停止" Click="StopButton_Click" Width="80" Height="40" Margin="10"/>
             <TextBlock Text="听写测试" FontSize="24" FontWeight="Bold" 
                        VerticalAlignment="Center" Margin="20"/>
             <TextBlock x:Name="ProgressText" Text="0/0" 
@@ -42,15 +42,17 @@
 
             <!-- Control Buttons -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="20">
-                <Button x:Name="PreviousButton" Content="◀ 上一词" 
+                <Button x:Name="PreviousButton" Content="上一个" 
                         Click="PreviousButton_Click" Width="100" Height="40" Margin="10"/>
-                <Button x:Name="RepeatButton" Content="🔊 朗读" 
+                <Button x:Name="RepeatButton" Content="再读一遍" 
                         Click="RepeatButton_Click" Width="100" Height="40" Margin="10"
                         Style="{StaticResource AccentButtonStyle}"/>
-                <Button x:Name="PauseButton" Content="⏸ 暂停" 
+                <Button x:Name="PauseButton" Content="暂停" 
                         Click="PauseButton_Click" Width="100" Height="40" Margin="10"/>
-                <Button x:Name="NextButton" Content="下一词 ▶" 
+                <Button x:Name="NextButton" Content="下一个" 
                         Click="NextButton_Click" Width="100" Height="40" Margin="10"/>
+                <Button x:Name="ExitTestButton" Content="退出测试" 
+                        Click="ExitTestButton_Click" Width="100" Height="40" Margin="10"/>
             </StackPanel>
 
             <!-- Settings -->
@@ -66,8 +68,10 @@
 
         <!-- Hint -->
         <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="20">
-            <TextBlock Text="快捷键: 空格=朗读 | 左=上一词 | 右=下一词 | ESC=暂停" 
+            <TextBlock Text="注意：点击'下一个'按钮将跳过当前单词并立即播放下一个单词" 
                        FontSize="12" Foreground="Gray"/>
+            <TextBlock Text="快捷键: 空格=朗读 | 左=上一词 | 右=下一词 | ESC=暂停" 
+                       FontSize="12" Foreground="Gray" Margin="0,5,0,0"/>
         </StackPanel>
     </Grid>
 </Page>
