@@ -5,134 +5,149 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    d:DesignHeight="600" d:DesignWidth="800">
+    d:DesignHeight="400" d:DesignWidth="500">
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-            <TextBlock Text="设置" FontSize="24" FontWeight="Bold" 
+            <TextBlock Text="设置" 
+                        Style="{ThemeResource TitleTextBlockStyle}"
                        VerticalAlignment="Center" Margin="20"/>
         </StackPanel>
 
-        <!-- Settings Content -->
         <ScrollViewer Grid.Row="1" Margin="20">
-            <StackPanel>
-                <!-- Theme Settings -->
-                <TextBlock Text="主题设置" FontSize="18" FontWeight="Bold" Margin="10"/>
-                <StackPanel Orientation="Horizontal" Margin="20">
-                    <Button x:Name="ThemeToggleButton" Content="切换到浅色主题" 
-                            Click="ThemeToggleButton_Click" Width="180" Height="50" Margin="10"/>
-                </StackPanel>
+            <StackPanel Spacing="15">
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="8" Padding="20"
+                        BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <TextBlock Text="主题设置" 
+                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,10"/>
+                        <ComboBox x:Name="ThemeComboBox" Width="200"
+                                  HorizontalAlignment="Left"
+                                  SelectionChanged="ThemeComboBox_SelectionChanged">
+                            <ComboBoxItem Content="浅色" Tag="0"/>
+                            <ComboBoxItem Content="深色" Tag="1"/>
+                            <ComboBoxItem Content="跟随系统" Tag="2"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
 
-                <!-- Speech Settings -->
-                <TextBlock Text="朗读设置" FontSize="18" FontWeight="Bold" Margin="10"/>
-                <StackPanel Margin="20">
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <TextBlock Text="朗读时间间隔(秒):" Width="150" VerticalAlignment="Center"/>
-                        <Slider x:Name="IntervalSlider" Width="200" 
-                                Minimum="1" Maximum="60" Value="5"
-                                ValueChanged="IntervalSlider_ValueChanged"/>
-                        <TextBlock x:Name="IntervalText" Text="5秒" 
-                                   VerticalAlignment="Center" Margin="10"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <TextBlock Text="朗读引擎:" Width="150" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="SpeechEngineComboBox" Width="200"
-                                  SelectionChanged="SpeechEngineComboBox_SelectionChanged">
-                            <ComboBoxItem Content="SAPI (Windows内置)" Tag="0"/>
-                            <ComboBoxItem Content="Flite (第三方引擎)" Tag="1"/>
-                        </ComboBox>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <TextBlock Text="SAPI语音:" Width="150" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="SapiVoiceComboBox" Width="200"/>
-                        <Button Content="试听" Click="PreviewButton_Click" Margin="10" Width="80" Height="40"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <TextBlock Text="Flite语音模型:" Width="150" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="VoiceModelComboBox" Width="200">
-                            <ComboBoxItem Content="cmu_us_slt (女声)"/>
-                            <ComboBoxItem Content="cmu_us_awb (男声)"/>
-                            <ComboBoxItem Content="cmu_us_bdl (男声)"/>
-                            <ComboBoxItem Content="cmu_us_jmk (男声)"/>
-                            <ComboBoxItem Content="cmu_us_ksp (男声)"/>
-                            <ComboBoxItem Content="cmu_us_rms (男声)"/>
-                        </ComboBox>
-                        <Button Content="试听" Click="PreviewButton_Click" Margin="10" Width="80" Height="40"/>
-                    </StackPanel>
-                    <TextBlock Text="不同语音模型会产生不同的语音效果，您可以根据喜好选择合适的语音模型。点击试听按钮可预览效果。" 
-                               TextWrapping="Wrap" Margin="10" Foreground="Gray"/>
-                    
-                    <StackPanel Orientation="Horizontal" Margin="10">
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="8" Padding="20"
+                        BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <TextBlock Text="朗读设置" 
+                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
+                        
+                        <StackPanel Margin="0,10">
+                            <TextBlock Text="朗读时间间隔(秒):" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
+                                <Slider x:Name="IntervalSlider" Grid.Column="0" Grid.Row="0"
+                                        Minimum="1" Maximum="30" Value="5"
+                                        ValueChanged="IntervalSlider_ValueChanged"/>
+                                <TextBlock x:Name="IntervalText" Grid.Column="1" Grid.Row="0" 
+                                           Text="5秒" 
+                                           VerticalAlignment="Center" Margin="10,0,0,0"
+                                           Style="{ThemeResource BodyTextBlockStyle}"/>
+                            </Grid>
+                        </StackPanel>
+                        
+                        <StackPanel Margin="0,15,0,10">
+                            <TextBlock Text="语音引擎:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <ComboBox x:Name="EngineComboBox" 
+                                      SelectionChanged="EngineComboBox_SelectionChanged">
+                                <ComboBoxItem Content="自动选择" Tag="Auto"/>
+                                <ComboBoxItem Content="Windows系统语音" Tag="WindowsTTS"/>
+                                <ComboBoxItem Content="Flite语音引擎" Tag="Flite"/>
+                            </ComboBox>
+                            <TextBlock x:Name="EngineStatusText" Text="" 
+                                       Style="{ThemeResource CaptionTextBlockStyle}" 
+                                       Foreground="{ThemeResource TextFillColorSecondary}"
+                                       Margin="0,5,0,0"/>
+                        </StackPanel>
+                        
+                        <!-- Windows TTS 语音选择 -->
+                        <StackPanel Margin="0,15,0,10" x:Name="WindowsTtsVoicePanel" Visibility="Collapsed">
+                            <TextBlock Text="系统语音:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <ComboBox x:Name="WindowsTtsVoiceComboBox" Grid.Column="0"
+                                          SelectionChanged="WindowsTtsVoiceComboBox_SelectionChanged"/>
+                                <Button x:Name="WindowsTtsPreviewButton" Grid.Column="1" 
+                                        Content="试听" Margin="10,0,0,0" Width="60"
+                                        Click="WindowsTtsPreviewButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                        
+                        <StackPanel Margin="0,15,0,10" x:Name="VoiceModelPanel">
+                            <TextBlock Text="语音模型:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <ComboBox x:Name="VoiceModelComboBox" Grid.Column="0"
+                                          SelectionChanged="VoiceModelComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="女声 (slt)" Tag="cmu_us_slt"/>
+                                    <ComboBoxItem Content="男声 (awb)" Tag="cmu_us_awb"/>
+                                    <ComboBoxItem Content="男声 (bdl)" Tag="cmu_us_bdl"/>
+                                    <ComboBoxItem Content="男声 (jmk)" Tag="cmu_us_jmk"/>
+                                    <ComboBoxItem Content="男声 (ksp)" Tag="cmu_us_ksp"/>
+                                    <ComboBoxItem Content="男声 (rms)" Tag="cmu_us_rms"/>
+                                </ComboBox>
+                                <Button x:Name="FlitePreviewButton" Grid.Column="1" 
+                                        Content="试听" Margin="10,0,0,0" Width="60"
+                                        Click="FlitePreviewButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                        
                         <CheckBox x:Name="RandomOrderCheckBox" Content="随机播放单词" 
-                                  Checked="RandomOrderCheckBox_Checked" Unchecked="RandomOrderCheckBox_Unchecked"/>
+                                  Checked="RandomOrderCheckBox_Changed" 
+                                  Unchecked="RandomOrderCheckBox_Changed"
+                                  Margin="0,10,0,0"/>
                     </StackPanel>
-                </StackPanel>
+                </Border>
 
-                <!-- Security Settings -->
-                <TextBlock Text="安全设置" FontSize="18" FontWeight="Bold" Margin="10"/>
-                <StackPanel Margin="20">
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <CheckBox x:Name="EncryptionCheckBox" Content="启用数据加密" 
-                                  Checked="EncryptionCheckBox_Checked" Unchecked="EncryptionCheckBox_Unchecked"/>
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="8" Padding="20"
+                        BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <TextBlock Text="系统设置" 
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
+                        
+                        <!-- 更新设置 -->
+                        <StackPanel Margin="0,0,0,15">
+                            <TextBlock Text="更新设置" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="CurrentVersionLabel" Text="当前版本: v2.7.0" 
+                                       Style="{ThemeResource BodyTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock Text="点击检查更新按钮将会连接到服务器检查是否有新版本可用。如果有新版本，程序会自动下载并安装。" 
+                                       Style="{ThemeResource CaptionTextBlockStyle}" 
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+                            <Button x:Name="CheckUpdateButton" Content="检查更新" 
+                                    Click="CheckUpdateButton_Click" 
+                                    Style="{ThemeResource AccentButtonStyle}"
+                                    HorizontalAlignment="Left"/>
+                            <TextBlock x:Name="UpdateStatusText" Text="" 
+                                       Style="{ThemeResource CaptionTextBlockStyle}" 
+                                       Margin="0,5,0,0"/>
+                        </StackPanel>
+                        
+                        <Button Content="初始化程序" Click="InitializeButton_Click" 
+                                Style="{ThemeResource AccentButtonStyle}"
+                                HorizontalAlignment="Left"/>
+                        <TextBlock x:Name="VersionLabel" Text="当前版本: v2.7.0" 
+                                   Style="{ThemeResource BodyTextBlockStyle}" Margin="0,10,0,0" Visibility="Collapsed"/>
                     </StackPanel>
-                    <TextBlock Text="启用数据加密可以保护您的用户数据不被未授权访问。加密模式下需要输入密码才能登录。" 
-                               TextWrapping="Wrap" Margin="10" Foreground="Gray"/>
-                    <Button Content="初始化程序" Click="InitializeButton_Click" 
-                            Width="180" Height="50" Margin="10" 
-                            Style="{StaticResource AccentButtonStyle}"/>
-                </StackPanel>
-
-                <!-- Privacy Settings -->
-                <TextBlock Text="隐私设置" FontSize="18" FontWeight="Bold" Margin="10"/>
-                <StackPanel Margin="20">
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <CheckBox x:Name="DataCollectionCheckBox" Content="允许数据收集" 
-                                  Checked="DataCollectionCheckBox_Checked" Unchecked="DataCollectionCheckBox_Unchecked"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <CheckBox x:Name="CloudSyncCheckBox" Content="允许云同步" 
-                                  Checked="CloudSyncCheckBox_Checked" Unchecked="CloudSyncCheckBox_Unchecked"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <CheckBox x:Name="AnalyticsCheckBox" Content="允许统计分析" 
-                                  Checked="AnalyticsCheckBox_Checked" Unchecked="AnalyticsCheckBox_Unchecked"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="10">
-                        <CheckBox x:Name="ShareStatsCheckBox" Content="分享学习统计" 
-                                  Checked="ShareStatsCheckBox_Checked" Unchecked="ShareStatsCheckBox_Unchecked"/>
-                    </StackPanel>
-                    <TextBlock Text="这些设置控制应用程序如何处理您的个人数据和学习信息。您可以随时更改这些选项。" 
-                               TextWrapping="Wrap" Margin="10" Foreground="Gray"/>
-                </StackPanel>
-
-                <!-- Update Settings -->
-                <TextBlock Text="更新设置" FontSize="18" FontWeight="Bold" Margin="10"/>
-                <StackPanel Margin="20">
-                    <TextBlock x:Name="VersionLabel" Text="当前版本: v2.7.0" 
-                               Margin="10" FontWeight="Bold"/>
-                    <Button Content="检查更新" Click="CheckUpdateButton_Click" 
-                            Width="180" Height="50" Margin="10"/>
-                    <TextBlock Text="点击检查更新按钮将会连接到服务器检查是否有新版本可用。如果有新版本，程序会自动下载并安装。" 
-                               TextWrapping="Wrap" Margin="10" Foreground="Gray" FontSize="12"/>
-                </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
-
-        <!-- Footer -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" 
-                    HorizontalAlignment="Center" Margin="10">
-            <Button Content="保存设置" Click="SaveButton_Click" 
-                    Width="160" Height="45" Margin="10"
-                    Style="{StaticResource AccentButtonStyle}"/>
-            <Button Content="返回" Click="BackButton_Click" 
-                    Width="120" Height="40" Margin="10"/>
-        </StackPanel>
     </Grid>
 </Page>

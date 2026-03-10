@@ -1,0 +1,162 @@
+<Page
+    x:Class="English_Listen_WinUI.Views.HelpPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="600" d:DesignWidth="800">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+            <!-- Title -->
+            <TextBlock Text="使用教程"
+                       FontSize="36" FontWeight="Bold" 
+                       HorizontalAlignment="Center" 
+                       Margin="0,0,0,30"/>
+            
+            <!-- Getting Started Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,20"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="🚀 快速开始" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="1. 点击'查看单词'添加您的词库" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="2. 返回主页点击'开始听写测试'" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="3. 选择听写模式并开始练习" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="4. 完成后查看答案和统计信息" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Word Management Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,20"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="📚 单词管理" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="• 在'查看单词'页面可以添加、编辑和删除单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 支持从文件导入词库 (.txt格式)" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 可以创建和管理多个词库分组" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 支持搜索和筛选单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Dictation Modes Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,20"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="🎧 听写模式" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="• 顺序听写：按词库顺序朗读单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 随机听写：随机顺序朗读单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 可调节朗读时间间隔 (2-10秒)" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 支持 Windows SAPI 和 Flite 两种语音引擎" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Keyboard Shortcuts Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,20"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="⌨️ 快捷键" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="• 空格键：重复朗读当前单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 方向键：切换单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• Enter键：确认输入" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• Esc键：退出当前操作" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- User Features Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,20"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="👤 用户功能" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="• 登录后可以查看个人学习进度和测试历史" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 测试结果会自动保存到个人账户" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 可以在设置中配置个性化选项" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 未登录用户无法查看学习进度" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Settings Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="⚙️ 设置选项" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="• 主题切换：深色/浅色模式" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 语音引擎选择：SAPI或Flite" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 朗读间隔设置：2-10秒" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 词库目录配置" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

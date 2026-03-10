@@ -13,5 +13,30 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Frame x:Name="ContentFrame" />
+    <NavigationView x:Name="MainNavigationView"
+                    PaneDisplayMode="Left"
+                    IsSettingsVisible="True"
+                    IsBackButtonVisible="Auto"
+                    IsBackEnabled="True"
+                    SelectionChanged="NavigationView_SelectionChanged"
+                    ItemInvoked="NavigationView_ItemInvoked">
+        
+        <!-- Menu Items -->
+        <NavigationView.MenuItems>
+            <NavigationViewItem Icon="Home" Content="主页" Tag="HomePage" />
+            <NavigationViewItem Icon="Library" Content="查看单词" Tag="WordsPage" />
+            <NavigationViewItem Icon="People" Content="用户管理" Tag="UserPage" />
+            <NavigationViewItem Icon="Map" Content="学习进度" Tag="ProgressPage" />
+        </NavigationView.MenuItems>
+        
+        <!-- Footer Menu Items -->
+        <NavigationView.FooterMenuItems>
+            <NavigationViewItem Icon="Help" Content="帮助" Tag="HelpPage" />
+            <NavigationViewItem Icon="ContactInfo" Content="关于" Tag="AboutPage" />
+        </NavigationView.FooterMenuItems>
+
+        <!-- Content Frame -->
+        <Frame x:Name="ContentFrame" />
+        
+    </NavigationView>
 </Window>

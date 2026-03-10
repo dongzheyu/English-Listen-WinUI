@@ -1,0 +1,9 @@
+{
+  "ThemeMode": 2,
+  "ReadInterval": 5,
+  "SpeechEngine": 1,
+  "FliteVoiceModel": "cmu_us_slt",
+  "IsRandomOrder": true,
+  "WordlistDirPath": "./wordlist",
+  "CurrentUser": null
+}

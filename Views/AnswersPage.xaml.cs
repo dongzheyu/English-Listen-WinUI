@@ -27,10 +27,14 @@ namespace English_Listen_WinUI.Views
         {
             if (_viewModel == null) return;
             
-            var words = _viewModel.WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             var answerText = "";
             
-            for (int i = 0; i < words.Length; i++)
+            // Use CurrentWords if available, otherwise fall back to WordsText
+            var words = _viewModel.CurrentWords != null && _viewModel.CurrentWords.Count > 0 
+                ? _viewModel.CurrentWords 
+                : _viewModel.WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            
+            for (int i = 0; i < words.Count; i++)
             {
                 answerText += $"{i + 1}. {words[i].Trim()}\n";
             }

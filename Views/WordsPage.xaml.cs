@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Windows.System;
 using English_Listen_WinUI.ViewModels;
 
 namespace English_Listen_WinUI.Views
@@ -15,9 +16,8 @@ namespace English_Listen_WinUI.Views
     {
         private readonly MainViewModel _viewModel;
         private string _originalWordsText = "";
-        private bool _hasShownLoadDialog = false;
-        private Dictionary<string, string> _fileToGroupMap = new();
-        private List<string> _unloadedFiles = new();
+        private string _selectedFileName = "";
+        private DispatcherTimer? _autoSaveTimer;
 
         public WordsPage()
         {
@@ -25,30 +25,367 @@ namespace English_Listen_WinUI.Views
             _viewModel = App.SharedViewModel!;
             this.DataContext = _viewModel;
             Loaded += WordsPage_Loaded;
+            
+            // 初始化自动保存计时器
+            _autoSaveTimer = new DispatcherTimer();
+            _autoSaveTimer.Interval = TimeSpan.FromMilliseconds(500); // 500ms延迟，避免频繁保存
+            _autoSaveTimer.Tick += AutoSaveTimer_Tick;
         }
 
         private async void WordsPage_Loaded(object sender, RoutedEventArgs e)
         {
             if (_viewModel == null) return;
             
-            // 确保词库文件列表已加载
             if (_viewModel.WordListFiles.Count == 0)
             {
                 try
                 {
                     await _viewModel.LoadWordListFilesAsync();
                 }
-                catch { /* 忽略加载错误 */ }
+                catch { }
             }
             
+            // 初始化时处理临时文件
+            var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
+            if (System.IO.File.Exists(tempPath))
+            {
+                // 如果存在临时文件，删除并创建新的
+                System.IO.File.Delete(tempPath);
+                System.IO.File.WriteAllText(tempPath, "");
+            }
+            else
+            {
+                // 如果不存在临时文件，创建新的空文件
+                System.IO.File.WriteAllText(tempPath, "");
+            }
+            
+            // 使用空的临时文件内容
+            WordsTextBox.Text = "";
+            _originalWordsText = "";
+            
+            // 更新ViewModel
+            _viewModel.WordsText = "";
+            _viewModel.CurrentWords = new List<string>();
+            _viewModel.CurrentWordListName = "临时词库";
+            
+            // Populate list
+            PopulateWordList();
+        }
+
+        private void PopulateWordList()
+        {
+            WordlistListBox.Items.Clear();
+            
+            foreach (var fileName in _viewModel.WordListFiles)
+            {
+                WordlistListBox.Items.Add(fileName);
+            }
+        }
+
+        private void WordlistListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (WordlistListBox.SelectedItem != null)
+            {
+                _selectedFileName = WordlistListBox.SelectedItem.ToString() ?? "";
+            }
+        }
+
+        private async void LoadWordlistButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null || string.IsNullOrEmpty(_selectedFileName)) return;
+            
+            await _viewModel.LoadWordsAsync(_selectedFileName);
             WordsTextBox.Text = _viewModel.WordsText;
             _originalWordsText = _viewModel.WordsText;
+        }
+
+        private async void LoadGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            var groups = await _viewModel.Settings.LoadWordlistGroupsAsync();
             
-            // 仅在首次访问时显示加载对话框
-            if (!_hasShownLoadDialog && (_viewModel.WordListFiles.Count > 0 || _viewModel.WordsCount > 0))
+            if (groups.Count == 0)
             {
-                _hasShownLoadDialog = true;
-                await ShowLoadFileDialog();
+                var errorDialog = new ContentDialog
+                {
+                    Title = "提示",
+                    Content = "没有可加载的分组",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                return;
+            }
+            
+            var dialog = new ContentDialog
+            {
+                Title = "加载分组",
+                PrimaryButtonText = "加载",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel();
+            stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
+            
+            var groupComboBox = new ComboBox
+            {
+                Header = "选择要加载的分组",
+                ItemsSource = groups.Select(g => g.Name).ToList(),
+                SelectedIndex = 0
+            };
+            stackPanel.Children.Add(groupComboBox);
+            
+            dialog.Content = stackPanel;
+            
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var selectedGroupName = groupComboBox.SelectedItem?.ToString();
+                if (string.IsNullOrEmpty(selectedGroupName)) return;
+                
+                var selectedGroup = groups.FirstOrDefault(g => g.Name == selectedGroupName);
+                if (selectedGroup == null) return;
+                
+                // 加载分组中的所有词库文件
+                var allWords = new List<string>();
+                foreach (var fileName in selectedGroup.WordListNames)
+                {
+                    var filePath = System.IO.Path.Combine(_viewModel.Settings.GetWordlistDirectory(), fileName);
+                    if (System.IO.File.Exists(filePath))
+                    {
+                        var words = await _viewModel.Settings.LoadWordsFromFileAsync(filePath);
+                        allWords.AddRange(words);
+                    }
+                }
+                
+                // 显示到文本框
+                WordsTextBox.Text = string.Join("\n", allWords);
+                _originalWordsText = WordsTextBox.Text;
+                
+                // 更新ViewModel
+                _viewModel.WordsText = WordsTextBox.Text;
+                _viewModel.CurrentWords = allWords;
+                _viewModel.CurrentWordListName = $"分组: {selectedGroupName}";
+                
+                var successDialog = new ContentDialog
+                {
+                    Title = "成功",
+                    Content = $"分组 '{selectedGroupName}' 加载成功，包含 {allWords.Count} 个单词",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await successDialog.ShowAsync();
+            }
+        }
+
+        private async void CreateGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "创建分组",
+                PrimaryButtonText = "创建",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel();
+            stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
+            
+            var nameBox = new TextBox { Header = "分组名称", PlaceholderText = "输入分组名称" };
+            stackPanel.Children.Add(nameBox);
+            
+            dialog.Content = stackPanel;
+            
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                if (string.IsNullOrWhiteSpace(nameBox.Text))
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "错误",
+                        Content = "分组名称不能为空",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                    return;
+                }
+                
+                // 创建新分组
+                var newGroup = new Models.WordListGroup
+                {
+                    Name = nameBox.Text.Trim()
+                };
+                
+                // 保存分组
+                var groups = await _viewModel.Settings.LoadWordlistGroupsAsync();
+                groups.Add(newGroup);
+                await _viewModel.Settings.SaveWordlistGroupsAsync(groups);
+                
+                var successDialog = new ContentDialog
+                {
+                    Title = "成功",
+                    Content = $"分组 '{nameBox.Text}' 创建成功",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await successDialog.ShowAsync();
+            }
+        }
+
+        private async void EditGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            var groups = await _viewModel.Settings.LoadWordlistGroupsAsync();
+            
+            if (groups.Count == 0)
+            {
+                var errorDialog = new ContentDialog
+                {
+                    Title = "提示",
+                    Content = "没有可编辑的分组",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                return;
+            }
+            
+            var dialog = new ContentDialog
+            {
+                Title = "编辑分组",
+                PrimaryButtonText = "保存",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel();
+            stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
+            
+            // 分组选择
+            var groupComboBox = new ComboBox
+            {
+                Header = "选择分组",
+                ItemsSource = groups.Select(g => g.Name).ToList(),
+                SelectedIndex = 0
+            };
+            stackPanel.Children.Add(groupComboBox);
+            
+            // 词库文件列表
+            var fileListView = new ListView
+            {
+                Header = "选择要添加到分组的词库文件",
+                SelectionMode = ListViewSelectionMode.Multiple,
+                Height = 200
+            };
+            fileListView.ItemsSource = _viewModel.WordListFiles;
+            stackPanel.Children.Add(fileListView);
+            
+            dialog.Content = stackPanel;
+            
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var selectedGroupName = groupComboBox.SelectedItem?.ToString();
+                if (string.IsNullOrEmpty(selectedGroupName)) return;
+                
+                var selectedGroup = groups.FirstOrDefault(g => g.Name == selectedGroupName);
+                if (selectedGroup == null) return;
+                
+                // 更新分组中的词库文件
+                selectedGroup.WordListNames.Clear();
+                foreach (var selectedItem in fileListView.SelectedItems)
+                {
+                    if (selectedItem is string fileName)
+                    {
+                        selectedGroup.WordListNames.Add(fileName);
+                    }
+                }
+                
+                // 保存分组
+                await _viewModel.Settings.SaveWordlistGroupsAsync(groups);
+                
+                var successDialog = new ContentDialog
+                {
+                    Title = "成功",
+                    Content = $"分组 '{selectedGroupName}' 编辑成功",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await successDialog.ShowAsync();
+            }
+        }
+
+        private async void DeleteGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            var groups = await _viewModel.Settings.LoadWordlistGroupsAsync();
+            
+            if (groups.Count == 0)
+            {
+                var errorDialog = new ContentDialog
+                {
+                    Title = "提示",
+                    Content = "没有可删除的分组",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                return;
+            }
+            
+            var dialog = new ContentDialog
+            {
+                Title = "删除分组",
+                PrimaryButtonText = "删除",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel();
+            stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
+            
+            var groupComboBox = new ComboBox
+            {
+                Header = "选择要删除的分组",
+                ItemsSource = groups.Select(g => g.Name).ToList(),
+                SelectedIndex = 0
+            };
+            stackPanel.Children.Add(groupComboBox);
+            
+            dialog.Content = stackPanel;
+            
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var selectedGroupName = groupComboBox.SelectedItem?.ToString();
+                if (string.IsNullOrEmpty(selectedGroupName)) return;
+                
+                // 确认删除
+                var confirmDialog = new ContentDialog
+                {
+                    Title = "确认删除",
+                    Content = $"确定要删除分组 '{selectedGroupName}' 吗？",
+                    PrimaryButtonText = "确定",
+                    CloseButtonText = "取消",
+                    XamlRoot = this.XamlRoot
+                };
+                
+                var confirmResult = await confirmDialog.ShowAsync();
+                if (confirmResult == ContentDialogResult.Primary)
+                {
+                    // 删除分组
+                    groups.RemoveAll(g => g.Name == selectedGroupName);
+                    await _viewModel.Settings.SaveWordlistGroupsAsync(groups);
+                    
+                    var successDialog = new ContentDialog
+                    {
+                        Title = "成功",
+                        Content = $"分组 '{selectedGroupName}' 删除成功",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await successDialog.ShowAsync();
+                }
             }
         }
 
@@ -57,222 +394,11 @@ namespace English_Listen_WinUI.Views
             Frame?.Navigate(typeof(HomePage));
         }
 
-        private async Task ShowLoadFileDialog()
-        {
-            if (_viewModel.WordListFiles.Count == 0)
-            {
-                // 如果没有词库文件，直接进入管理界面
-                return;
-            }
-            
-            // 构建分组映射（从配置文件读取）
-            await LoadFileGroupMapping();
-            
-            // 创建选择对话框
-            var dialog = new ContentDialog
-            {
-                Title = "选择要加载的词库",
-                PrimaryButtonText = "加载",
-                SecondaryButtonText = "跳过",
-                CloseButtonText = "取消",
-                XamlRoot = this.XamlRoot
-            };
-            
-            var stackPanel = new StackPanel { Margin = new Thickness(20) };
-            
-            // 分组显示文件
-            var groupedFiles = GroupFilesByCategory(_viewModel.WordListFiles.ToList());
-            
-            foreach (var group in groupedFiles)
-            {
-                if (group.Key != "未分组" || group.Value.Count > 0)
-                {
-                var groupHeader = new TextBlock 
-                { 
-                    Text = group.Key, 
-                    Margin = new Thickness(0, 10, 0, 5)
-                };
-                    stackPanel.Children.Add(groupHeader);
-                    
-                    var listView = new ListView { MinHeight = 100, SelectionMode = ListViewSelectionMode.Multiple };
-                    foreach (var file in group.Value)
-                    {
-                        listView.Items.Add(file);
-                    }
-                    stackPanel.Children.Add(listView);
-                }
-            }
-            
-            dialog.Content = stackPanel;
-            var result = await dialog.ShowAsync();
-            
-            if (result == ContentDialogResult.Primary)
-            {
-                // 获取选中的文件并加载
-                var selectedFiles = new List<string>();
-                foreach (var child in stackPanel.Children)
-                {
-                    if (child is ListView listView)
-                    {
-                        foreach (var selectedItem in listView.SelectedItems)
-                        {
-                            selectedFiles.Add(selectedItem.ToString());
-                        }
-                    }
-                }
-                
-                if (selectedFiles.Count > 0)
-                {
-                    await LoadSelectedFiles(selectedFiles);
-                }
-            }
-            // Secondary (跳过) 或 Cancel: 直接进入管理界面
-        }
-        
-        private Dictionary<string, List<string>> GroupFilesByCategory(List<string> files)
-        {
-            var grouped = new Dictionary<string, List<string>>();
-            grouped["未分组"] = new List<string>();
-            
-            foreach (var file in files)
-            {
-                var fileName = Path.GetFileName(file);
-                if (_fileToGroupMap.ContainsKey(fileName))
-                {
-                    var groupName = _fileToGroupMap[fileName];
-                    if (!grouped.ContainsKey(groupName))
-                    {
-                        grouped[groupName] = new List<string>();
-                    }
-                    grouped[groupName].Add(fileName);
-                }
-                else
-                {
-                    grouped["未分组"].Add(fileName);
-                }
-            }
-            
-            // 移除空的"未分组"
-            if (grouped["未分组"].Count == 0)
-            {
-                grouped.Remove("未分组");
-            }
-            
-            return grouped;
-        }
-        
-        private async Task LoadFileGroupMapping()
-        {
-            try
-            {
-                // 从配置文件加载分组映射
-                var groups = await _viewModel.Settings.LoadWordlistGroupsAsync();
-                _fileToGroupMap.Clear();
-                
-                foreach (var group in groups)
-                {
-                    foreach (var fileName in group.WordListNames)
-                    {
-                        _fileToGroupMap[fileName] = group.Name;
-                    }
-                }
-            }
-            catch { /* 忽略错误 */ }
-        }
-        
-        private async Task LoadSelectedFiles(List<string> selectedFiles)
-        {
-            var allWords = new List<string>();
-            
-            foreach (var fileName in selectedFiles)
-            {
-                var filePath = Path.Combine(_viewModel.Settings.GetWordlistDirectory(), fileName);
-                var words = await _viewModel.Settings.LoadWordsFromFileAsync(filePath);
-                allWords.AddRange(words);
-            }
-            
-            // 去重并排序
-            allWords = allWords.Distinct().OrderBy(w => w).ToList();
-            
-            _viewModel.WordsText = string.Join(Environment.NewLine, allWords);
-            WordsTextBox.Text = _viewModel.WordsText;
-            _originalWordsText = _viewModel.WordsText;
-        }
 
-        private async void SaveButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null) return;
-            
-            _viewModel.WordsText = WordsTextBox.Text;
-            await _viewModel.SaveWordsAsync();
-            
-            var dialog = new ContentDialog
-            {
-                Title = "保存成功",
-                Content = $"词库已成功保存",
-                CloseButtonText = "确定",
-                XamlRoot = this.XamlRoot
-            };
-            await dialog.ShowAsync();
-        }
 
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
             WordsTextBox.Text = "";
-        }
-
-        private async void NewWordListButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null) return;
-            
-            var dialog = new ContentDialog
-            {
-                Title = "新建词库",
-                Content = new TextBox { PlaceholderText = "请输入词库名称" },
-                PrimaryButtonText = "创建",
-                CloseButtonText = "取消",
-                XamlRoot = this.XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
-            {
-                var textBox = dialog.Content as TextBox;
-                if (textBox != null && !string.IsNullOrWhiteSpace(textBox.Text))
-                {
-                    var fileName = textBox.Text.Trim() + ".txt";
-                    // Create empty file
-                    var filePath = Path.Combine(
-                        _viewModel.Settings.GetWordlistDirectory(),
-                        fileName);
-                    await File.WriteAllTextAsync(filePath, "");
-                    
-                    await _viewModel.LoadWordListFilesAsync();
-                }
-            }
-        }
-
-        private async void DeleteWordListButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null) return;
-
-            var dialog = new ContentDialog
-            {
-                Title = "确认删除",
-                Content = $"确定要删除当前词库吗？",
-                PrimaryButtonText = "删除",
-                CloseButtonText = "取消",
-                XamlRoot = this.XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
-            {
-                // 清空当前内容
-                WordsTextBox.Text = "";
-                _viewModel.WordsText = "";
-                _originalWordsText = "";
-            }
         }
 
         private void AddWordButton_Click(object sender, RoutedEventArgs e)
@@ -303,20 +429,17 @@ namespace English_Listen_WinUI.Views
 
         private void DeleteSelectedButton_Click(object sender, RoutedEventArgs e)
         {
-            // 获取选中的文本并删除
             var text = WordsTextBox.Text;
             var selectionStart = WordsTextBox.SelectionStart;
             var selectionLength = WordsTextBox.SelectionLength;
             
             if (selectionLength > 0)
             {
-                // 删除选中的文本
                 WordsTextBox.Text = text.Remove(selectionStart, selectionLength);
             }
             else
             {
-                // 删除当前行
-                var lines = text.Split('\n');
+                string[] lines = text.Split('\n');
                 var currentLineIndex = 0;
                 var charCount = 0;
                 
@@ -327,10 +450,9 @@ namespace English_Listen_WinUI.Views
                         currentLineIndex = i;
                         break;
                     }
-                    charCount += lines[i].Length + 1; // +1 for newline
+                    charCount += lines[i].Length + 1;
                 }
                 
-                // 删除当前行
                 if (currentLineIndex < lines.Length)
                 {
                     var newLines = lines.Where((line, index) => index != currentLineIndex).ToArray();
@@ -341,10 +463,41 @@ namespace English_Listen_WinUI.Views
 
         private void WordsTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            // 触发搜索/筛选
-            if (_viewModel != null)
+            // 每次文本变化时重启计时器（防抖）
+            if (_autoSaveTimer != null)
             {
-                ApplyFilter();
+                _autoSaveTimer.Stop();
+                _autoSaveTimer.Start();
+            }
+        }
+        
+        private async void AutoSaveTimer_Tick(object? sender, object e)
+        {
+            if (_autoSaveTimer != null)
+            {
+                _autoSaveTimer.Stop();
+            }
+            
+            // 保存到临时文件
+            await SaveToTempFileAsync();
+        }
+        
+        private async Task SaveToTempFileAsync()
+        {
+            try
+            {
+                var words = WordsTextBox.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(w => w.Trim())
+                    .Where(w => !string.IsNullOrEmpty(w))
+                    .ToList();
+                
+                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
+                await System.IO.File.WriteAllLinesAsync(tempPath, words);
+            }
+            catch (Exception ex)
+            {
+                // 如果无法创建临时文件，记录日志但不中断用户操作
+                System.Diagnostics.Debug.WriteLine($"Auto-save failed: {ex.Message}");
             }
         }
 
@@ -367,10 +520,14 @@ namespace English_Listen_WinUI.Views
 
         private void ApplyFilter()
         {
-            if (_viewModel == null) return;
-            
             var searchText = SearchTextBox.Text;
             var filterType = (FilterComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "全部单词";
+            
+            // Check if _originalWordsText is initialized
+            if (string.IsNullOrEmpty(_originalWordsText))
+            {
+                return;
+            }
             
             if (string.IsNullOrEmpty(searchText) && filterType == "全部单词")
             {
@@ -379,33 +536,125 @@ namespace English_Listen_WinUI.Views
             }
             
             var lines = _originalWordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            var filteredLines = lines.Where(line =>
+            var filteredLines = lines.AsEnumerable();
+            
+            // Apply search filter
+            if (!string.IsNullOrEmpty(searchText))
             {
-                var trimmedLine = line.Trim();
-                if (string.IsNullOrEmpty(trimmedLine)) return false;
-                
-                // 应用搜索
-                if (!string.IsNullOrEmpty(searchText) && !trimmedLine.Contains(searchText, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-                
-                // 应用筛选
-                switch (filterType)
-                {
-                    case "以字母开头":
-                        return !string.IsNullOrEmpty(trimmedLine) && char.IsLetter(trimmedLine[0]);
-                    case "以数字开头":
-                        return !string.IsNullOrEmpty(trimmedLine) && char.IsDigit(trimmedLine[0]);
-                    default:
-                        return true;
-                }
-            }).ToArray();
+                filteredLines = filteredLines.Where(line =>
+                    line.Trim().Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
+            
+            // Apply type filter
+            switch (filterType)
+            {
+                case "以字母开头":
+                    filteredLines = filteredLines.Where(line =>
+                        !string.IsNullOrEmpty(line) && 
+                        ((line[0] >= 'a' && line[0] <= 'z') || (line[0] >= 'A' && line[0] <= 'Z')));
+                    break;
+                case "以数字开头":
+                    filteredLines = filteredLines.Where(line =>
+                        !string.IsNullOrEmpty(line) && line[0] >= '0' && line[0] <= '9');
+                    break;
+                case "包含特殊字符":
+                    filteredLines = filteredLines.Where(line =>
+                        line.Any(c => !char.IsLetterOrDigit(c) && !char.IsWhiteSpace(c)));
+                    break;
+            }
             
             WordsTextBox.Text = string.Join("\n", filteredLines);
         }
 
         private async void ImportButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null) return;
+            
+            // 让用户选择导入方式
+            var importDialog = new ContentDialog
+            {
+                Title = "选择导入方式",
+                Content = "请选择要导入词库的方式：",
+                PrimaryButtonText = "默认词库目录",
+                SecondaryButtonText = "外部目录",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var result = await importDialog.ShowAsync();
+            
+            if (result == ContentDialogResult.Primary)
+            {
+                // 默认词库目录
+                await ImportFromDefaultWordlistAsync();
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                // 外部目录
+                await ImportFromExternalDirectoryAsync();
+            }
+        }
+
+        private async Task ImportFromDefaultWordlistAsync()
+        {
+            if (_viewModel == null) return;
+            
+            // 获取默认词库目录中的文件
+            var wordlistDir = _viewModel.Settings.GetWordlistDirectory();
+            var files = System.IO.Directory.GetFiles(wordlistDir, "*.txt")
+                .Select(f => System.IO.Path.GetFileName(f))
+                .Where(f => !string.IsNullOrEmpty(f))
+                .ToList();
+            
+            if (files.Count == 0)
+            {
+                var errorDialog = new ContentDialog
+                {
+                    Title = "提示",
+                    Content = "默认词库目录中没有找到词库文件",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                return;
+            }
+            
+            // 让用户选择词库文件
+            var fileListDialog = new ContentDialog
+            {
+                Title = "选择词库文件",
+                PrimaryButtonText = "导入",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+            
+            var listView = new ListView
+            {
+                ItemsSource = files,
+                SelectionMode = ListViewSelectionMode.Single,
+                Height = 200
+            };
+            
+            var stackPanel = new StackPanel();
+            stackPanel.Children.Add(new TextBlock { Text = "请选择要导入的词库文件：" });
+            stackPanel.Children.Add(listView);
+            fileListDialog.Content = stackPanel;
+            
+            var fileResult = await fileListDialog.ShowAsync();
+            
+            if (fileResult == ContentDialogResult.Primary && listView.SelectedItem != null)
+            {
+                var selectedFile = listView.SelectedItem.ToString();
+                if (!string.IsNullOrEmpty(selectedFile))
+                {
+                    var filePath = System.IO.Path.Combine(wordlistDir, selectedFile);
+                    var words = await _viewModel.Settings.LoadWordsFromFileAsync(filePath);
+                    AppendWordsToTextBox(words);
+                }
+            }
+        }
+
+        private async Task ImportFromExternalDirectoryAsync()
         {
             if (_viewModel == null) return;
             
@@ -415,48 +664,71 @@ namespace English_Listen_WinUI.Views
                 SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
             };
             picker.FileTypeFilter.Add(".txt");
-            picker.FileTypeFilter.Add(".csv");
 
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            
             var file = await picker.PickSingleFileAsync();
             if (file != null)
             {
-                await _viewModel.ImportWordsFromFileAsync(file.Path);
-                await _viewModel.LoadWordListFilesAsync();
-                
-                // 更新原始文本
-                if (_viewModel.WordListFiles.Count > 0)
-                {
-                    await _viewModel.LoadWordsAsync(_viewModel.WordListFiles[0]);
-                    _originalWordsText = _viewModel.WordsText;
-                    WordsTextBox.Text = _originalWordsText;
-                }
+                var words = await _viewModel.Settings.LoadWordsFromFileAsync(file.Path);
+                AppendWordsToTextBox(words);
+            }
+        }
+
+        private void AppendWordsToTextBox(List<string> words)
+        {
+            var currentText = WordsTextBox.Text;
+            if (!string.IsNullOrEmpty(currentText) && !currentText.EndsWith("\n"))
+            {
+                WordsTextBox.Text = currentText + "\n" + string.Join("\n", words);
+            }
+            else
+            {
+                WordsTextBox.Text = currentText + string.Join("\n", words);
             }
         }
 
         private async void ExportButton_Click(object sender, RoutedEventArgs e)
         {
-            var picker = new Windows.Storage.Pickers.FileSavePicker
+            var dialog = new ContentDialog
             {
-                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
-                SuggestedFileName = "wordlist_export"
+                Title = "导出词库",
+                Content = new TextBox { PlaceholderText = "请输入文件名（不含扩展名）" },
+                PrimaryButtonText = "导出",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
             };
-            picker.FileTypeChoices.Add("文本文件", new[] { ".txt" });
-            picker.FileTypeChoices.Add("CSV文件", new[] { ".csv" });
 
-            var file = await picker.PickSaveFileAsync();
-            if (file != null)
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
             {
-                var lines = WordsTextBox.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                await Windows.Storage.FileIO.WriteTextAsync(file, string.Join(Environment.NewLine, lines));
-                
-                var dialog = new ContentDialog
+                var textBox = dialog.Content as TextBox;
+                if (textBox != null && !string.IsNullOrWhiteSpace(textBox.Text))
                 {
-                    Title = "导出成功",
-                    Content = $"词库已导出到 {file.Name}",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await dialog.ShowAsync();
+                    var fileName = textBox.Text.Trim() + ".txt";
+                    var exportDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wordlist");
+                    
+                    if (!Directory.Exists(exportDir))
+                    {
+                        Directory.CreateDirectory(exportDir);
+                    }
+                    
+                    var filePath = Path.Combine(exportDir, fileName);
+                    await File.WriteAllTextAsync(filePath, WordsTextBox.Text);
+                    
+                    await _viewModel.LoadWordListFilesAsync();
+                    PopulateWordList();
+                    
+                    var successDialog = new ContentDialog
+                    {
+                        Title = "导出成功",
+                        Content = $"词库已导出到 {filePath}",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await successDialog.ShowAsync();
+                }
             }
         }
     }

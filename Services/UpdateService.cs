@@ -1,213 +1,303 @@
 using System;
+using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.UI.Xaml.Controls;
+using System.Linq;
 
 namespace English_Listen_WinUI.Services
 {
+    /// <summary>
+    /// 应用更新检查服务 - 从QT6版本完整移植
+    /// 功能：检查更新、版本比较、下载更新
+    /// </summary>
     public class UpdateService
     {
-        private const string UpdateUrl = "https://gitee.com/jetcpp/english_-listen/raw/master/update.txt";
-        private const string CurrentVersion = "2.7.0";
+        private static readonly HttpClient _httpClient = new HttpClient();
+        private const string UPDATE_URL = "https://gitee.com/jetcpp/english_-listen/raw/master/update.txt";
+        private const string USER_AGENT = "English-Listen-Updater/1.0";
+        private const string CURRENT_VERSION = "2.7.0"; // WinUI3版本号
 
-        private readonly HttpClient _httpClient;
-
-        public UpdateService()
+        static UpdateService()
         {
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "English-Listen-Updater/1.0");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", USER_AGENT);
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
         }
 
-        public async Task CheckForUpdatesAsync(ContentDialog dialog)
+        /// <summary>
+        /// 检查是否有可用更新（完整实现）
+        /// </summary>
+        public async Task<UpdateInfo?> CheckForUpdatesAsync()
         {
             try
             {
-                var response = await _httpClient.GetStringAsync(UpdateUrl);
-                var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-                if (lines.Length >= 2)
+                System.Diagnostics.Debug.WriteLine("开始检查更新...");
+                
+                var response = await _httpClient.GetAsync(UPDATE_URL);
+                if (!response.IsSuccessStatusCode)
                 {
-                    var remoteVersion = lines[0].Trim();
-                    var downloadUrl = lines[1].Trim();
-
-                    int versionComparison = CompareVersions(CurrentVersion, remoteVersion);
-                    
-                    if (versionComparison < 0) // Remote version is higher
-                    {
-                        // New version available
-                        var updateDialog = new ContentDialog
-                        {
-                            Title = "发现新版本",
-                            Content = $"发现新版本 {remoteVersion}，当前版本为 {CurrentVersion}。\n\n是否现在下载更新？",
-                            PrimaryButtonText = "是",
-                            CloseButtonText = "否",
-                            XamlRoot = dialog.XamlRoot
-                        };
-
-                        var result = await updateDialog.ShowAsync();
-                        if (result == ContentDialogResult.Primary)
-                        {
-                            await DownloadUpdateAsync(downloadUrl);
-                        }
-                    }
-                    else if (versionComparison > 0) // Current version is higher (development version)
-                    {
-                        // Using development version
-                        var devDialog = new ContentDialog
-                        {
-                            Title = "开发版本",
-                            Content = $"您正在使用开发版本 {CurrentVersion}，比最新稳定版 {remoteVersion} 更高。\n\n开发版本可能不稳定，请谨慎使用。",
-                            CloseButtonText = "确定",
-                            XamlRoot = dialog.XamlRoot
-                        };
-                        await devDialog.ShowAsync();
-                    }
-                    else
-                    {
-                        // Already up to date
-                        var infoDialog = new ContentDialog
-                        {
-                            Title = "检查更新",
-                            Content = "当前已是最新版本",
-                            CloseButtonText = "确定",
-                            XamlRoot = dialog.XamlRoot
-                        };
-                        await infoDialog.ShowAsync();
-                    }
+                    System.Diagnostics.Debug.WriteLine($"更新检查失败: HTTP {response.StatusCode}");
+                    return null;
                 }
-                else
+
+                var content = await response.Content.ReadAsStringAsync();
+                var lines = content.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                
+                if (lines.Length < 2)
                 {
-                    var errorDialog = new ContentDialog
+                    System.Diagnostics.Debug.WriteLine("更新文件格式错误");
+                    return null;
+                }
+
+                var remoteVersion = lines[0].Trim();
+                var downloadUrl = lines[1].Trim();
+
+                System.Diagnostics.Debug.WriteLine($"远程版本: {remoteVersion}, 下载链接: {downloadUrl}");
+
+                // 获取发布说明
+                var releaseNotes = await GetReleaseNotesAsync();
+
+                // 检查是否需要更新
+                var comparisonResult = CompareVersions(CURRENT_VERSION, remoteVersion);
+                
+                if (comparisonResult < 0) // 远程版本更高
+                {
+                    return new UpdateInfo
                     {
-                        Title = "检查更新失败",
-                        Content = $"服务器返回的数据格式不正确\n收到的数据:\n{response}",
-                        CloseButtonText = "确定",
-                        XamlRoot = dialog.XamlRoot
+                        CurrentVersion = CURRENT_VERSION,
+                        NewVersion = remoteVersion,
+                        DownloadUrl = downloadUrl,
+                        ReleaseNotes = releaseNotes,
+                        IsUpdateAvailable = true
                     };
-                    await errorDialog.ShowAsync();
                 }
+                else if (comparisonResult > 0) // 当前版本更高（开发版本）
+                {
+                    return new UpdateInfo
+                    {
+                        CurrentVersion = CURRENT_VERSION,
+                        NewVersion = remoteVersion,
+                        ReleaseNotes = releaseNotes,
+                        IsDevelopmentVersion = true
+                    };
+                }
+
+                System.Diagnostics.Debug.WriteLine("当前已是最新版本");
+                return null;
             }
             catch (Exception ex)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "检查更新失败",
-                    Content = $"无法连接到更新服务器: {ex.Message}",
-                    CloseButtonText = "确定",
-                    XamlRoot = dialog.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                System.Diagnostics.Debug.WriteLine($"更新检查异常: {ex.Message}");
+                return null;
             }
         }
 
-        private async Task DownloadUpdateAsync(string downloadUrl)
+        /// <summary>
+        /// 获取更新检查的简单结果描述
+        /// </summary>
+        public string GetUpdateCheckResult(UpdateInfo? updateInfo)
+        {
+            if (updateInfo == null)
+                return "当前已是最新版本";
+            
+            if (updateInfo.IsDevelopmentVersion)
+                return "您正在使用开发版本";
+            
+            if (updateInfo.IsUpdateAvailable)
+                return $"发现新版本: {updateInfo.NewVersion}";
+            
+            return "检查完成";
+        }
+
+        /// <summary>
+        /// 下载更新文件（带进度报告）
+        /// </summary>
+        public async Task<string?> DownloadUpdateAsync(string downloadUrl, IProgress<int> progress)
         {
             try
             {
-                var httpClient = new HttpClient();
-                var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                var tempFolder = Path.GetTempPath();
+                var fileName = $"EnglishListen_Update_{DateTime.Now:yyyyMMdd_HHmmss}.exe";
+                var filePath = Path.Combine(tempFolder, fileName);
+                
+                System.Diagnostics.Debug.WriteLine($"开始下载更新: {fileName}");
+                System.Diagnostics.Debug.WriteLine($"下载链接: {downloadUrl}");
 
+                using var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                if (!response.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine($"下载失败: HTTP {response.StatusCode}");
+                    return null;
+                }
+
+                var totalBytes = response.Content.Headers.ContentLength ?? 0;
+                var downloadedBytes = 0L;
+                var buffer = new byte[8192];
+
+                using var contentStream = await response.Content.ReadAsStreamAsync();
+                using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+
+                int bytesRead;
+                while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer, 0, bytesRead);
+                    downloadedBytes += bytesRead;
+
+                    if (totalBytes > 0)
+                    {
+                        var percentage = (int)((downloadedBytes * 100) / totalBytes);
+                        progress.Report(percentage);
+                    }
+                }
+
+                await fileStream.FlushAsync();
+                
+                System.Diagnostics.Debug.WriteLine($"更新下载完成: {filePath}");
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"下载更新异常: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 启动安装程序
+        /// </summary>
+        public async Task<bool> LaunchInstallerAsync(string installerPath)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"启动安装程序: {installerPath}");
+
+                if (!File.Exists(installerPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("安装程序不存在");
+                    return false;
+                }
+
+                // 启动安装程序
+                var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = installerPath,
+                        UseShellExecute = true,
+                        CreateNoWindow = false
+                    }
+                };
+
+                process.Start();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"启动安装程序异常: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 获取发布说明
+        /// </summary>
+        private async Task<string> GetReleaseNotesAsync()
+        {
+            try
+            {
+                // 尝试获取update.md文件作为发布说明
+                var mdUrl = UPDATE_URL.Replace("update.txt", "update.md");
+                var response = await _httpClient.GetAsync(mdUrl);
+                
                 if (response.IsSuccessStatusCode)
                 {
-                    var tempPath = Windows.Storage.ApplicationData.Current.TemporaryFolder.Path;
-                    var fileName = $"EnglishListen_Update_{DateTime.Now:yyyyMMdd_HHmmss}.exe";
-                    var filePath = System.IO.Path.Combine(tempPath, fileName);
-
-                    using (var fileStream = System.IO.File.Create(filePath))
-                    using (var contentStream = await response.Content.ReadAsStreamAsync())
+                    var content = await response.Content.ReadAsStringAsync();
+                    // 限制长度，避免对话框过大
+                    if (content.Length > 1000)
                     {
-                        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-                        var canReportProgress = totalBytes != -1L;
-                        var totalBytesRead = 0L;
-                        var buffer = new byte[8192];
-                        var isMoreToRead = true;
-
-                        do
-                        {
-                            var bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length);
-                            if (bytesRead == 0)
-                            {
-                                isMoreToRead = false;
-                            }
-                            else
-                            {
-                                await fileStream.WriteAsync(buffer, 0, bytesRead);
-                                totalBytesRead += bytesRead;
-
-                                if (canReportProgress)
-                                {
-                                    // Progress reporting could be added here if needed
-                                }
-                            }
-                        }
-                        while (isMoreToRead);
+                        content = content.Substring(0, 1000) + "\n\n...（更多内容请查看完整更新日志）";
                     }
-
-                    var successDialog = new ContentDialog
-                    {
-                        Title = "下载完成",
-                        Content = "更新文件已下载完成，即将启动安装程序。",
-                        CloseButtonText = "确定"
-                    };
-
-                    // Launch the installer
-                    await Windows.System.Launcher.LaunchFileAsync(
-                        await Windows.Storage.StorageFile.GetFileFromPathAsync(filePath));
-
-                    // Close current application
-                    var app = Microsoft.UI.Xaml.Application.Current;
-                    if (app is App winuiApp)
-                    {
-                        winuiApp.Exit();
-                    }
+                    return content;
                 }
+                
+                return "暂无详细更新说明";
+            }
+            catch
+            {
+                return "暂无详细更新说明";
+            }
+        }
+
+        /// <summary>
+        /// 版本比较（从QT6版本移植）
+        /// </summary>
+        private int CompareVersions(string currentVersion, string remoteVersion)
+        {
+            try
+            {
+                // 移除可能的v前缀
+                currentVersion = currentVersion.Trim().TrimStart('v', 'V');
+                remoteVersion = remoteVersion.Trim().TrimStart('v', 'V');
+
+                var currentParts = currentVersion.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                var remoteParts = remoteVersion.Split('.', StringSplitOptions.RemoveEmptyEntries);
+
+                // 确保三部分版本号
+                while (currentParts.Length < 3) currentParts = currentParts.Append("0").ToArray();
+                while (remoteParts.Length < 3) remoteParts = remoteParts.Append("0").ToArray();
+
+                // 逐部分比较
+                for (int i = 0; i < 3; i++)
+                {
+                    if (!int.TryParse(currentParts[i], out int currentNum) || 
+                        !int.TryParse(remoteParts[i], out int remoteNum))
+                    {
+                        continue; // 如果解析失败，跳过这部分比较
+                    }
+
+                    if (remoteNum > currentNum) return -1;  // 远程版本更高
+                    if (remoteNum < currentNum) return 1;   // 当前版本更高
+                }
+
+                return 0; // 版本相同
             }
             catch (Exception ex)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "下载失败",
-                    Content = $"下载更新文件失败: {ex.Message}",
-                    CloseButtonText = "确定"
-                };
-                await errorDialog.ShowAsync();
-            }
-        }
-
-        private int CompareVersions(string currentVersion, string remoteVersion)
-        {
-            if (string.IsNullOrEmpty(currentVersion) || string.IsNullOrEmpty(remoteVersion))
+                System.Diagnostics.Debug.WriteLine($"版本比较异常: {ex.Message}");
                 return 0;
-
-            var currentParts = currentVersion.Split('.');
-            var remoteParts = remoteVersion.Split('.');
-
-            // Ensure both have 3 parts
-            while (currentParts.Length < 3)
-                currentParts = AddElement(currentParts, "0");
-            while (remoteParts.Length < 3)
-                remoteParts = AddElement(remoteParts, "0");
-
-            for (int i = 0; i < 3; i++)
-            {
-                int currentNum = int.TryParse(currentParts[i], out var c) ? c : 0;
-                int remoteNum = int.TryParse(remoteParts[i], out var r) ? r : 0;
-
-                if (remoteNum > currentNum)
-                    return -1; // Remote version is higher
-                else if (remoteNum < currentNum)
-                    return 1; // Current version is higher
             }
-
-            return 0; // Versions are equal
         }
 
-        private string[] AddElement(string[] array, string element)
+        /// <summary>
+        /// 获取更新描述文本
+        /// </summary>
+        public string GetUpdateDescription(UpdateInfo updateInfo)
         {
-            var newArray = new string[array.Length + 1];
-            Array.Copy(array, newArray, array.Length);
-            newArray[array.Length] = element;
-            return newArray;
+            return $"发现新版本 {updateInfo.NewVersion} 🎉\n\n" +
+                   $"当前版本: {updateInfo.CurrentVersion}\n" +
+                   $"新版本: {updateInfo.NewVersion}\n\n" +
+                   $"更新说明:\n{updateInfo.ReleaseNotes}\n\n" +
+                   $"是否立即下载并安装更新？";
         }
+
+        /// <summary>
+        /// 获取当前版本号
+        /// </summary>
+        public string GetCurrentVersion()
+        {
+            return CURRENT_VERSION;
+        }
+    }
+
+    /// <summary>
+    /// 更新信息模型（增强版）
+    /// </summary>
+    public class UpdateInfo
+    {
+        public string CurrentVersion { get; set; } = string.Empty;
+        public string NewVersion { get; set; } = string.Empty;
+        public string DownloadUrl { get; set; } = string.Empty;
+        public string ReleaseNotes { get; set; } = string.Empty;
+        public bool IsUpdateAvailable { get; set; }
+        public bool IsDevelopmentVersion { get; set; }
     }
 }

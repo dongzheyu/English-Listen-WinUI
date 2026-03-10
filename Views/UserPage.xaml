@@ -1,0 +1,99 @@
+<Page
+    x:Class="English_Listen_WinUI.Views.UserPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="600" d:DesignWidth="800">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+            <!-- Current User Status -->
+            <TextBlock Text="用户管理" 
+                       Style="{StaticResource TitleTextBlockStyle}"
+                       HorizontalAlignment="Center" 
+                       Margin="0,0,0,20"/>
+            
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,20"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock x:Name="UserStatusText" 
+                               Text="当前未登录" 
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,15"/>
+                    
+                    <StackPanel x:Name="LoginPanel" Orientation="Vertical" Spacing="15">
+                        <ComboBox x:Name="UsernameBox" Header="选择用户" PlaceholderText="请选择用户" 
+                                  ItemsSource="{x:Bind ViewModel.Users, Mode=OneWay}"
+                                  DisplayMemberPath="Nickname"
+                                  SelectedIndex="-1"
+                                  SelectionChanged="UsernameBox_SelectionChanged"/>
+                        <PasswordBox x:Name="PasswordBox" Header="密码" PlaceholderText="请输入密码"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                            <Button x:Name="LoginButton" Content="登录" Click="LoginButton_Click" 
+                                    Style="{StaticResource AccentButtonStyle}"/>
+                            <Button x:Name="CreateUserButton" Content="新建用户" Click="CreateUserButton_Click" 
+                                    Style="{StaticResource DefaultButtonStyle}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    
+                    <StackPanel x:Name="LogoutPanel" Orientation="Horizontal" 
+                                HorizontalAlignment="Center" Visibility="Collapsed" Spacing="10">
+                        <Button x:Name="LogoutButton" Content="退出登录" Click="LogoutButton_Click" 
+                                Style="{StaticResource DefaultButtonStyle}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Existing Users -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="现有用户" 
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               Margin="0,0,0,15"/>
+                    
+                    <ListView x:Name="UsersListView" 
+                              ItemsSource="{x:Bind ViewModel.Users, Mode=OneWay}"
+                              SelectionMode="Single"
+                              SelectionChanged="UsersListView_SelectionChanged">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="{Binding Nickname}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                    <TextBlock Text="{Binding Username}" 
+                                               Foreground="{ThemeResource TextFillColorSecondary}" 
+                                               Style="{StaticResource CaptionTextBlockStyle}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+            </Border>
+            
+            <!-- Create New User Dialog -->
+            <ContentDialog x:Name="CreateUserDialog"
+                           Title="创建新用户"
+                           PrimaryButtonText="创建"
+                           SecondaryButtonText="取消"
+                           PrimaryButtonClick="CreateUserDialog_PrimaryButtonClick"
+                           SecondaryButtonClick="CreateUserDialog_SecondaryButtonClick">
+                <StackPanel Spacing="15">
+                    <TextBox x:Name="NewUsernameBox" Header="用户名" PlaceholderText="请输入新用户名"/>
+                    <TextBox x:Name="NewNicknameBox" Header="昵称" PlaceholderText="请输入昵称 (可选)"/>
+                    <PasswordBox x:Name="NewPasswordBox" Header="密码" PlaceholderText="请输入密码"/>
+                    <PasswordBox x:Name="ConfirmPasswordBox" Header="确认密码" PlaceholderText="请再次输入密码"/>
+                </StackPanel>
+            </ContentDialog>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

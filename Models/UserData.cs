@@ -16,6 +16,7 @@ namespace English_Listen_WinUI.Models
     {
         public string Username { get; set; } = string.Empty;
         public string Nickname { get; set; } = string.Empty;
+        public string PasswordHash { get; set; } = string.Empty;
         public DateTime CreatedTime { get; set; } = DateTime.Now;
         public DateTime LastLoginTime { get; set; } = DateTime.Now;
         public bool IsActive { get; set; } = true;
@@ -29,26 +30,21 @@ namespace English_Listen_WinUI.Models
         public int ReadInterval { get; set; } = 5;
         public int SpeechEngine { get; set; }
         public bool IsRandomOrder { get; set; }
-
-        public bool AllowDataCollection { get; set; } = true;
-        public bool AllowCloudSync { get; set; } = false;
-        public bool AllowAnalytics { get; set; } = true;
-        public bool ShareLearningStats { get; set; } = false;
     }
 
     public class AppSettings
     {
-        public bool IsDarkTheme { get; set; }
+        public int ThemeMode { get; set; } // 0 = Light, 1 = Dark, 2 = System
         public int ReadInterval { get; set; } = 5;
         public int SpeechEngine { get; set; }
+        public string FliteVoiceModel { get; set; } = "cmu_us_slt";
         public bool IsRandomOrder { get; set; } = true;
         public string WordlistDirPath { get; set; } = "./wordlist";
         public string? CurrentUser { get; set; }
-        public bool EncryptionEnabled { get; set; } = false;
-        public bool AllowDataCollection { get; set; } = true;
-        public bool AllowCloudSync { get; set; } = false;
-        public bool AllowAnalytics { get; set; } = true;
-        public bool ShareLearningStats { get; set; } = false;
+        public string SpeechEngineType { get; set; } = "Auto"; // "Auto", "Flite", "WindowsTTS"
+        public string? WindowsTtsVoiceName { get; set; }
+        public int WindowsTtsVolume { get; set; } = 100; // 0-100
+        public int WindowsTtsRate { get; set; } = 0; // -10 to 10
     }
 
 

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using English_Listen_WinUI.Models;
 using English_Listen_WinUI.Services;
+using Windows.UI;
 
 namespace English_Listen_WinUI.ViewModels
 {
@@ -27,8 +28,10 @@ namespace English_Listen_WinUI.ViewModels
         private readonly SettingsService _settingsService;
         private readonly SpeechService _speechService;
 
+        public SpeechService SpeechService => _speechService;
+
         private string _currentPage = "Home";
-        private bool _isDarkTheme;
+        private int _themeMode; // 0 = Light, 1 = Dark, 2 = System
         private string _welcomeMessage = "欢迎使用英语听写训练系统";
         private string _userStatus = "未登录";
         private string _currentWord = "";
@@ -43,6 +46,15 @@ namespace English_Listen_WinUI.ViewModels
         private string _wordsText = "";
         private bool _showAnswers;
         private int _dictationMode; // 0 = 纸笔听写, 1 = 在线听写
+        private List<string> _userInputs = new();
+        private bool _isRandomOrder;
+        private ObservableCollection<UserData> _users = new();
+
+        public ObservableCollection<UserData> Users
+        {
+            get => _users;
+            set => SetProperty(ref _users, value);
+        }
 
         public string CurrentPage
         {
@@ -50,10 +62,10 @@ namespace English_Listen_WinUI.ViewModels
             set => SetProperty(ref _currentPage, value);
         }
 
-        public bool IsDarkTheme
+        public int ThemeMode
         {
-            get => _isDarkTheme;
-            set => SetProperty(ref _isDarkTheme, value);
+            get => _themeMode;
+            set => SetProperty(ref _themeMode, value);
         }
 
         public string WelcomeMessage
@@ -141,6 +153,31 @@ namespace English_Listen_WinUI.ViewModels
             set => SetProperty(ref _dictationMode, value);
         }
 
+        public List<string> CurrentWords
+        {
+            get => _currentWords;
+            set => SetProperty(ref _currentWords, value);
+        }
+
+        public List<string> UserInputs
+        {
+            get => _userInputs;
+            set => SetProperty(ref _userInputs, value);
+        }
+
+        public bool IsRandomOrder
+        {
+            get => _isRandomOrder;
+            set
+            {
+                if (SetProperty(ref _isRandomOrder, value))
+                {
+                    _settingsService.Settings.IsRandomOrder = value;
+                    _ = _settingsService.SaveSettingsAsync();
+                }
+            }
+        }
+
         public int WordsCount => _currentWords.Count;
 
         public Services.SettingsService Settings => _settingsService;
@@ -182,27 +219,50 @@ namespace English_Listen_WinUI.ViewModels
             _ = InitializeAsync();
         }
 
-        private async Task InitializeAsync()
+        public async Task InitializeAsync()
         {
             await _settingsService.LoadSettingsAsync();
-            _isDarkTheme = _settingsService.Settings.IsDarkTheme;
+            _themeMode = _settingsService.Settings.ThemeMode;
             _readInterval = _settingsService.Settings.ReadInterval;
+            _isRandomOrder = _settingsService.Settings.IsRandomOrder;
 
             await LoadWordListFilesAsync();
             await LoadTestHistoryAsync();
 
+            // Load users without password (will only load unencrypted users)
+            var users = await _settingsService.LoadUsersAsync();
+            await LoadUsersFromListAsync(users);
+
             LoadVoices();
-            OnPropertyChanged(nameof(IsDarkTheme));
+            OnPropertyChanged(nameof(ThemeMode));
             OnPropertyChanged(nameof(ReadInterval));
+            OnPropertyChanged(nameof(IsRandomOrder));
+        }
+
+        public async Task LoadUsersFromListAsync(List<UserData> users)
+        {
+            Users.Clear();
+            foreach (var user in users)
+            {
+                Users.Add(user);
+            }
+            
+            // Update UI based on loaded users
+            if (Users.Count > 0)
+            {
+                UserStatus = $"已加载 {Users.Count} 个用户";
+            }
+            else
+            {
+                UserStatus = "未发现用户或用户数据已加密";
+            }
         }
 
         private void LoadVoices()
         {
+            // SAPI voices removed - only Flite voice models available
             AvailableVoices.Clear();
-            foreach (var voice in _speechService.GetAvailableVoices())
-            {
-                AvailableVoices.Add(voice);
-            }
+            // Flite voice models are predefined in the UI
         }
 
         private void Navigate(string? page)
@@ -213,8 +273,9 @@ namespace English_Listen_WinUI.ViewModels
 
         private void ToggleTheme()
         {
-            IsDarkTheme = !IsDarkTheme;
-            _settingsService.Settings.IsDarkTheme = IsDarkTheme;
+            // Cycle through theme modes: 0 (Light) -> 1 (Dark) -> 2 (System)
+            ThemeMode = (ThemeMode + 1) % 3;
+            _settingsService.Settings.ThemeMode = ThemeMode;
             _ = _settingsService.SaveSettingsAsync();
         }
 
@@ -232,9 +293,27 @@ namespace English_Listen_WinUI.ViewModels
             CurrentIndex = 0;
             _testCountdown = 0;
 
+            // Handle random order
+            if (IsRandomOrder)
+            {
+                var random = new Random();
+                CurrentWords = _currentWords.OrderBy(x => random.Next()).ToList();
+            }
+
+            // Initialize user inputs for online mode
+            if (DictationMode == 1)
+            {
+                UserInputs = new List<string>(new string[_currentWords.Count]);
+            }
+
             ShowTestInterface();
             await PlayCurrentWordAsync();
-            StartTimer();
+            
+            // Start timer only for paper dictation mode
+            if (DictationMode == 0)
+            {
+                StartTimer();
+            }
         }
 
         private void StopTest()
@@ -248,7 +327,7 @@ namespace English_Listen_WinUI.ViewModels
 
         private async void NextWord()
         {
-            if (CurrentIndex < _currentWords.Count - 1)
+            if (CurrentIndex < CurrentWords.Count - 1)
             {
                 CurrentIndex++;
                 await PlayCurrentWordAsync();
@@ -266,7 +345,7 @@ namespace English_Listen_WinUI.ViewModels
 
         private async void RepeatWord()
         {
-            await _speechService.SpeakAsync(CurrentWord, _settingsService.Settings.SpeechEngine);
+            await _speechService.SpeakAsync(CurrentWord, _settingsService.Settings.FliteVoiceModel);
         }
 
         private void PauseResume()
@@ -293,7 +372,7 @@ namespace English_Listen_WinUI.ViewModels
                     _testCountdown++;
                     var countdown = ReadInterval - _testCountdown;
                     var currentIdx = CurrentIndex;
-                    var totalWords = _currentWords.Count;
+                    var totalWords = CurrentWords.Count;
                     var shouldStop = _testCountdown >= ReadInterval;
 
                     try
@@ -332,12 +411,12 @@ namespace English_Listen_WinUI.ViewModels
 
         private async Task PlayCurrentWordAsync()
         {
-            if (CurrentIndex >= 0 && CurrentIndex < _currentWords.Count)
+            if (CurrentIndex >= 0 && CurrentIndex < CurrentWords.Count)
             {
-                CurrentWord = _currentWords[CurrentIndex];
+                CurrentWord = CurrentWords[CurrentIndex];
                 Countdown = ReadInterval;
                 _testCountdown = 0;
-                await _speechService.SpeakAsync(CurrentWord, _settingsService.Settings.SpeechEngine);
+                await _speechService.SpeakAsync(CurrentWord, _settingsService.Settings.FliteVoiceModel);
             }
         }
 
@@ -363,7 +442,15 @@ namespace English_Listen_WinUI.ViewModels
                 .ToList();
 
             await _settingsService.SaveWordsToFileAsync(filePath, words);
+            
+            // Update CurrentWords
+            CurrentWords = words;
+            
+            // 同时保存到临时文件用于听考
+            await System.IO.File.WriteAllLinesAsync(TempWordListPath, words);
         }
+
+        private static readonly string TempWordListPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
 
         public async Task LoadWordsAsync(string? fileName)
         {
@@ -375,8 +462,32 @@ namespace English_Listen_WinUI.ViewModels
                 fileName);
 
             var words = await _settingsService.LoadWordsFromFileAsync(filePath);
-            _currentWords = words;
+            CurrentWords = words;
             WordsText = string.Join(Environment.NewLine, words);
+            
+            // 保存到临时文件用于听考
+            await System.IO.File.WriteAllLinesAsync(TempWordListPath, words);
+
+            OnPropertyChanged(nameof(CanStartTest));
+            if (StartTestCommand is RelayCommand rc)
+            {
+                rc.RaiseCanExecuteChanged();
+            }
+        }
+        
+        public async Task LoadWordsFromTempFileAsync()
+        {
+            // 如果临时文件不存在，创建新的空文件
+            if (!System.IO.File.Exists(TempWordListPath))
+            {
+                await System.IO.File.WriteAllTextAsync(TempWordListPath, "");
+            }
+            
+            var words = await _settingsService.LoadWordsFromFileAsync(TempWordListPath);
+            CurrentWords = words;
+            WordsText = string.Join(Environment.NewLine, words);
+            
+            CurrentWordListName = "临时词库";
 
             OnPropertyChanged(nameof(CanStartTest));
             if (StartTestCommand is RelayCommand rc)
@@ -402,7 +513,8 @@ namespace English_Listen_WinUI.ViewModels
 
         private async Task LoadTestHistoryAsync()
         {
-            TestHistory = await _settingsService.LoadTestHistoryAsync();
+            var currentUser = _settingsService.Settings.CurrentUser;
+            TestHistory = await _settingsService.LoadTestHistoryAsync(currentUser ?? "");
             TestHistoryViewModels.Clear();
             foreach (var result in TestHistory.OrderByDescending(h => h.Timestamp))
             {

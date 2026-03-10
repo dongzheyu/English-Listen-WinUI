@@ -27,7 +27,7 @@ namespace English_Listen_WinUI.Services
                 var toast = new ToastNotification(toastXml);
                 ToastNotificationManager.CreateToastNotifier().Show(toast);
             }
-            catch (Exception ex)
+            catch
             {
                 // Handle notification errors silently
             }

@@ -236,7 +236,8 @@ namespace English_Listen_WinUI.Views
             if (result == ContentDialogResult.Primary)
             {
                 _viewModel.TestHistory.Clear();
-                await _viewModel.Settings.SaveTestHistoryAsync(_viewModel.TestHistory);
+                var currentUser = _viewModel.Settings.Settings.CurrentUser;
+                await _viewModel.Settings.SaveTestHistoryAsync(currentUser ?? "", _viewModel.TestHistory);
                 LoadStats();
             }
         }

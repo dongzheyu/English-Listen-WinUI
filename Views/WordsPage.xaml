@@ -11,6 +11,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -28,18 +29,31 @@
             <TextBox x:Name="SearchTextBox" Width="200" 
                       TextChanged="SearchTextBox_TextChanged"
                       PlaceholderText="输入单词进行搜索"/>
-            <TextBlock Text="筛选:" VerticalAlignment="Center" Margin="10,0,5,0"/>
-            <ComboBox x:Name="FilterComboBox" Width="150"
+            <TextBlock Text="筛选:" VerticalAlignment="Center" Margin="15,0,5,0"/>
+            <ComboBox x:Name="FilterComboBox" Width="150" 
                       SelectionChanged="FilterComboBox_SelectionChanged">
                 <ComboBoxItem Content="全部单词" IsSelected="True"/>
                 <ComboBoxItem Content="以字母开头"/>
                 <ComboBoxItem Content="以数字开头"/>
+                <ComboBoxItem Content="包含特殊字符"/>
             </ComboBox>
             <Button Content="重置" Click="ResetFilterButton_Click" Margin="10"/>
         </StackPanel>
 
+        <!-- Wordlist Files List -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10">
+            <TextBlock Text="词库文件:" VerticalAlignment="Center" Margin="5"/>
+            <Button Content="加载词库" Click="LoadWordlistButton_Click" Margin="5" Width="100"/>
+            <Button Content="加载分组" Click="LoadGroupButton_Click" Margin="5" Width="100"/>
+            <Button Content="创建分组" Click="CreateGroupButton_Click" Margin="5" Width="100"/>
+            <Button Content="编辑分组" Click="EditGroupButton_Click" Margin="5" Width="100"/>
+            <Button Content="删除分组" Click="DeleteGroupButton_Click" Margin="5" Width="100"/>
+            <ListBox x:Name="WordlistListBox" Width="300" Height="120" 
+                     SelectionChanged="WordlistListBox_SelectionChanged"/>
+        </StackPanel>
+
         <!-- Word List -->
-        <Grid Grid.Row="2" Margin="10">
+        <Grid Grid.Row="3" Margin="10">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -54,7 +68,7 @@
                           TextChanged="WordsTextBox_TextChanged"/>
             </ScrollViewer>
 
-            <!-- Add Word -->
+            <!-- Buttons -->
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10" HorizontalAlignment="Center">
                 <TextBox x:Name="WordInput" Width="150" 
                           KeyDown="WordInput_KeyDown"
@@ -68,8 +82,6 @@
         </Grid>
 
         <!-- Footer Buttons -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" 
-                    HorizontalAlignment="Center" Margin="20">
-        </StackPanel>
+        <!-- 保存按钮已删除，改为自动保存机制 -->
     </Grid>
 </Page>

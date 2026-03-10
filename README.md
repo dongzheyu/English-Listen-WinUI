@@ -63,7 +63,7 @@ English Listen 是一个基于 WinUI3 框架开发的英语听写练习工具，
 
 1. 克隆项目到本地：
    ```bash
-   git clone https://github.com/your-username/English-Listen-WinUI.git
+   git clone https://github.com/dongzheyu/English-Listen-WinUI.git
    ```
 
 2. 使用 Visual Studio 2026 打开解决方案文件

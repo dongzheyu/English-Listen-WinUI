@@ -10,7 +10,7 @@ namespace English_Listen_WinUI.Services
 {
     public class ChartDataPoint
     {
-        public string Label { get; set; }
+        public string Label { get; set; } = string.Empty;
         public double Value { get; set; }
         public Color Color { get; set; }
     }

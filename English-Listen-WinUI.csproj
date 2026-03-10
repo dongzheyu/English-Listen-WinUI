@@ -4,16 +4,15 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>English_Listen_WinUI</RootNamespace>
-    <Platform>x64</Platform>
-    <Platforms>x64</Platforms>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <Platforms>x64;arm64</Platforms>
     <UseWinUI>true</UseWinUI>
-    <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
-    <SelfContained>true</SelfContained>
-    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <WindowsPackageType>None</WindowsPackageType>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="logo.scale-100.png" />
@@ -36,6 +35,7 @@
     <None Remove="logo.targetsize-48.png" />
     <None Remove="logo.targetsize-48_altform-lightunplated.png" />
     <None Remove="logo.targetsize-48_altform-unplated.png" />
+    <None Remove="nul" />
   </ItemGroup>
 
   <ItemGroup>
@@ -88,8 +88,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
-    <PackageReference Include="System.Speech" Version="8.0.0" />
     <PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
+    <PackageReference Include="System.Speech" Version="8.0.0" />
+    <None Include="flite.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <!--
@@ -108,7 +111,11 @@
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
     <DefaultLanguage>zh-CN</DefaultLanguage>
-    <Win32Resource>D:\c++\WinUI3\English-Listen-WinUI\english_listen.res</Win32Resource>
+    <SelfContained>true</SelfContained>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Optimize>False</Optimize>
