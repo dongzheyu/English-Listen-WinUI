@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.UI;
 using English_Listen_WinUI.ViewModels;
 
@@ -30,6 +31,11 @@ namespace English_Listen_WinUI.Views
                 var avg = _viewModel.TestHistory.Average(t => t.Accuracy);
                 AvgAccuracyInfoBar.Title = $"平均正确率: {avg:F1}%";
             }
+            
+            // Start the gradient animation
+            var storyboard = (Storyboard)Resources["GradientAnimation"];
+            storyboard?.Begin();
+        }
         }
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)

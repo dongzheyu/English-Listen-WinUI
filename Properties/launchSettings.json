@@ -1,9 +1,6 @@
 {
   "profiles": {
-    "English-Listen-WinUI (Package)": {
-      "commandName": "MsixPackage"
-    },
-    "English-Listen-WinUI (Unpackaged)": {
+    "English-Listen-WinUI": {
       "commandName": "Project"
     }
   }

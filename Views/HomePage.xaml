@@ -7,20 +7,47 @@
     mc:Ignorable="d"
     d:DesignHeight="600" d:DesignWidth="800">
 
+    <Page.Resources>
+        <Storyboard x:Key="GradientAnimation" RepeatBehavior="Forever">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(TextBlock.Foreground).(LinearGradientBrush.StartPoint.X)" Storyboard.TargetName="WelcomeTextBlock">
+                <LinearDoubleKeyFrame KeyTime="0" Value="0"/>
+                <LinearDoubleKeyFrame KeyTime="0:0:8" Value="1"/>
+            </DoubleAnimationUsingKeyFrames>
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(TextBlock.Foreground).(LinearGradientBrush.EndPoint.X)" Storyboard.TargetName="WelcomeTextBlock">
+                <LinearDoubleKeyFrame KeyTime="0" Value="1"/>
+                <LinearDoubleKeyFrame KeyTime="0:0:8" Value="2"/>
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
+    </Page.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="20">
-            <!-- Welcome Message -->
-            <TextBlock Text="欢迎使用英语听写训练系统"
-                       Style="{StaticResource TitleTextBlockStyle}"
-                       HorizontalAlignment="Center" 
-                       Margin="0,0,0,30"/>
+               <StackPanel Margin="20">
+               <!-- Welcome Message with scrolling gradient effect -->
+               <TextBlock x:Name="WelcomeTextBlock" Text="欢迎使用英语听写训练系统"
+                         FontSize="24"
+                         FontWeight="Bold"
+                         HorizontalAlignment="Center" 
+                         Margin="0,0,0,30">
+                  <TextBlock.Foreground>
+                      <LinearGradientBrush x:Name="WelcomeGradient" 
+                                         StartPoint="0,0.5" 
+                                         EndPoint="1,0.5"
+                                         SpreadMethod="Repeat">
+                          <GradientStop Offset="0" Color="#FFFFFF00"/> <!-- Yellow -->
+                          <GradientStop Offset="0.2" Color="#FFFFCC00"/> <!-- Light Yellow -->
+                          <GradientStop Offset="0.4" Color="#FFFF9900"/> <!-- Orange -->
+                          <GradientStop Offset="0.6" Color="#FF9900FF"/> <!-- Purple -->
+                          <GradientStop Offset="0.8" Color="#FF6600CC"/> <!-- Dark Purple -->
+                          <GradientStop Offset="1" Color="#FFFFFF00"/> <!-- Yellow (repeat) -->
+                      </LinearGradientBrush>
+                  </TextBlock.Foreground>
+              </TextBlock>
             
-            <!-- Start Button -->
-            <StackPanel HorizontalAlignment="Center" Margin="0,0,0,30">
-                <Button x:Name="StartButton" Content="开始听写测试" 
-                        Click="StartButton_Click" 
-                        Style="{StaticResource AccentButtonStyle}"
-                        Width="200" Height="60"/>
+             <!-- Start Button -->
+             <StackPanel HorizontalAlignment="Center" Margin="0,0,0,30">
+                 <Button x:Name="StartButton" Content="开始听写测试" 
+                         Click="StartButton_Click" 
+                         Width="200" Height="60"/>
             </StackPanel>
 
             <!-- Quick Stats -->
@@ -46,18 +73,23 @@
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="📢 最新更新" 
-                               Style="{StaticResource SubtitleTextBlockStyle}"
-                               Margin="0,0,0,10"/>
+                     <TextBlock Text="📢 最新更新" 
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Margin="0,0,0,10"/>
                     <StackPanel Spacing="8">
-                        <TextBlock Text="• 新增侧边栏导航，操作更便捷" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 优化界面布局，主页更简洁" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 移除数据加密功能，提升性能" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 改进用户登录体验" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
+                         <TextBlock Text="• 新增侧边栏导航，操作更便捷" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="• 优化界面布局，主页更简洁" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="• 移除数据加密功能，提升性能" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="• 改进用户登录体验" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -70,19 +102,24 @@
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="💡 使用技巧" 
-                               Style="{StaticResource SubtitleTextBlockStyle}"
-                               Margin="0,0,0,10"/>
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="• 在'查看单词'页面添加您的词库，支持从文件导入" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 测试时可以使用快捷键：空格键重复朗读，方向键切换单词" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 在设置中可以调节朗读时间间隔和选择语音引擎" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 登录后可以查看个人学习进度和测试历史" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                    </StackPanel>
+                     <TextBlock Text="💡 使用技巧" 
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Margin="0,0,0,10"/>
+                     <StackPanel Spacing="8">
+                         <TextBlock Text="• 在'查看单词'页面添加您的词库，支持从文件导入" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="• 测试时可以使用快捷键：空格键重复朗读，方向键切换单词" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="• 在设置中可以调节朗读时间间隔和选择语音引擎" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="• 登录后可以查看个人学习进度和测试历史" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                     </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -93,28 +130,33 @@
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="🚀 快速开始" 
-                               Style="{StaticResource SubtitleTextBlockStyle}"
-                               Margin="0,0,0,10"/>
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="1. 点击'查看单词'添加您的词库" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="2. 返回主页点击'开始听写测试'" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="3. 选择听写模式并开始练习" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock Text="4. 完成后查看答案和统计信息" 
-                                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
-                    </StackPanel>
+                     <TextBlock Text="🚀 快速开始" 
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Margin="0,0,0,10"/>
+                     <StackPanel Spacing="8">
+                         <TextBlock Text="1. 点击'查看单词'添加您的词库" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="2. 返回主页点击'开始听写测试'" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="3. 选择听写模式并开始练习" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                         <TextBlock Text="4. 完成后查看答案和统计信息" 
+                                    FontSize="14"
+                                    TextWrapping="Wrap"/>
+                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- Footer -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-                <TextBlock Text="English Listen v2.7.0 | 智能英语听写训练系统" 
-                           Style="{StaticResource CaptionTextBlockStyle}" 
-                           Foreground="{ThemeResource TextFillColorSecondary}"/>
-            </StackPanel>
+             <!-- Footer -->
+             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
+                 <TextBlock Text="English Listen v2.7.0 | 智能英语听写训练系统" 
+                            FontSize="12"
+                            Foreground="{ThemeResource TextFillColorSecondary}"/>
+             </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>
