@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using English_Listen_WinUI.ViewModels;
+using System.Timers;
 
 namespace English_Listen_WinUI.Views
 {
@@ -26,39 +27,60 @@ namespace English_Listen_WinUI.Views
             Loaded += TestPage_Loaded;
         }
 
-        private void TestPage_Loaded(object sender, RoutedEventArgs e)
+        private async void TestPage_Loaded(object sender, RoutedEventArgs e)
         {
             if (_viewModel == null) return;
             
             if (_viewModel.WordsCount > 0)
             {
-                // Determine dictation mode
-                _isOnlineMode = _viewModel.DictationMode == 1;
+                // Match QT6 exactly: setup based on dictation mode
+                _isOnlineMode = _viewModel.IsOnlineDictationMode;
                 
                 if (_isOnlineMode)
                 {
+                    // Setup online dictation interface matching QT6
                     SetupOnlineDictation();
+                    
+                    // Immediately speak first word (QT6 characteristic)
+                    if (CountdownLabel != null)
+                    {
+                        CountdownLabel.Text = "正在朗读";
+                    }
+                    await _viewModel.SpeechService.SpeakAsync(_viewModel.CurrentWord, _viewModel.Settings.Settings.FliteVoiceModel);
                 }
                 else
                 {
+                    // Setup paper dictation interface matching QT6
                     SetupPaperDictation();
                 }
                 
-                // Apply settings
-                if (IntervalNumberBox != null)
-                {
-                    IntervalNumberBox.Value = _viewModel.ReadInterval;
-                }
+            // Apply settings matching QT6
+            if (IntervalNumberBox != null)
+            {
+                IntervalNumberBox.Value = _viewModel.ReadInterval;
+            }
                 
-                // Start test
+                // Update display immediately
+                UpdateDisplay();
+                
+                // Start test matching QT6 flow
                 _viewModel.StartTestCommand.Execute(null);
                 
                 if (!_isOnlineMode)
                 {
+                    // Start with countdown at 0, then begin the proper sequence
+                    if (CountdownLabel != null)
+                    {
+                        CountdownLabel.Text = "0";
+                        _viewModel.Countdown = 0;
+                    }
+                    
+                    // Start the countdown timer to handle the sequence properly
                     StartDictationTimer();
                 }
             }
             
+            // Property changed handlers
             _viewModel.PropertyChanged += (s, args) =>
             {
                 if (args.PropertyName == nameof(_viewModel.IsTesting) && !_viewModel.IsTesting && _isTestCompleted)
@@ -72,90 +94,28 @@ namespace English_Listen_WinUI.Views
                 }
                 else if (args.PropertyName == nameof(_viewModel.Countdown))
                 {
-                    CountdownLabel.Text = _viewModel.Countdown.ToString();
+                    if (CountdownLabel != null)
+                    {
+                        CountdownLabel.Text = _viewModel.Countdown.ToString();
+                    }
                 }
             };
             
-            // Set focus to enable keyboard shortcuts
+            // Set focus for keyboard shortcuts matching QT6
             this.Focus(FocusState.Programmatic);
         }
 
         private void SetupPaperDictation()
         {
-            // Show paper dictation UI
-            OnlineInputPanel.Visibility = Visibility.Collapsed;
-            OnlineModeButtons.Visibility = Visibility.Collapsed;
-            PaperModeButtons.Visibility = Visibility.Visible;
-            SettingsPanel.Visibility = Visibility.Visible;
-            CountdownLabel.Visibility = Visibility.Visible;
-            WordDisplayBorder.Visibility = Visibility.Visible;
-        }
-
-        private void SetupOnlineDictation()
-        {
-            // Show online dictation UI
-            OnlineInputPanel.Visibility = Visibility.Visible;
-            OnlineModeButtons.Visibility = Visibility.Visible;
-            PaperModeButtons.Visibility = Visibility.Collapsed;
-            SettingsPanel.Visibility = Visibility.Collapsed;
-            CountdownLabel.Visibility = Visibility.Collapsed;
-            WordDisplayBorder.Visibility = Visibility.Collapsed;
+            // Match QT6 exactly: paper dictation UI setup
+            if (OnlineInputPanel != null) OnlineInputPanel.Visibility = Visibility.Collapsed;
+            if (OnlineModeButtons != null) OnlineModeButtons.Visibility = Visibility.Collapsed;
+            if (PaperModeButtons != null) PaperModeButtons.Visibility = Visibility.Visible;
+            if (SettingsPanel != null) SettingsPanel.Visibility = Visibility.Visible;
+            if (CountdownLabel != null) CountdownLabel.Visibility = Visibility.Visible;
             
-            OnlineInputTextBox.Text = "";
-            OnlineStatusLabel.Text = "";
-            OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
-            
-            // Reset counters for new test
-            _correctAnswers = 0;
-            _wrongAnswers = 0;
-        }
-
-        private void StartDictationTimer()
-        {
-            StopDictationTimer();
-            _testCountdown = 0;
-            _dictationTimer = new System.Timers.Timer(1000);
-            _dictationTimer.Elapsed += async (s, e) =>
-            {
-                if (!_viewModel.IsPaused && _viewModel.IsTesting)
-                {
-                    _testCountdown++;
-                    var countdown = _viewModel.ReadInterval - _testCountdown;
-                    var currentIdx = _viewModel.CurrentIndex;
-                    var totalWords = _viewModel.WordsCount;
-                    var reachedZero = _testCountdown >= _viewModel.ReadInterval;
-
-                    try
-                    {
-                        await Windows.ApplicationModel.Core.CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(
-                            Windows.UI.Core.CoreDispatcherPriority.Normal,
-                            () =>
-                            {
-                                // Update countdown display with changing numbers
-                                _viewModel.Countdown = countdown;
-                                if (CountdownLabel != null)
-                                {
-                                    CountdownLabel.Text = countdown.ToString();
-                                }
-                                
-                                if (reachedZero)
-                                {
-                                    // Countdown reached 0 - stop timer and read current word
-                                    _dictationTimer?.Stop();
-                                    _testCountdown = 0;
-                                    
-                                    // Process current word (read it and handle next steps)
-                                    _ = ProcessPaperDictationWordAsync();
-                                }
-                            });
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Dictation timer error: {ex.Message}");
-                    }
-                }
-            };
-            _dictationTimer.Start();
+            // Paper dictation mode: word will be shown briefly before reading, then hidden
+            if (WordDisplayBorder != null) WordDisplayBorder.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>
@@ -222,6 +182,131 @@ namespace English_Listen_WinUI.Views
             }
 
             // Timer continues running and will count down, then call this method again when it reaches 0
+        }
+
+            // Show word briefly (hidden in paper mode, but we'll show it for a moment)
+            if (WordDisplayBorder != null && CurrentWordText != null)
+            {
+                CurrentWordText.Text = currentWord;
+                WordDisplayBorder.Visibility = Visibility.Visible;
+            }
+
+            // Brief display before reading (0.5 seconds)
+            await Task.Delay(500);
+
+            // Hide word for true dictation experience
+            if (WordDisplayBorder != null)
+            {
+                WordDisplayBorder.Visibility = Visibility.Collapsed;
+            }
+
+            // Read the word with countdown frozen at 0
+            await _viewModel.SpeechService.SpeakAsync(currentWord, _viewModel.Settings.Settings.FliteVoiceModel);
+
+            // Check if this was the last word
+            if (currentIdx >= totalWords - 1)
+            {
+                // Last word - wait for it to complete then finish test
+                await Task.Delay(500); // Brief pause after last word
+                
+                if (_viewModel.IsTesting && !_viewModel.IsPaused)
+                {
+                    _isTestCompleted = true;
+                    StopDictationTimer();
+                    _viewModel.StopTestCommand.Execute(null);
+                }
+                return;
+            }
+
+            // Step 2: Reset countdown to user-set interval and start counting down
+            if (!_viewModel.IsTesting || _viewModel.IsPaused) return;
+
+            _testCountdown = 0;
+            if (CountdownLabel != null)
+            {
+                CountdownLabel.Text = _viewModel.ReadInterval.ToString();
+                _viewModel.Countdown = _viewModel.ReadInterval;
+            }
+
+            // Start countdown timer - it will count down and call this method again when it reaches 0
+            StartDictationTimer();
+        }
+
+        private void SetupOnlineDictation()
+        {
+            // Match QT6 exactly: online dictation UI setup with null checks
+            if (OnlineInputPanel != null) OnlineInputPanel.Visibility = Visibility.Visible;
+            if (OnlineModeButtons != null) OnlineModeButtons.Visibility = Visibility.Visible;
+            if (PaperModeButtons != null) PaperModeButtons.Visibility = Visibility.Collapsed;
+            if (SettingsPanel != null) SettingsPanel.Visibility = Visibility.Collapsed;
+            if (CountdownLabel != null) CountdownLabel.Visibility = Visibility.Visible;
+            
+            // Clear input and status
+            if (OnlineInputTextBox != null) OnlineInputTextBox.Text = "";
+            if (OnlineStatusLabel != null) OnlineStatusLabel.Text = "";
+            
+            // Online dictation can show current word as reference but hide initially
+            if (WordDisplayBorder != null) WordDisplayBorder.Visibility = Visibility.Collapsed;
+            
+            // Set focus to input box matching QT6
+            if (OnlineInputTextBox != null) 
+            {
+                OnlineInputTextBox.Focus(FocusState.Programmatic);
+                OnlineInputTextBox.Text = "";
+            }
+            if (OnlineStatusLabel != null)
+            {
+                OnlineStatusLabel.Text = "";
+                OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+            }
+            
+            // Reset counters for new test
+            _correctAnswers = 0;
+            _wrongAnswers = 0;
+        }
+
+        private void StartDictationTimer()
+        {
+            StopDictationTimer();
+            _testCountdown = 0;
+            _dictationTimer = new System.Timers.Timer(1000);
+            _dictationTimer.Elapsed += async (s, e) =>
+            {
+                if (!_viewModel.IsPaused && _viewModel.IsTesting)
+                {
+                    _testCountdown++;
+                    var countdown = _viewModel.ReadInterval - _testCountdown;
+                    var currentIdx = _viewModel.CurrentIndex;
+                    var totalWords = _viewModel.WordsCount;
+                    var reachedZero = _testCountdown >= _viewModel.ReadInterval;
+
+                    try
+                    {
+                        await Windows.ApplicationModel.Core.CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(
+                            Windows.UI.Core.CoreDispatcherPriority.Normal,
+                            () =>
+                            {
+                                // Update countdown display
+                                _viewModel.Countdown = countdown;
+                                
+                                if (reachedZero)
+                                {
+                                    // Countdown reached 0 - stop timer and process next word
+                                    _dictationTimer?.Stop();
+                                    _testCountdown = 0;
+                                    
+                                    // Process next word (this will read it and restart timer)
+                                    _ = ProcessPaperDictationWordAsync();
+                                }
+                            });
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Dictation timer error: {ex.Message}");
+                    }
+                }
+            };
+            _dictationTimer.Start();
         }
 
         private void StopDictationTimer()
@@ -418,6 +503,12 @@ namespace English_Listen_WinUI.Views
 
         private async void OnlineSubmitButton_Click(object sender, RoutedEventArgs e)
         {
+            await SubmitOnlineAnswer();
+        }
+
+        private async Task SubmitOnlineAnswer()
+        {
+            // Qt版本风格：提交答案逻辑
             if (_viewModel == null || !_isOnlineMode) return;
             
             var userInput = OnlineInputTextBox.Text.Trim();
@@ -428,13 +519,13 @@ namespace English_Listen_WinUI.Views
                 return;
             }
             
-            // Save user input
+            // 保存用户输入（类似Qt版本的userInputs[currentIndex] = input）
             if (_viewModel.CurrentIndex < _viewModel.UserInputs.Count)
             {
                 _viewModel.UserInputs[_viewModel.CurrentIndex] = userInput;
             }
             
-            // Check answer and count correct/wrong
+            // 检查答案（类似Qt版本的答案检查逻辑）
             var currentWord = _viewModel.CurrentWord;
             bool isCorrect = userInput.ToLower() == currentWord.ToLower();
             
@@ -451,10 +542,10 @@ namespace English_Listen_WinUI.Views
                 OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
             }
             
-            // Clear input and move to next word after delay
+            // 清空输入框
             OnlineInputTextBox.Text = "";
             
-            // Wait a moment for user to see the result, then move to next word
+            // Qt版本使用1.5秒延迟后自动进入下一个单词
             await Task.Delay(1500);
             MoveToNextOnlineWord();
         }
@@ -463,28 +554,31 @@ namespace English_Listen_WinUI.Views
 
         private async void MoveToNextOnlineWord()
         {
+            // Qt版本风格：移动到下一个单词逻辑
             if (_viewModel == null || !_isOnlineMode) return;
             
             _viewModel.CurrentIndex++;
             
             if (_viewModel.CurrentIndex < _viewModel.WordsCount)
             {
-                // Update progress
+                // 显示正在朗读提示（类似Qt版本的"正在朗读"）
                 OnlineStatusLabel.Text = $"第 {_viewModel.CurrentIndex + 1} / {_viewModel.WordsCount} 个单词";
                 OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
                 
-                // Speak the word
+                // 朗读下一个单词（类似Qt版本的speakWord）
                 await _viewModel.SpeechService.SpeakAsync(_viewModel.CurrentWord, _viewModel.Settings.Settings.FliteVoiceModel);
                 
-                // Clear input
-                OnlineInputTextBox.Text = "";
+                // 清空状态标签（类似Qt版本的onlineStatusLabel->clear()）
+                OnlineStatusLabel.Text = "";
+                OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
                 
-                // Focus on input
+                // 清空输入框并聚焦（类似Qt版本的清空输入框）
+                OnlineInputTextBox.Text = "";
                 OnlineInputTextBox.Focus(FocusState.Programmatic);
             }
             else
             {
-                // Test completed - show statistics and save user data
+                // 测试结束（类似Qt版本的测试结束处理）
                 _isTestCompleted = true;
                 _viewModel.StopTestCommand.Execute(null);
                 await ShowOnlineTestResultsAsync();
@@ -576,63 +670,51 @@ namespace English_Listen_WinUI.Views
         {
             if (e.Key == Windows.System.VirtualKey.Enter)
             {
-                var userInput = OnlineInputTextBox.Text.Trim();
-                if (string.IsNullOrEmpty(userInput))
-                {
-                    OnlineStatusLabel.Text = "请输入单词!";
-                    OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
-                    return;
-                }
-                
-                // Save input
-                if (_viewModel != null && _viewModel.CurrentIndex < _viewModel.UserInputs.Count)
-                {
-                    _viewModel.UserInputs[_viewModel.CurrentIndex] = userInput;
-                }
-                
-                // Check answer and count correct/wrong
-                var currentWord = _viewModel?.CurrentWord ?? "";
-                bool isCorrect = userInput.ToLower() == currentWord.ToLower();
-                
-                if (isCorrect)
-                {
-                    _correctAnswers++;
-                    OnlineStatusLabel.Text = "正确！进入下一个单词...";
-                    OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
-                }
-                else
-                {
-                    _wrongAnswers++;
-                    OnlineStatusLabel.Text = $"错误！正确答案: {currentWord}，进入下一个单词...";
-                    OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
-                }
-                
-                // Move to next word after delay
-                var timer = new DispatcherTimer();
-                timer.Interval = TimeSpan.FromSeconds(1);
-                timer.Tick += (s, args) =>
-                {
-                    timer.Stop();
-                    MoveToNextOnlineWord();
-                };
-                timer.Start();
-                
+                // Qt版本风格：Enter键处理
+                HandleEnterKeyInOnlineMode();
                 e.Handled = true;
             }
         }
 
-
-
-        private void UpdateDisplay()
+        private async void HandleEnterKeyInOnlineMode()
         {
-            if (_viewModel == null) return;
+            // Qt版本风格：Enter键提交答案逻辑
+            var userInput = OnlineInputTextBox.Text.Trim();
+            if (string.IsNullOrEmpty(userInput))
+            {
+                OnlineStatusLabel.Text = "请输入单词!";
+                OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+                return;
+            }
             
-            CurrentWordText.Text = _viewModel.CurrentWord;
-            var totalWords = _viewModel.WordsCount;
-            ProgressText.Text = $"{_viewModel.CurrentIndex + 1}/{totalWords}";
-            CountdownLabel.Text = _viewModel.Countdown.ToString();
+            // 保存输入（类似Qt版本的userInputs[currentIndex] = input）
+            if (_viewModel != null && _viewModel.CurrentIndex < _viewModel.UserInputs.Count)
+            {
+                _viewModel.UserInputs[_viewModel.CurrentIndex] = userInput;
+            }
+            
+            // 检查答案（类似Qt版本的答案检查）
+            var currentWord = _viewModel?.CurrentWord ?? "";
+            bool isCorrect = userInput.ToLower() == currentWord.ToLower();
+            
+            if (isCorrect)
+            {
+                _correctAnswers++;
+                OnlineStatusLabel.Text = "正确！进入下一个单词...";
+                OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
+            }
+            else
+            {
+                _wrongAnswers++;
+                OnlineStatusLabel.Text = $"错误！正确答案: {currentWord}，进入下一个单词...";
+                OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+            }
+            
+            // Qt版本使用1秒延迟后进入下一个单词
+            await Task.Delay(1000);
+            MoveToNextOnlineWord();
         }
-        
+
         private void ApplyIntervalButton_Click(object sender, RoutedEventArgs e)
         {
             if (_viewModel == null || IntervalNumberBox == null) return;
@@ -646,44 +728,73 @@ namespace English_Listen_WinUI.Views
             _ = _viewModel.Settings.SaveSettingsAsync();
         }
 
+        private void UpdateDisplay()
+        {
+            if (_viewModel == null) return;
+            
+            // Match QT6 exactly: update current word display
+            if (CurrentWordText != null)
+            {
+                CurrentWordText.Text = _viewModel.CurrentWord;
+            }
+            
+            // Match QT6 exactly: progress display format "第 X / Y 个单词"
+            var totalWords = _viewModel.WordsCount;
+            if (ProgressText != null)
+            {
+                ProgressText.Text = $"第 {_viewModel.CurrentIndex + 1} / {totalWords} 个单词";
+            }
+            
+            // Match QT6 exactly: countdown display
+            if (CountdownLabel != null)
+            {
+                CountdownLabel.Text = _viewModel.Countdown.ToString();
+            }
+        }
+        
         private void Page_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             if (_viewModel == null || !_viewModel.IsTesting) return;
 
             if (_isOnlineMode)
             {
-                // Online mode: only handle Enter for input submission
-                if (e.Key == Windows.System.VirtualKey.Enter)
+                // Qt版本在线模式键盘处理
+                switch (e.Key)
                 {
-                    OnlineInputTextBox_KeyDown(sender, e);
-                    e.Handled = true;
+                    case Windows.System.VirtualKey.Enter:
+                        // Enter键提交答案（类似Qt版本的returnPressed）
+                        HandleEnterKeyInOnlineMode();
+                        e.Handled = true;
+                        break;
+                    case Windows.System.VirtualKey.Right:
+                        // 右箭头键跳到下一个单词（类似Qt版本的右方向键）
+                        MoveToNextOnlineWord();
+                        e.Handled = true;
+                        break;
                 }
                 return;
             }
             
+            // Qt版本纸笔听写模式键盘处理
             switch (e.Key)
             {
                 case Windows.System.VirtualKey.Space:
+                    // 空格键重复朗读当前单词（类似Qt版本的空格键）
                     RepeatButton_Click(sender, e);
                     e.Handled = true;
                     break;
                 case Windows.System.VirtualKey.Left:
+                    // 左方向键返回上一个单词（类似Qt版本的左方向键）
                     PreviousButton_Click(sender, e);
                     e.Handled = true;
                     break;
                 case Windows.System.VirtualKey.Right:
-                    if (_isOnlineMode)
-                    {
-                        // In online mode, right arrow should move to next word
-                        MoveToNextOnlineWord();
-                    }
-                    else
-                    {
-                        NextButton_Click(sender, e);
-                    }
+                    // 右方向键跳到下一个单词（类似Qt版本的右方向键）
+                    NextButton_Click(sender, e);
                     e.Handled = true;
                     break;
                 case Windows.System.VirtualKey.Escape:
+                    // ESC键暂停/继续测试（类似Qt版本的ESC键）
                     PauseButton_Click(sender, e);
                     e.Handled = true;
                     break;

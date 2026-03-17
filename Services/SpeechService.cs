@@ -23,6 +23,7 @@ namespace English_Listen_WinUI.Services
         private bool _isFliteAvailable;
         private string _flitePath = string.Empty;
         private bool _isSpeaking;
+        private bool _isPaused;
         private MediaPlayer? _mediaPlayer;
         private WindowsTtsService? _windowsTtsService;
         private readonly object _lockObject = new();
@@ -348,12 +349,19 @@ namespace English_Listen_WinUI.Services
         /// </summary>
         public void Pause()
         {
-            _windowsTtsService?.Pause();
-            try
+            lock (_lockObject)
             {
-                _mediaPlayer?.Pause();
+                if (!_isPaused && _isSpeaking)
+                {
+                    _isPaused = true;
+                    _windowsTtsService?.Pause();
+                    try
+                    {
+                        _mediaPlayer?.Pause();
+                    }
+                    catch { }
+                }
             }
-            catch { }
         }
 
         /// <summary>
@@ -361,12 +369,19 @@ namespace English_Listen_WinUI.Services
         /// </summary>
         public void Resume()
         {
-            _windowsTtsService?.Resume();
-            try
+            lock (_lockObject)
             {
-                _mediaPlayer?.Play();
+                if (_isPaused)
+                {
+                    _isPaused = false;
+                    _windowsTtsService?.Resume();
+                    try
+                    {
+                        _mediaPlayer?.Play();
+                    }
+                    catch { }
+                }
             }
-            catch { }
         }
 
         public void Dispose()

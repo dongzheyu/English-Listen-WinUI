@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -32,10 +33,8 @@ namespace English_Listen_WinUI.Views
                 AvgAccuracyInfoBar.Title = $"平均正确率: {avg:F1}%";
             }
             
-            // Start the gradient animation
-            var storyboard = (Storyboard)Resources["GradientAnimation"];
-            storyboard?.Begin();
-        }
+            // Qt版本风格：专注于功能，静态渐变已足够美观
+            // 不需要复杂动画，避免性能问题和颜色异常
         }
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)
@@ -63,52 +62,118 @@ namespace English_Listen_WinUI.Views
         {
             if (_viewModel == null) return;
             
+            // Create dialog matching QT6 exactly: 350x200px, simple mode selection
             var dialog = new ContentDialog
             {
                 Title = "选择听写模式",
-                PrimaryButtonText = "顺序听写",
-                SecondaryButtonText = "随机听写",
-                CloseButtonText = "取消",
+                Width = 350,
+                Height = 200,
                 XamlRoot = this.XamlRoot
             };
 
-            var stackPanel = new StackPanel();
-            stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
+            // Main layout matching QT6 QVBoxLayout
+            var mainStackPanel = new StackPanel();
+            mainStackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
+            mainStackPanel.Spacing = 15;
             
-            var modeComboBox = new ComboBox
+            // Title label matching QT6 exactly
+            var titleLabel = new TextBlock
             {
-                Header = "听写模式",
-                ItemsSource = new[] { "顺序听写", "随机听写" },
-                SelectedIndex = 0
+                Text = "请选择听写模式：",
+                HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Microsoft YaHei"),
+                FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black)
             };
-            stackPanel.Children.Add(modeComboBox);
+            mainStackPanel.Children.Add(titleLabel);
             
-            var intervalSlider = new Slider
+            // Paper dictation button (Primary style - blue theme)
+            var paperButton = new Button
             {
-                Header = "朗读间隔 (秒)",
-                Minimum = 2,
-                Maximum = 10,
-                Value = _viewModel.Settings.Settings.ReadInterval,
-                StepFrequency = 1
+                Content = "纸笔听写",
+                Width = 120,
+                Height = 35,
+                Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 10),
+                Style = (Microsoft.UI.Xaml.Style)Application.Current.Resources["AccentButtonStyle"]
             };
-            stackPanel.Children.Add(intervalSlider);
-            
-            dialog.Content = stackPanel;
-            
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary || result == ContentDialogResult.Secondary)
+            paperButton.Click += (s, e) => 
             {
-                bool isRandom = modeComboBox.SelectedIndex == 1;
-                int interval = (int)intervalSlider.Value;
-                
-                // Update settings
-                _viewModel.Settings.Settings.ReadInterval = interval;
-                await _viewModel.Settings.SaveSettingsAsync();
-                
-                // Navigate to test page
-                _viewModel.IsRandomOrder = isRandom;
-                Frame?.Navigate(typeof(TestPage));
+                dialog.Hide();
+                StartPaperDictation();
+            };
+            mainStackPanel.Children.Add(paperButton);
+            
+            // Online dictation button (Success style - green theme)
+            var onlineButton = new Button
+            {
+                Content = "在线听写",
+                Width = 120,
+                Height = 35,
+                Style = (Microsoft.UI.Xaml.Style)Application.Current.Resources["AccentButtonStyle"]
+            };
+            onlineButton.Click += (s, e) => 
+            {
+                dialog.Hide();
+                StartOnlineDictation();
+            };
+            mainStackPanel.Children.Add(onlineButton);
+            
+            dialog.Content = mainStackPanel;
+            await dialog.ShowAsync();
+        }
+
+        private void StartPaperDictation()
+        {
+            if (_viewModel.CurrentWords == null || _viewModel.CurrentWords.Count == 0)
+            {
+                ShowWordEmptyWarning();
+                return;
             }
+
+            // Apply random order if enabled (from settings)
+            if (_viewModel.IsRandomOrder)
+            {
+                _viewModel.CurrentWords = _viewModel.CurrentWords.OrderBy(x => Guid.NewGuid()).ToList();
+            }
+
+            _viewModel.IsOnlineDictationMode = false;
+            Frame?.Navigate(typeof(TestPage));
+        }
+
+        private void StartOnlineDictation()
+        {
+            if (_viewModel.CurrentWords == null || _viewModel.CurrentWords.Count == 0)
+            {
+                ShowWordEmptyWarning();
+                return;
+            }
+
+            // Save original word order and apply random if enabled
+            _viewModel.OriginalWordsOrder = new List<string>(_viewModel.CurrentWords);
+            
+            if (_viewModel.IsRandomOrder)
+            {
+                _viewModel.CurrentWords = _viewModel.CurrentWords.OrderBy(x => Guid.NewGuid()).ToList();
+            }
+
+            _viewModel.IsOnlineDictationMode = true;
+            _viewModel.UserInputs.Clear();
+            _viewModel.UserInputs = new List<string>(_viewModel.CurrentWords.Count);
+            
+            Frame?.Navigate(typeof(TestPage));
+        }
+
+        private async void ShowWordEmptyWarning()
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "警告",
+                Content = "词库为空，请先添加单词",
+                CloseButtonText = "确定",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
         }
     }
 }

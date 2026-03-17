@@ -21,6 +21,7 @@ namespace English_Listen_WinUI.Services
         private readonly object _lockObject = new object();
         private bool _isInitialized;
         private bool _isSpeaking;
+        private bool _isPaused;
 
         // 可用的语音列表
         private List<Models.VoiceInfo> _availableVoices = new List<Models.VoiceInfo>();
@@ -242,15 +243,36 @@ namespace English_Listen_WinUI.Services
                 // 等待播放完成
                 var tcs = new TaskCompletionSource<bool>();
                 
-                // 使用循环检测播放状态，避免WinRT事件类型转换问题
-                var checkInterval = 100; // 100ms检查一次
-                while (_mediaPlayer.PlaybackSession?.Position < _mediaPlayer.PlaybackSession?.NaturalDuration)
+                // 订阅播放结束事件
+                void PlaybackSession_PlaybackStateChanged(MediaPlaybackSession sender, object args)
                 {
-                    await Task.Delay(checkInterval);
+                    // 如果处于暂停状态，不触发完成事件
+                    if (_isPaused) return;
+                    
+                    if (sender.PlaybackState == MediaPlaybackState.None || 
+                        (sender.PlaybackState == MediaPlaybackState.Paused && sender.Position >= sender.NaturalDuration))
+                    {
+                        tcs.TrySetResult(true);
+                    }
                 }
                 
-                // 等待一小段时间确保播放完全结束
-                await Task.Delay(200);
+                _mediaPlayer.PlaybackSession.PlaybackStateChanged += PlaybackSession_PlaybackStateChanged;
+                
+                try
+                {
+                    // 等待播放完成或超时（根据音频长度动态设置超时时间）
+                    var audioLengthMs = _mediaPlayer.PlaybackSession?.NaturalDuration.TotalMilliseconds ?? 5000;
+                    var timeout = Math.Max(audioLengthMs + 1000, 10000); // 音频长度+1秒，最少10秒
+                    
+                    await Task.WhenAny(tcs.Task, Task.Delay((int)timeout));
+                }
+                finally
+                {
+                    _mediaPlayer.PlaybackSession.PlaybackStateChanged -= PlaybackSession_PlaybackStateChanged;
+                }
+                
+                // 额外等待确保音频完全播放完毕
+                await Task.Delay(500);
                 tcs.TrySetResult(true);
                 await tcs.Task;
             }
@@ -287,11 +309,13 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
+                _isPaused = true;
                 _mediaPlayer.Pause();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"暂停朗读失败: {ex.Message}");
+                _isPaused = false;
             }
         }
 
@@ -302,6 +326,7 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
+                _isPaused = false;
                 _mediaPlayer.Play();
             }
             catch (Exception ex)

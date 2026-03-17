@@ -45,27 +45,22 @@ namespace English_Listen_WinUI.Views
                 catch { }
             }
             
-            // 初始化时处理临时文件
+            // 初始化时处理临时文件 - 保留现有内容，不再重置
             var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
-            if (System.IO.File.Exists(tempPath))
+            
+            // 如果临时文件不存在，创建新的空文件
+            if (!System.IO.File.Exists(tempPath))
             {
-                // 如果存在临时文件，删除并创建新的
-                System.IO.File.Delete(tempPath);
-                System.IO.File.WriteAllText(tempPath, "");
-            }
-            else
-            {
-                // 如果不存在临时文件，创建新的空文件
                 System.IO.File.WriteAllText(tempPath, "");
             }
             
-            // 使用空的临时文件内容
-            WordsTextBox.Text = "";
-            _originalWordsText = "";
+            // 从临时文件加载内容
+            var tempContent = System.IO.File.ReadAllText(tempPath);
+            WordsTextBox.Text = tempContent;
+            _originalWordsText = tempContent;
             
-            // 更新ViewModel
-            _viewModel.WordsText = "";
-            _viewModel.CurrentWords = new List<string>();
+            // 更新ViewModel - WordsText setter will automatically update CurrentWords
+            _viewModel.WordsText = tempContent;
             _viewModel.CurrentWordListName = "临时词库";
             
             // Populate list
@@ -162,9 +157,8 @@ namespace English_Listen_WinUI.Views
                 WordsTextBox.Text = string.Join("\n", allWords);
                 _originalWordsText = WordsTextBox.Text;
                 
-                // 更新ViewModel
+                // 更新ViewModel - WordsText setter will automatically update CurrentWords
                 _viewModel.WordsText = WordsTextBox.Text;
-                _viewModel.CurrentWords = allWords;
                 _viewModel.CurrentWordListName = $"分组: {selectedGroupName}";
                 
                 var successDialog = new ContentDialog
@@ -478,8 +472,12 @@ namespace English_Listen_WinUI.Views
                 _autoSaveTimer.Stop();
             }
             
-            // 保存到临时文件
+            // 保存到临时文件并更新ViewModel
             await SaveToTempFileAsync();
+            
+            // 同步更新ViewModel - WordsText setter will automatically update CurrentWords
+            _viewModel.WordsText = WordsTextBox.Text;
+            _viewModel.CurrentWordListName = "临时词库";
         }
         
         private async Task SaveToTempFileAsync()

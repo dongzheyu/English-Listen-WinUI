@@ -48,6 +48,8 @@ namespace English_Listen_WinUI.ViewModels
         private int _dictationMode; // 0 = 纸笔听写, 1 = 在线听写
         private List<string> _userInputs = new();
         private bool _isRandomOrder;
+        private bool _isOnlineDictationMode;
+        private List<string> _originalWordsOrder = new();
         private ObservableCollection<UserData> _users = new();
 
         public ObservableCollection<UserData> Users
@@ -138,7 +140,14 @@ namespace English_Listen_WinUI.ViewModels
         public string WordsText
         {
             get => _wordsText;
-            set => SetProperty(ref _wordsText, value);
+            set 
+            { 
+                if (SetProperty(ref _wordsText, value))
+                {
+                    // Update CurrentWords when WordsText changes
+                    UpdateCurrentWordsFromText();
+                }
+            }
         }
 
         public bool ShowAnswers
@@ -178,7 +187,42 @@ namespace English_Listen_WinUI.ViewModels
             }
         }
 
+        public bool IsOnlineDictationMode
+        {
+            get => _isOnlineDictationMode;
+            set => SetProperty(ref _isOnlineDictationMode, value);
+        }
+
+        public List<string> OriginalWordsOrder
+        {
+            get => _originalWordsOrder;
+            set => SetProperty(ref _originalWordsOrder, value);
+        }
+
         public int WordsCount => _currentWords.Count;
+
+        private void UpdateCurrentWordsFromText()
+        {
+            if (string.IsNullOrEmpty(WordsText))
+            {
+                CurrentWords = new List<string>();
+            }
+            else
+            {
+                var words = WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(w => w.Trim())
+                    .Where(w => !string.IsNullOrEmpty(w))
+                    .ToList();
+                CurrentWords = words;
+            }
+            
+            // Update command availability
+            OnPropertyChanged(nameof(CanStartTest));
+            if (StartTestCommand is RelayCommand rc)
+            {
+                rc.RaiseCanExecuteChanged();
+            }
+        }
 
         public Services.SettingsService Settings => _settingsService;
 
@@ -228,6 +272,9 @@ namespace English_Listen_WinUI.ViewModels
 
             await LoadWordListFilesAsync();
             await LoadTestHistoryAsync();
+            
+            // 加载临时词库，确保大文本框和听写功能都能访问
+            await LoadWordsFromTempFileAsync();
 
             // Load users without password (will only load unencrypted users)
             var users = await _settingsService.LoadUsersAsync();
@@ -353,10 +400,14 @@ namespace English_Listen_WinUI.ViewModels
             IsPaused = !IsPaused;
             if (!IsPaused)
             {
+                // 恢复音频播放和计时器
+                _speechService.Resume();
                 StartTimer();
             }
             else
             {
+                // 暂停音频播放和计时器
+                _speechService.Pause();
                 StopTimer();
             }
         }
