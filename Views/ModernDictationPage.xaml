@@ -54,15 +54,14 @@
                                Header="朗读间隔（秒）"
                                Minimum="1"
                                Maximum="30"
-                               Value="5"
-                               SpinButtonPlacementMode="Inline"
-                               ValueChanged="IntervalNumberBox_ValueChanged"/>
+                               Value="{x:Bind ViewModel.ReadInterval, Mode=TwoWay}"
+                               SpinButtonPlacementMode="Inline"/>
                     
                     <ToggleSwitch x:Name="RandomOrderToggle"
                                   Header="随机顺序"
                                   OffContent="顺序"
                                   OnContent="随机"
-                                  Toggled="RandomOrderToggle_Toggled"/>
+                                  IsOn="{x:Bind ViewModel.IsRandomOrder, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
 

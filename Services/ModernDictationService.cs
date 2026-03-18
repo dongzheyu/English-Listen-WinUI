@@ -70,7 +70,7 @@ namespace English_Listen_WinUI.Services
             _isPaused = false;
             _currentIndex = 0;
             
-            TestStateChanged?.Invoke(_isTesting, _isPaused);
+            await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
             
             // Start with the first word
             await SpeakCurrentWordAsync();
@@ -78,13 +78,32 @@ namespace English_Listen_WinUI.Services
             return true;
         }
         
-        public void StopTest()
+        public async void StopTest()
         {
             _isTesting = false;
             _isPaused = false;
             _countdownTimer.Stop();
             
-            TestStateChanged?.Invoke(_isTesting, _isPaused);
+            await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
+        }
+        
+        public async void PauseResume()
+        {
+            if (!_isTesting)
+                return;
+                
+            _isPaused = !_isPaused;
+            
+            if (_isPaused)
+            {
+                _countdownTimer.Stop();
+            }
+            else
+            {
+                _countdownTimer.Start();
+            }
+            
+            await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
         }
         
         public async void NextWord()
@@ -113,37 +132,18 @@ namespace English_Listen_WinUI.Services
             await SpeakCurrentWordAsync();
         }
         
-        public void PauseResume()
-        {
-            if (!_isTesting)
-                return;
-                
-            _isPaused = !_isPaused;
-            
-            if (_isPaused)
-            {
-                _countdownTimer.Stop();
-            }
-            else
-            {
-                _countdownTimer.Start();
-            }
-            
-            TestStateChanged?.Invoke(_isTesting, _isPaused);
-        }
-        
         private async Task SpeakCurrentWordAsync()
         {
             if (_currentIndex >= _wordList.Count)
                 return;
                 
             var word = _wordList[_currentIndex];
-            WordChanged?.Invoke(word, _currentIndex + 1, _wordList.Count);
+            await InvokeOnUIThread(() => WordChanged?.Invoke(word, _currentIndex + 1, _wordList.Count));
             
             // Show "正在朗读" during speech
-            CountdownChanged?.Invoke(-1); // -1 indicates "正在朗读"
+            await InvokeOnUIThread(() => CountdownChanged?.Invoke(-1)); // -1 indicates "正在朗读"
             
-            SpeechStatusChanged?.Invoke(true);
+            await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(true));
             
             try
             {
@@ -157,16 +157,16 @@ namespace English_Listen_WinUI.Services
                 await Task.Delay(1000);
             }
             
-            SpeechStatusChanged?.Invoke(false);
+            await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(false));
             
             // Start countdown for next word
             StartCountdown();
         }
         
-        private void StartCountdown()
+        private async void StartCountdown()
         {
             _currentCountdown = _readInterval;
-            CountdownChanged?.Invoke(_currentCountdown);
+            await InvokeOnUIThread(() => CountdownChanged?.Invoke(_currentCountdown));
             
             if (!_isPaused)
             {
@@ -198,7 +198,24 @@ namespace English_Listen_WinUI.Services
             }
             else
             {
-                CountdownChanged?.Invoke(_currentCountdown);
+                // Invoke on UI thread
+                await InvokeOnUIThread(() => CountdownChanged?.Invoke(_currentCountdown));
+            }
+        }
+        
+        private async Task InvokeOnUIThread(Action action)
+        {
+            try
+            {
+                // Use Windows.ApplicationModel.Core.CoreApplication.MainView for UI thread dispatch
+                await Windows.ApplicationModel.Core.CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(
+                    Windows.UI.Core.CoreDispatcherPriority.Normal,
+                    () => action());
+            }
+            catch (Exception ex)
+            {
+                // If UI thread dispatch fails, the app might be shutting down
+                System.Diagnostics.Debug.WriteLine($"UI thread dispatch failed: {ex.Message}");
             }
         }
         

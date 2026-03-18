@@ -9,6 +9,8 @@ namespace English_Listen_WinUI.Views
     {
         private readonly ModernDictationViewModel _viewModel;
 
+        public ModernDictationViewModel ViewModel => _viewModel;
+
         public ModernDictationPage()
         {
             this.InitializeComponent();
@@ -153,18 +155,7 @@ zoo";
             _viewModel.LoadWordsFromText("");
         }
 
-        private void IntervalNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
-        {
-            _viewModel.ReadInterval = (int)args.NewValue;
-        }
-
-        private void RandomOrderToggle_Toggled(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToggleSwitch toggle)
-            {
-                _viewModel.IsRandomOrder = toggle.IsOn;
-            }
-        }
+        // NumberBox and ToggleSwitch are now data-bound directly to ViewModel
 
         private void StartButton_Click(object sender, RoutedEventArgs e)
         {
