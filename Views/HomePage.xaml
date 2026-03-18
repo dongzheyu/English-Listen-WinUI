@@ -17,22 +17,22 @@
     </Page.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-               <StackPanel Margin="20">
-                <!-- Qt版本风格：简洁的标题，专注于功能 -->
-                <TextBlock x:Name="WelcomeTextBlock" Text="欢迎使用英语听写训练系统"
-                          FontSize="24"
-                          FontWeight="Bold"
-                          HorizontalAlignment="Center" 
-                          Margin="0,0,0,30"
-                          Foreground="{StaticResource WelcomeGradientBrush}">
-               </TextBlock>
-            
+                <StackPanel Margin="20">
+                 <!-- Qt版本风格：简洁的标题，专注于功能 -->
+                 <TextBlock x:Name="WelcomeTextBlock" Text="欢迎使用英语听写训练系统"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center" 
+                           Margin="0,0,0,30"
+                           Foreground="{StaticResource WelcomeGradientBrush}">
+                </TextBlock>
+             
              <!-- Start Button -->
              <StackPanel HorizontalAlignment="Center" Margin="0,0,0,30">
                  <Button x:Name="StartButton" Content="开始听写测试" 
                          Click="StartButton_Click" 
                          Width="200" Height="60"/>
-            </StackPanel>
+             </StackPanel>
 
             <!-- Quick Stats -->
             <StackPanel x:Name="StatsPanel" Orientation="Horizontal" 

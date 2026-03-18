@@ -27,6 +27,7 @@ namespace English_Listen_WinUI.ViewModels
     {
         private readonly SettingsService _settingsService;
         private readonly SpeechService _speechService;
+        private readonly NativeDictationService _nativeDictationService;
 
         public SpeechService SpeechService => _speechService;
 
@@ -231,7 +232,6 @@ namespace English_Listen_WinUI.ViewModels
         public ObservableCollection<string> AvailableVoices { get; } = new();
 
         private System.Timers.Timer? _testTimer;
-        private int _testCountdown;
 
         public ICommand NavigateCommand { get; }
         public ICommand ToggleThemeCommand { get; }
@@ -248,6 +248,13 @@ namespace English_Listen_WinUI.ViewModels
         {
             _settingsService = new SettingsService();
             _speechService = new SpeechService();
+            _nativeDictationService = new NativeDictationService();
+
+            // Set up callbacks for native dictation service
+            _nativeDictationService.WordChanged += OnWordChanged;
+            _nativeDictationService.CountdownChanged += OnCountdownChanged;
+            _nativeDictationService.TestStateChanged += OnTestStateChanged;
+            _nativeDictationService.SpeechStatusChanged += OnSpeechStatusChanged;
 
             NavigateCommand = new RelayCommand<string>(Navigate);
             ToggleThemeCommand = new RelayCommand(ToggleTheme);
@@ -261,6 +268,29 @@ namespace English_Listen_WinUI.ViewModels
             LoadWordsCommand = new RelayCommand<string>(async (file) => await LoadWordsAsync(file));
 
             _ = InitializeAsync();
+        }
+
+        // Native dictation service callbacks
+        private void OnWordChanged(string word, int currentIndex, int totalWords)
+        {
+            CurrentWord = word;
+            CurrentIndex = currentIndex - 1; // Convert to 0-based index
+        }
+
+        private void OnCountdownChanged(int countdown)
+        {
+            Countdown = countdown;
+        }
+
+        private void OnTestStateChanged(bool isTesting, bool isPaused)
+        {
+            IsTesting = isTesting;
+            IsPaused = isPaused;
+        }
+
+        private void OnSpeechStatusChanged(bool isSpeaking)
+        {
+            // Handle speech status if needed
         }
 
         public async Task InitializeAsync()
@@ -335,122 +365,84 @@ namespace English_Listen_WinUI.ViewModels
         {
             if (_currentWords.Count == 0) return;
 
-            IsTesting = true;
-            IsPaused = false;
-            CurrentIndex = 0;
-            _testCountdown = 0;
+            // Set words and settings in native backend
+            _nativeDictationService.SetWords(_currentWords);
+            _nativeDictationService.SetRandomOrder(IsRandomOrder);
+            _nativeDictationService.SetReadInterval(ReadInterval);
+            _nativeDictationService.SetFliteVoiceModel(_settingsService.Settings.FliteVoiceModel);
 
-            // Handle random order
-            if (IsRandomOrder)
+            // Start test using native backend
+            if (_nativeDictationService.StartTest(DictationMode))
             {
-                var random = new Random();
-                CurrentWords = _currentWords.OrderBy(x => random.Next()).ToList();
-            }
-
-            // Initialize user inputs for online mode
-            if (DictationMode == 1)
-            {
-                UserInputs = new List<string>(new string[_currentWords.Count]);
-            }
-
-            ShowTestInterface();
-            await PlayCurrentWordAsync();
-            
-            // Start timer only for paper dictation mode
-            if (DictationMode == 0)
-            {
-                StartTimer();
+                ShowTestInterface();
             }
         }
 
         private void StopTest()
         {
-            StopTimer();
-            _speechService.Stop();
-            IsTesting = false;
-            IsPaused = false;
-            CurrentPage = "Home";
+            _nativeDictationService.StopTest();
         }
 
-        private async void NextWord()
+        private void NextWord()
         {
-            if (CurrentIndex < CurrentWords.Count - 1)
-            {
-                CurrentIndex++;
-                await PlayCurrentWordAsync();
-            }
+            _nativeDictationService.NextWord();
         }
 
-        private async void PreviousWord()
+        private void PreviousWord()
         {
-            if (CurrentIndex > 0)
-            {
-                CurrentIndex--;
-                await PlayCurrentWordAsync();
-            }
+            _nativeDictationService.PreviousWord();
         }
 
-        private async void RepeatWord()
+        private void RepeatWord()
         {
-            await _speechService.SpeakAsync(CurrentWord, _settingsService.Settings.FliteVoiceModel);
+            _nativeDictationService.RepeatWord();
         }
 
         private void PauseResume()
         {
-            IsPaused = !IsPaused;
-            if (!IsPaused)
-            {
-                // 恢复音频播放和计时器
-                _speechService.Resume();
-                StartTimer();
-            }
-            else
-            {
-                // 暂停音频播放和计时器
-                _speechService.Pause();
-                StopTimer();
-            }
+            _nativeDictationService.PauseResume();
         }
 
         private async void StartTimer()
         {
-            StopTimer();
-            _testTimer = new System.Timers.Timer(1000);
-            _testTimer.Elapsed += async (s, e) =>
-            {
-                if (!IsPaused)
-                {
-                    _testCountdown++;
-                    var countdown = ReadInterval - _testCountdown;
-                    var currentIdx = CurrentIndex;
-                    var totalWords = CurrentWords.Count;
-                    var shouldStop = _testCountdown >= ReadInterval;
+            // Timer is now handled by the TestPage to prevent conflicts
+            // StopTimer();
+            // _testTimer = new System.Timers.Timer(1000);
+            // _testTimer.Elapsed += async (s, e) =>
+            // {
+            //     if (!IsPaused)
+            //     {
+            //         _testCountdown++;
+            //         var countdown = ReadInterval - _testCountdown;
+            //         var currentIdx = CurrentIndex;
+            //         var totalWords = CurrentWords.Count;
+            //         var shouldStop = _testCountdown >= ReadInterval;
 
-                    try
-                    {
-                        await Windows.ApplicationModel.Core.CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(
-                            Windows.UI.Core.CoreDispatcherPriority.Normal,
-                            () =>
-                            {
-                                Countdown = countdown;
-                                if (shouldStop)
-                                {
-                                    _testCountdown = 0;
-                                    if (currentIdx < totalWords - 1)
-                                    {
-                                        NextWord();
-                                    }
-                                    else
-                                    {
-                                        StopTest();
-                                    }
-                                }
-                            });
-                    }
-                    catch { }
-                }
-            };
-            _testTimer.Start();
+            //         try
+            //         {
+            //             await Windows.ApplicationModel.Core.CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(
+            //                 Windows.UI.Core.CoreDispatcherPriority.Normal,
+            //                 () =>
+            //                 {
+            //                     Countdown = countdown;
+            //                     if (shouldStop)
+            //                     {
+            //                         _testCountdown = 0;
+            //                         if (currentIdx < totalWords - 1)
+            //                         {
+            //                             NextWord();
+            //                         }
+            //                         else
+            //                         {
+            //                             StopTest();
+            //                         }
+            //                     }
+            //                 });
+            //         }
+            //         catch { }
+            //     }
+            // };
+            // _testTimer.Start();
         }
 
         private void StopTimer()
@@ -466,7 +458,6 @@ namespace English_Listen_WinUI.ViewModels
             {
                 CurrentWord = CurrentWords[CurrentIndex];
                 Countdown = ReadInterval;
-                _testCountdown = 0;
                 await _speechService.SpeakAsync(CurrentWord, _settingsService.Settings.FliteVoiceModel);
             }
         }

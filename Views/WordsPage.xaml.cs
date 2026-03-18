@@ -599,18 +599,34 @@ namespace English_Listen_WinUI.Views
             
             // 获取默认词库目录中的文件
             var wordlistDir = _viewModel.Settings.GetWordlistDirectory();
+            
+            // Debug: Check if directory exists and show path
+            if (!System.IO.Directory.Exists(wordlistDir))
+            {
+                var errorDialog = new ContentDialog
+                {
+                    Title = "Directory Not Found",
+                    Content = $"Wordlist directory does not exist: {wordlistDir}",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                return;
+            }
+            
             var files = System.IO.Directory.GetFiles(wordlistDir, "*.txt")
                 .Select(f => System.IO.Path.GetFileName(f))
                 .Where(f => !string.IsNullOrEmpty(f))
                 .ToList();
             
+            // Debug: Show found files
             if (files.Count == 0)
             {
                 var errorDialog = new ContentDialog
                 {
-                    Title = "提示",
-                    Content = "默认词库目录中没有找到词库文件",
-                    CloseButtonText = "确定",
+                    Title = "No Files Found",
+                    Content = $"No .txt files found in directory: {wordlistDir}\nDirectory exists: {System.IO.Directory.Exists(wordlistDir)}",
+                    CloseButtonText = "OK",
                     XamlRoot = this.XamlRoot
                 };
                 await errorDialog.ShowAsync();

@@ -1,0 +1,4 @@
+D:/c++/WinUI3/English-Listen-WinUI/NativeBackend/build/CMakeFiles/EnglishListenNative.dir
+D:/c++/WinUI3/English-Listen-WinUI/NativeBackend/build/CMakeFiles/TestBackend.dir
+D:/c++/WinUI3/English-Listen-WinUI/NativeBackend/build/CMakeFiles/edit_cache.dir
+D:/c++/WinUI3/English-Listen-WinUI/NativeBackend/build/CMakeFiles/rebuild_cache.dir

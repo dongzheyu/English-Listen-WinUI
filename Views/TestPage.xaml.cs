@@ -13,8 +13,6 @@ namespace English_Listen_WinUI.Views
         private readonly MainViewModel _viewModel;
         private bool _isTestCompleted = false;
         private bool _isOnlineMode = false;
-        private int _testCountdown = 0;
-        private System.Timers.Timer? _dictationTimer;
         private int _correctAnswers = 0;
         private int _wrongAnswers = 0;
 
@@ -50,13 +48,8 @@ namespace English_Listen_WinUI.Views
                     IntervalNumberBox.Value = _viewModel.ReadInterval;
                 }
                 
-                // Start test
+                // Start test - timer is now handled by C++ backend
                 _viewModel.StartTestCommand.Execute(null);
-                
-                if (!_isOnlineMode)
-                {
-                    StartDictationTimer();
-                }
             }
             
             _viewModel.PropertyChanged += (s, args) =>
@@ -102,138 +95,22 @@ namespace English_Listen_WinUI.Views
             WordDisplayBorder.Visibility = Visibility.Collapsed;
             
             OnlineInputTextBox.Text = "";
-            OnlineStatusLabel.Text = "";
+            OnlineStatusLabel.Text = $"第 {_viewModel.CurrentIndex + 1} / {_viewModel.WordsCount} 个单词";
             OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
             
             // Reset counters for new test
             _correctAnswers = 0;
             _wrongAnswers = 0;
-        }
-
-        private void StartDictationTimer()
-        {
-            StopDictationTimer();
-            _testCountdown = 0;
-            _dictationTimer = new System.Timers.Timer(1000);
-            _dictationTimer.Elapsed += async (s, e) =>
-            {
-                if (!_viewModel.IsPaused && _viewModel.IsTesting)
-                {
-                    _testCountdown++;
-                    var countdown = _viewModel.ReadInterval - _testCountdown;
-                    var currentIdx = _viewModel.CurrentIndex;
-                    var totalWords = _viewModel.WordsCount;
-                    var reachedZero = _testCountdown >= _viewModel.ReadInterval;
-
-                    try
-                    {
-                        await Windows.ApplicationModel.Core.CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(
-                            Windows.UI.Core.CoreDispatcherPriority.Normal,
-                            () =>
-                            {
-                                // Update countdown display with changing numbers
-                                _viewModel.Countdown = countdown;
-                                if (CountdownLabel != null)
-                                {
-                                    CountdownLabel.Text = countdown.ToString();
-                                }
-                                
-                                if (reachedZero)
-                                {
-                                    // Countdown reached 0 - stop timer and read current word
-                                    _dictationTimer?.Stop();
-                                    _testCountdown = 0;
-                                    
-                                    // Process current word (read it and handle next steps)
-                                    _ = ProcessPaperDictationWordAsync();
-                                }
-                            });
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Dictation timer error: {ex.Message}");
-                    }
-                }
-            };
-            _dictationTimer.Start();
-        }
-
-        /// <summary>
-        /// Handles proper paper dictation sequence: countdown at 0 → read word → reset to 5s → countdown to 0 → freeze → read next word
-        /// This method is called when countdown reaches 0
-        /// </summary>
-        private async Task ProcessPaperDictationWordAsync()
-        {
-            if (_viewModel == null || !_viewModel.IsTesting) return;
-
-            var currentWord = _viewModel.CurrentWord;
-            if (string.IsNullOrEmpty(currentWord)) return;
-
-            var currentIdx = _viewModel.CurrentIndex;
-            var totalWords = _viewModel.WordsCount;
-
-            // Step 1: We're at countdown = 0, read the word (countdown frozen at 0 during reading)
-            // Show word briefly (hidden in paper mode, but we'll show it for a moment)
-            if (WordDisplayBorder != null && CurrentWordText != null)
-            {
-                CurrentWordText.Text = currentWord;
-                WordDisplayBorder.Visibility = Visibility.Visible;
-            }
-
-            // Brief display before reading (0.5 seconds)
-            await Task.Delay(500);
-
-            // Hide word for true dictation experience
-            if (WordDisplayBorder != null)
-            {
-                WordDisplayBorder.Visibility = Visibility.Collapsed;
-            }
-
-            // Read the word with countdown frozen at 0
-            await _viewModel.SpeechService.SpeakAsync(currentWord, _viewModel.Settings.Settings.FliteVoiceModel);
-
-            // Check if this was the last word
-            if (currentIdx >= totalWords - 1)
-            {
-                // Last word - wait for it to complete then finish test
-                await Task.Delay(500); // Brief pause after last word
-                
-                if (_viewModel.IsTesting && !_viewModel.IsPaused)
-                {
-                    _isTestCompleted = true;
-                    StopDictationTimer();
-                    _viewModel.StopTestCommand.Execute(null);
-                }
-                return;
-            }
-
-            // Step 2: Move to next word and reset countdown for the countdown phase
-            if (!_viewModel.IsTesting || _viewModel.IsPaused) return;
-
-            // Move to next word
-            _viewModel.NextWordCommand.Execute(null);
             
-            // Reset countdown for the next word's countdown phase
-            _testCountdown = 0;
-            if (CountdownLabel != null)
-            {
-                CountdownLabel.Text = _viewModel.ReadInterval.ToString();
-                _viewModel.Countdown = _viewModel.ReadInterval;
-            }
-
-            // Timer continues running and will count down, then call this method again when it reaches 0
+            // Focus on input for immediate typing
+            OnlineInputTextBox.Focus(FocusState.Programmatic);
         }
 
-        private void StopDictationTimer()
-        {
-            _dictationTimer?.Stop();
-            _dictationTimer?.Dispose();
-            _dictationTimer = null;
-        }
+        // Timer functionality is now handled by the C++ backend
+        // No need for local timer implementation
 
         private async void ShowTestCompleteDialog()
         {
-            StopDictationTimer();
             
             // Calculate test results
             int totalWords = _viewModel.WordsCount;
@@ -354,7 +231,6 @@ namespace English_Listen_WinUI.Views
             if (result == ContentDialogResult.None)
             {
                 // 用户选择"去意已决"，停止测试并返回主界面
-                StopDictationTimer();
                 _viewModel?.StopTestCommand.Execute(null);
                 Frame?.Navigate(typeof(HomePage));
             }
@@ -366,13 +242,6 @@ namespace English_Listen_WinUI.Views
             
             _viewModel.PreviousWordCommand.Execute(null);
             UpdateDisplay();
-            
-            // Reset countdown for paper mode
-            if (!_isOnlineMode)
-            {
-                _testCountdown = 0;
-                _viewModel.Countdown = _viewModel.ReadInterval;
-            }
         }
 
         private void NextButton_Click(object sender, RoutedEventArgs e)
@@ -387,18 +256,10 @@ namespace English_Listen_WinUI.Views
             _viewModel.NextWordCommand.Execute(null);
             UpdateDisplay();
             
-            // Reset countdown for paper mode
-            if (!_isOnlineMode)
-            {
-                _testCountdown = 0;
-                _viewModel.Countdown = _viewModel.ReadInterval;
-            }
-            
             // 检查是否到达最后一个单词
             if (_viewModel.CurrentIndex >= _viewModel.WordsCount - 1)
             {
                 _isTestCompleted = true;
-                StopDictationTimer();
                 _viewModel.StopTestCommand.Execute(null);
             }
         }
@@ -475,6 +336,10 @@ namespace English_Listen_WinUI.Views
                 
                 // Speak the word
                 await _viewModel.SpeechService.SpeakAsync(_viewModel.CurrentWord, _viewModel.Settings.Settings.FliteVoiceModel);
+                
+                // Clear status label after speaking (matching QT6 behavior)
+                OnlineStatusLabel.Text = "";
+                OnlineStatusLabel.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
                 
                 // Clear input
                 OnlineInputTextBox.Text = "";
