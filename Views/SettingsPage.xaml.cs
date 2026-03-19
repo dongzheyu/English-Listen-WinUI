@@ -100,8 +100,7 @@ namespace English_Listen_WinUI.Views
                     }, TaskScheduler.FromCurrentSynchronizationContext());
                 }
 
-                // 加载语音模型（只针对Flite引擎）
-                LoadVoiceModel();
+                // 语音模型设置（SAPI only）
             }
             catch (Exception ex)
             {
@@ -125,7 +124,7 @@ namespace English_Listen_WinUI.Views
                     }
                     else
                     {
-                        EngineStatusText.Text = "ℹ️ 使用Flite语音引擎";
+                        EngineStatusText.Text = "ℹ️ 使用SAPI语音引擎";
                         EngineStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
                     }
                 }
@@ -136,31 +135,7 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        private void LoadVoiceModel()
-        {
-            try
-            {
-                if (VoiceModelComboBox == null) return;
 
-                var voiceModel = _viewModel?.Settings?.Settings?.FliteVoiceModel ?? "cmu_us_slt";
-                
-                for (int i = 0; i < VoiceModelComboBox.Items.Count; i++)
-                {
-                    if (VoiceModelComboBox.Items[i] is ComboBoxItem item && 
-                        item.Tag?.ToString() == voiceModel)
-                    {
-                        VoiceModelComboBox.SelectedIndex = i;
-                        break;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"语音模型加载错误: {ex.Message}");
-                if (VoiceModelComboBox != null)
-                    VoiceModelComboBox.SelectedIndex = 0; // 默认选择第一个
-            }
-        }
 
         // 主题切换
         private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -200,23 +175,7 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        // 语音模型选择
-        private void VoiceModelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_isInitializing || _viewModel?.Settings?.Settings == null) return;
 
-            try
-            {
-                if (VoiceModelComboBox.SelectedItem is ComboBoxItem item)
-                {
-                    _viewModel.Settings.Settings.FliteVoiceModel = item.Tag?.ToString() ?? "cmu_us_slt";
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"语音模型选择错误: {ex.Message}");
-            }
-        }
 
         // 随机顺序切换
         private void RandomOrderCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -306,15 +265,10 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                if (VoiceModelPanel != null && WindowsTtsVoicePanel != null && EngineComboBox != null)
+                if (WindowsTtsVoicePanel != null && EngineComboBox != null)
                 {
                     var selectedEngine = EngineComboBox.SelectedItem as ComboBoxItem;
                     var engineType = selectedEngine?.Tag?.ToString() ?? "Auto";
-                    
-                    // 显示/隐藏Flite语音模型面板
-                    var showFliteModel = engineType == "Flite" || 
-                                       (engineType == "Auto" && _viewModel?.SpeechService?.IsFliteAvailable == true);
-                    VoiceModelPanel.Visibility = showFliteModel ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
                     
                     // 显示/隐藏Windows TTS语音面板
                     var showWindowsTtsModel = engineType == "WindowsTTS" || 
@@ -328,37 +282,7 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        // Flite试听按钮点击事件
-        private async void FlitePreviewButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (_viewModel?.SpeechService == null) return;
-                
-                // 获取当前选择的Flite语音模型
-                if (VoiceModelComboBox?.SelectedItem is ComboBoxItem item && item.Tag != null)
-                {
-                    var voiceModel = item.Tag.ToString() ?? "cmu_us_slt";
-                    
-                    // 临时切换到Flite引擎进行试听
-                    var originalEngine = _viewModel.SpeechService.EngineType;
-                    _viewModel.SpeechService.EngineType = "Flite";
-                    
-                    // 播放测试文本
-                    await _viewModel.SpeechService.SpeakAsync("这是一段语音测试，您正在试听Flite语音引擎。", voiceModel);
-                    
-                    // 恢复原始引擎设置
-                    _viewModel.SpeechService.EngineType = originalEngine;
-                    
-                    System.Diagnostics.Debug.WriteLine($"Flite试听完成: {voiceModel}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Flite试听失败: {ex.Message}");
-                ShowError("试听失败", $"Flite试听失败: {ex.Message}");
-            }
-        }
+
 
         // Windows TTS试听按钮点击事件
         private async void WindowsTtsPreviewButton_Click(object sender, RoutedEventArgs e)

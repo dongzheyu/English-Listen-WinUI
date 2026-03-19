@@ -337,9 +337,8 @@ namespace English_Listen_WinUI.ViewModels
 
         private void LoadVoices()
         {
-            // SAPI voices removed - only Flite voice models available
+            // SAPI voices only - no Flite models
             AvailableVoices.Clear();
-            // Flite voice models are predefined in the UI
         }
 
         private void Navigate(string? page)
@@ -369,7 +368,7 @@ namespace English_Listen_WinUI.ViewModels
             _nativeDictationService.SetWords(_currentWords);
             _nativeDictationService.SetRandomOrder(IsRandomOrder);
             _nativeDictationService.SetReadInterval(ReadInterval);
-            _nativeDictationService.SetFliteVoiceModel(_settingsService.Settings.FliteVoiceModel);
+            // SAPI only - no Flite voice model needed
 
             // Start test using native backend
             if (_nativeDictationService.StartTest(DictationMode))
@@ -458,7 +457,7 @@ namespace English_Listen_WinUI.ViewModels
             {
                 CurrentWord = CurrentWords[CurrentIndex];
                 Countdown = ReadInterval;
-                await _speechService.SpeakAsync(CurrentWord, _settingsService.Settings.FliteVoiceModel);
+                await _speechService.SpeakAsync(CurrentWord);
             }
         }
 

@@ -97,7 +97,7 @@ namespace English_Listen_WinUI
             Type pageType = pageName switch
             {
                 "HomePage" => typeof(HomePage),
-                "ModernDictationPage" => typeof(ModernDictationPage),
+                "ModernDictationPage" => typeof(DictationTestPage),
                 "WordsPage" => typeof(WordsPage),
                 "UserPage" => typeof(UserPage),
                 "ProgressPage" => typeof(ProgressPage),
@@ -228,6 +228,23 @@ namespace English_Listen_WinUI
             {
                 System.Diagnostics.Debug.WriteLine($"About dialog failed: {ex.Message}");
             }
+        }
+
+        public void SetSidebarVisibility(bool isVisible)
+        {
+            try
+            {
+                MainNavigationView.IsPaneVisible = isVisible;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set sidebar visibility: {ex.Message}");
+            }
+        }
+
+        public void NavigateToHome()
+        {
+            NavigateToPage(typeof(HomePage));
         }
     }
 }

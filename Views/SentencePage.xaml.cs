@@ -237,7 +237,7 @@ namespace English_Listen_WinUI.Views
             {
                 try
                 {
-                    await viewModel.SpeechService.SpeakAsync(item.Sentence, viewModel.Settings.Settings.FliteVoiceModel);
+                        await viewModel.SpeechService.SpeakAsync(item.Sentence);
                 }
                 catch (Exception ex)
                 {
@@ -257,7 +257,7 @@ namespace English_Listen_WinUI.Views
                 {
                     foreach (var item in _selectedSentences)
                     {
-                        await viewModel.SpeechService.SpeakAsync(item.Sentence, viewModel.Settings.Settings.FliteVoiceModel);
+                    await viewModel.SpeechService.SpeakAsync(item.Sentence);
                         await Task.Delay(1000); // 1秒间隔
                     }
                 }

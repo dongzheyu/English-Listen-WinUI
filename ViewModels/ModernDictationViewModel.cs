@@ -25,11 +25,23 @@ namespace English_Listen_WinUI.ViewModels
         private string _countdownText = "";
         private bool _isSpeaking = false;
         private List<string> _wordList = new();
+        private bool _showWordList = true;
+        private bool _isFullScreen = false;
+        private bool _isSidebarVisible = true;
+        private bool _isTestCompleted = false;
+
+        public event Action<bool>? SidebarVisibilityChanged;
+        public event Action? NavigateToHome;
         
         // Settings
         private int _readInterval = 5;
         private bool _isRandomOrder = false;
-        private string _currentVoice = "Default";
+        private string _englishVoice = "";
+        private string _chineseVoice = "";
+        
+        // Voice lists
+        private List<Models.VoiceInfo> _englishVoices = new();
+        private List<Models.VoiceInfo> _chineseVoices = new();
         
         public ModernDictationViewModel()
         {
@@ -41,6 +53,7 @@ namespace English_Listen_WinUI.ViewModels
             _dictationService.CountdownChanged += OnCountdownChanged;
             _dictationService.TestStateChanged += OnTestStateChanged;
             _dictationService.SpeechStatusChanged += OnSpeechStatusChanged;
+            _dictationService.TestCompleted += OnTestCompleted;
             
             // Initialize commands
             StartTestCommand = new RelayCommand(StartTest, CanStartTest);
@@ -49,8 +62,16 @@ namespace English_Listen_WinUI.ViewModels
             PreviousWordCommand = new RelayCommand(PreviousWord, () => IsTesting);
             RepeatWordCommand = new RelayCommand(RepeatWord, () => IsTesting);
             PauseResumeCommand = new RelayCommand(PauseResume, () => IsTesting);
+            ReturnToHomeCommand = new RelayCommand(ReturnToHome);
+            ShowAnswersCommand = new RelayCommand(ShowAnswers, () => IsTestCompleted);
             
             _ = InitializeAsync();
+            
+            // Load words from main view model
+            LoadWordsFromMainViewModel();
+            
+            // Load available voices
+            LoadAvailableVoices();
         }
         
         #region Properties
@@ -109,6 +130,8 @@ namespace English_Listen_WinUI.ViewModels
             set => SetProperty(ref _isSpeaking, value);
         }
         
+        public bool IsLastWord { get; set; }
+        
         public int ReadInterval
         {
             get => _readInterval;
@@ -137,10 +160,28 @@ namespace English_Listen_WinUI.ViewModels
             }
         }
         
-        public string CurrentVoice
+        public string EnglishVoice
         {
-            get => _currentVoice;
-            set => SetProperty(ref _currentVoice, value);
+            get => _englishVoice;
+            set => SetProperty(ref _englishVoice, value);
+        }
+        
+        public string ChineseVoice
+        {
+            get => _chineseVoice;
+            set => SetProperty(ref _chineseVoice, value);
+        }
+        
+        public List<Models.VoiceInfo> EnglishVoices
+        {
+            get => _englishVoices;
+            private set => SetProperty(ref _englishVoices, value);
+        }
+        
+        public List<Models.VoiceInfo> ChineseVoices
+        {
+            get => _chineseVoices;
+            private set => SetProperty(ref _chineseVoices, value);
         }
         
         public List<string> WordList
@@ -154,6 +195,38 @@ namespace English_Listen_WinUI.ViewModels
             }
         }
         
+        public bool ShowWordList
+        {
+            get => _showWordList;
+            set => SetProperty(ref _showWordList, value);
+        }
+        
+        public bool IsFullScreen
+        {
+            get => _isFullScreen;
+            set => SetProperty(ref _isFullScreen, value);
+        }
+        
+        public bool IsSidebarVisible
+        {
+            get => _isSidebarVisible;
+            set
+            {
+                if (SetProperty(ref _isSidebarVisible, value))
+                {
+                    SidebarVisibilityChanged?.Invoke(value);
+                }
+            }
+        }
+        
+        public bool IsTestCompleted
+        {
+            get => _isTestCompleted;
+            set => SetProperty(ref _isTestCompleted, value);
+        }
+        
+        public Action ShowAnswersAction { get; set; } = null!;
+        
         #endregion
         
         #region Commands
@@ -164,16 +237,19 @@ namespace English_Listen_WinUI.ViewModels
         public ICommand PreviousWordCommand { get; }
         public ICommand RepeatWordCommand { get; }
         public ICommand PauseResumeCommand { get; }
+        public ICommand ReturnToHomeCommand { get; }
+        public ICommand ShowAnswersCommand { get; }
         
         #endregion
         
         #region Event Handlers
         
-        private void OnWordChanged(string word, int currentIndex, int totalWords)
+        private void OnWordChanged(string word, int currentIndex, int totalWords, bool isLastWord)
         {
             CurrentWord = word;
-            CurrentIndex = currentIndex - 1; // Convert to 0-based
+            CurrentIndex = currentIndex - 1;
             TotalWords = totalWords;
+            IsLastWord = isLastWord;
         }
         
         private void OnCountdownChanged(int countdown)
@@ -185,11 +261,21 @@ namespace English_Listen_WinUI.ViewModels
         {
             IsTesting = isTesting;
             IsPaused = isPaused;
+            if (!isTesting)
+            {
+                IsTestCompleted = false;
+            }
         }
         
         private void OnSpeechStatusChanged(bool isSpeaking)
         {
             IsSpeaking = isSpeaking;
+        }
+
+        private void OnTestCompleted()
+        {
+            IsTestCompleted = true;
+            IsTesting = false;
         }
         
         #endregion
@@ -205,10 +291,21 @@ namespace English_Listen_WinUI.ViewModels
         {
             if (WordList.Count == 0) return;
             
+            // Enable full-screen mode and hide word list when starting test
+            IsFullScreen = true;
+            ShowWordList = false;
+            IsSidebarVisible = false; // Hide sidebar
+            
             // Set up the service
             _dictationService.SetWords(WordList);
             _dictationService.SetRandomOrder(IsRandomOrder);
             _dictationService.SetReadInterval(ReadInterval);
+            
+            // Set English voice for reading
+            if (!string.IsNullOrEmpty(EnglishVoice))
+            {
+                _dictationService.SetVoice(EnglishVoice);
+            }
             
             await _dictationService.StartTest(0); // 0 = paper dictation mode
         }
@@ -216,6 +313,11 @@ namespace English_Listen_WinUI.ViewModels
         private void StopTest()
         {
             _dictationService.StopTest();
+            
+            // Disable full-screen mode and show word list again when test stops
+            IsFullScreen = false;
+            ShowWordList = true;
+            IsSidebarVisible = true; // Show sidebar
         }
         
         private void NextWord()
@@ -236,6 +338,21 @@ namespace English_Listen_WinUI.ViewModels
         private void PauseResume()
         {
             _dictationService.PauseResume();
+        }
+        
+        private void ReturnToHome()
+        {
+            // Reset sidebar visibility
+            IsSidebarVisible = true;
+            
+            // Navigate to home
+            NavigateToHome?.Invoke();
+        }
+        
+        private void ShowAnswers()
+        {
+            // Show the word list as answers
+            ShowAnswersAction?.Invoke();
         }
         
         #endregion
@@ -283,6 +400,39 @@ namespace English_Listen_WinUI.ViewModels
                 .ToList();
             
             WordList = words;
+        }
+        
+        private void LoadWordsFromMainViewModel()
+        {
+            var mainViewModel = App.SharedViewModel;
+            if (mainViewModel != null && mainViewModel.CurrentWords != null)
+            {
+                WordList = new List<string>(mainViewModel.CurrentWords);
+            }
+        }
+        
+        private void LoadAvailableVoices()
+        {
+            // Get available voices from speech service
+            var speechService = App.SharedViewModel?.SpeechService;
+            if (speechService != null)
+            {
+                var voices = speechService.GetWindowsTtsVoices();
+                
+                // Separate English and Chinese voices
+                EnglishVoices = voices.Where(v => v.Culture?.StartsWith("en") == true).ToList();
+                ChineseVoices = voices.Where(v => v.Culture?.StartsWith("zh") == true).ToList();
+                
+                // Set default voices
+                if (EnglishVoices.Count > 0)
+                {
+                    EnglishVoice = EnglishVoices[0].DisplayName;
+                }
+                if (ChineseVoices.Count > 0)
+                {
+                    ChineseVoice = ChineseVoices[0].DisplayName;
+                }
+            }
         }
         
         public void Dispose()

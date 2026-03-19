@@ -67,7 +67,7 @@
                                       SelectionChanged="EngineComboBox_SelectionChanged">
                                 <ComboBoxItem Content="自动选择" Tag="Auto"/>
                                 <ComboBoxItem Content="Windows系统语音" Tag="WindowsTTS"/>
-                                <ComboBoxItem Content="Flite语音引擎" Tag="Flite"/>
+
                             </ComboBox>
                             <TextBlock x:Name="EngineStatusText" Text="" 
                                        Style="{ThemeResource CaptionTextBlockStyle}" 
@@ -88,24 +88,7 @@
                             </Grid>
                         </StackPanel>
                         
-                        <StackPanel Margin="0,15,0,10" x:Name="VoiceModelPanel">
-                            <TextBlock Text="语音模型:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
-                            <Grid ColumnDefinitions="*,Auto">
-                                <ComboBox x:Name="VoiceModelComboBox" Grid.Column="0"
-                                          SelectionChanged="VoiceModelComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="女声 (slt)" Tag="cmu_us_slt"/>
-                                    <ComboBoxItem Content="男声 (awb)" Tag="cmu_us_awb"/>
-                                    <ComboBoxItem Content="男声 (bdl)" Tag="cmu_us_bdl"/>
-                                    <ComboBoxItem Content="男声 (jmk)" Tag="cmu_us_jmk"/>
-                                    <ComboBoxItem Content="男声 (ksp)" Tag="cmu_us_ksp"/>
-                                    <ComboBoxItem Content="男声 (rms)" Tag="cmu_us_rms"/>
-                                </ComboBox>
-                                <Button x:Name="FlitePreviewButton" Grid.Column="1" 
-                                        Content="试听" Margin="10,0,0,0" Width="60"
-                                        Click="FlitePreviewButton_Click"/>
-                            </Grid>
-                        </StackPanel>
+
                         
                         <CheckBox x:Name="RandomOrderCheckBox" Content="随机播放单词" 
                                   Checked="RandomOrderCheckBox_Changed" 

@@ -19,9 +19,7 @@ namespace English_Listen_WinUI.Services
     public class SpeechService : IDisposable
     {
         // 引擎类型
-        private string _engineType = "Auto"; // "Flite", "WindowsTTS", "Auto"
-        private bool _isFliteAvailable;
-        private string _flitePath = string.Empty;
+        private string _engineType = "SAPI"; // "SAPI" only
         private bool _isSpeaking;
         private bool _isPaused;
         private MediaPlayer? _mediaPlayer;
@@ -50,11 +48,9 @@ namespace English_Listen_WinUI.Services
         }
 
         public bool IsWindowsTtsAvailable => _windowsTtsService?.IsInitialized ?? false;
-        public bool IsFliteAvailable => _isFliteAvailable;
 
         public SpeechService()
         {
-            CheckFlite();
             InitializeMediaPlayer();
             InitializeWindowsTts();
             StartWorker();
@@ -72,16 +68,7 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        private void CheckFlite()
-        {
-            var appDir = AppDomain.CurrentDomain.BaseDirectory;
-            var fliteExe = Path.Combine(appDir, "flite.exe");
-            if (File.Exists(fliteExe))
-            {
-                _flitePath = fliteExe;
-                _isFliteAvailable = true;
-            }
-        }
+
 
         private void InitializeWindowsTts()
         {
@@ -116,17 +103,7 @@ namespace English_Listen_WinUI.Services
         /// </summary>
         public string GetRecommendedEngine()
         {
-            // 如果设置为Auto，根据系统版本推荐
-            if (_engineType == "Auto")
-            {
-                if (IsWindowsTtsAvailable)
-                    return "WindowsTTS";
-                if (IsFliteAvailable)
-                    return "Flite";
-                return "None";
-            }
-            
-            return _engineType;
+            return "SAPI";
         }
 
         /// <summary>
@@ -138,17 +115,7 @@ namespace English_Listen_WinUI.Services
             
             if (IsWindowsTtsAvailable)
             {
-                engines["WindowsTTS"] = "Windows 11 自带语音合成";
-            }
-            
-            if (IsFliteAvailable)
-            {
-                engines["Flite"] = "Flite 语音引擎";
-            }
-            
-            if (engines.Count > 1)
-            {
-                engines["Auto"] = "自动选择推荐引擎";
+                engines["SAPI"] = "Windows SAPI 语音引擎";
             }
             
             return engines;
@@ -163,10 +130,10 @@ namespace English_Listen_WinUI.Services
         }
 
         // 公共入口：仅入队，立即返回
-        public Task SpeakAsync(string text, string? voiceModel = null, CancellationToken cancellationToken = default)
+        public Task SpeakAsync(string text, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(text)) return Task.CompletedTask;
-            _queue.Enqueue((text, voiceModel));
+            _queue.Enqueue((text, null));
             return Task.CompletedTask;
         }
 
@@ -215,24 +182,10 @@ namespace English_Listen_WinUI.Services
                         {
                             var engine = GetRecommendedEngine();
                             
-                            switch (engine)
-                            {
-                                case "WindowsTTS":
-                                    if (_windowsTtsService != null)
-                                        await SpeakWithWindowsTtsAsync(item.text);
-                                    else
-                                        await SpeakWithFliteAsync(item.text, item.voiceModel);
-                                    break;
-                                    
-                                case "Flite":
-                                    if (_isFliteAvailable)
-                                        await SpeakWithFliteAsync(item.text, item.voiceModel);
-                                    break;
-                                    
-                                default:
-                                    System.Diagnostics.Debug.WriteLine("没有可用的语音引擎");
-                                    break;
-                            }
+                            if (_windowsTtsService != null)
+                                await SpeakWithWindowsTtsAsync(item.text);
+                            else
+                                System.Diagnostics.Debug.WriteLine("没有可用的语音引擎");
                         }
                         catch (OperationCanceledException) { /* 用户停止 */ }
                         catch (Exception ex) 
@@ -263,9 +216,6 @@ namespace English_Listen_WinUI.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Windows TTS朗读失败: {ex.Message}");
-                // 失败时回退到Flite
-                if (_isFliteAvailable)
-                    await SpeakWithFliteAsync(text, null);
             }
             finally
             {
@@ -273,56 +223,7 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        /// <summary>
-        /// 使用Flite朗读（原有实现）
-        /// </summary>
-        private async Task SpeakWithFliteAsync(string text, string? voiceModel)
-        {
-            var tempFile = Path.Combine(Path.GetTempPath(), $"el_temp_{Guid.NewGuid():N}.wav");
-            try
-            {
-                IsSpeaking = true;
-                var voiceArg = string.IsNullOrEmpty(voiceModel) ? "" : $"-voice {voiceModel}";
-                var process = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = _flitePath,
-                        Arguments = $"{voiceArg} -t \"{text}\" -o \"{tempFile}\"".Trim(),
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    }
-                };
 
-                process.Start();
-                await process.WaitForExitAsync();
-
-                if (File.Exists(tempFile))
-                {
-                    try
-                    {
-                        using var stream = File.OpenRead(tempFile);
-                        if (_mediaPlayer != null)
-                        {
-                            _mediaPlayer.SetStreamSource(stream.AsRandomAccessStream());
-                            _mediaPlayer.Play();
-                            
-                            // 等待播放完成
-                            var tcs = new TaskCompletionSource<bool>();
-                            _mediaPlayer.MediaEnded += (s, e) => tcs.TrySetResult(true);
-                            await tcs.Task;
-                        }
-                        File.Delete(tempFile);
-                    }
-                    catch { }
-                }
-            }
-            catch { }
-            finally
-            {
-                IsSpeaking = false;
-            }
-        }
 
         /// <summary>
         /// 停止朗读

@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Windows.Media.SpeechSynthesis;
 
 namespace English_Listen_WinUI.Services
 {
     public class ModernDictationService
     {
-        private SpeechSynthesizer _speechSynthesizer;
+        private WindowsTtsService _speechService;
+        private string _currentVoice = "";
         private List<string> _wordList;
         private int _currentIndex;
         private int _readInterval;
@@ -17,14 +17,15 @@ namespace English_Listen_WinUI.Services
         private System.Timers.Timer _countdownTimer;
         private int _currentCountdown;
         
-        public event Action<string, int, int>? WordChanged;
+        public event Action<string, int, int, bool>? WordChanged;
         public event Action<int>? CountdownChanged;
         public event Action<bool, bool>? TestStateChanged;
         public event Action<bool>? SpeechStatusChanged;
+        public event Action? TestCompleted;
         
         public ModernDictationService()
         {
-            _speechSynthesizer = new SpeechSynthesizer();
+            _speechService = new WindowsTtsService();
             _wordList = new List<string>();
             _currentIndex = 0;
             _readInterval = 5;
@@ -34,6 +35,24 @@ namespace English_Listen_WinUI.Services
             
             _countdownTimer = new System.Timers.Timer(1000);
             _countdownTimer.Elapsed += OnCountdownTimerElapsed;
+            
+            // Subscribe to speech service events for fine-grained control
+            _speechService.StateChanged += OnSpeechStateChanged;
+            _speechService.SpeakCompleted += OnSpeakCompleted;
+        }
+
+        private void OnSpeechStateChanged(WindowsTtsService.SpeechState state)
+        {
+            System.Diagnostics.Debug.WriteLine($"Speech state changed to: {state}");
+            // This event is triggered when the speech state changes
+            // Use this for reactive logic like enabling buttons when reading completes
+        }
+
+        private void OnSpeakCompleted()
+        {
+            System.Diagnostics.Debug.WriteLine("Speech completed");
+            // This event is triggered after an async reading task is completely finished
+            // Use this for actions that need to happen after speech finishes
         }
         
         public void SetWords(List<string> words)
@@ -61,6 +80,15 @@ namespace English_Listen_WinUI.Services
             _readInterval = interval;
         }
         
+        public void SetVoice(string voiceName)
+        {
+            _currentVoice = voiceName;
+            if (!string.IsNullOrEmpty(voiceName))
+            {
+                _speechService.SelectVoice(voiceName);
+            }
+        }
+        
         public async Task<bool> StartTest(int dictationMode)
         {
             if (_wordList.Count == 0)
@@ -72,7 +100,7 @@ namespace English_Listen_WinUI.Services
             
             await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
             
-            // Start with the first word
+            // Start with the first word immediately
             await SpeakCurrentWordAsync();
             
             return true;
@@ -97,10 +125,12 @@ namespace English_Listen_WinUI.Services
             if (_isPaused)
             {
                 _countdownTimer.Stop();
+                _speechService.Pause();
             }
             else
             {
                 _countdownTimer.Start();
+                _speechService.Resume();
             }
             
             await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
@@ -136,31 +166,46 @@ namespace English_Listen_WinUI.Services
         {
             if (_currentIndex >= _wordList.Count)
                 return;
-                
+            
             var word = _wordList[_currentIndex];
-            await InvokeOnUIThread(() => WordChanged?.Invoke(word, _currentIndex + 1, _wordList.Count));
+            var isLastWord = _currentIndex == _wordList.Count - 1;
+            await InvokeOnUIThread(() => WordChanged?.Invoke(word, _currentIndex + 1, _wordList.Count, isLastWord));
             
-            // Show "正在朗读" during speech
+            // Show "正在朗读" immediately when starting speech
             await InvokeOnUIThread(() => CountdownChanged?.Invoke(-1)); // -1 indicates "正在朗读"
-            
             await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(true));
             
             try
             {
-                var stream = await _speechSynthesizer.SynthesizeTextToStreamAsync(word);
-                // For now, we'll simulate speech completion
-                await Task.Delay(1000); // Simulate speech duration
+                // Use State attribute to check current state before starting to avoid conflicts
+                if (_speechService.CurrentState == WindowsTtsService.SpeechState.Speaking)
+                {
+                    System.Diagnostics.Debug.WriteLine("Speech service is currently speaking, waiting...");
+                    // Wait for current speech to complete
+                    await Task.Delay(500);
+                }
+                
+                await _speechService.SpeakAsync(word);
             }
-            catch
+            catch (Exception ex)
             {
-                // Fallback: simulate speech
-                await Task.Delay(1000);
+                System.Diagnostics.Debug.WriteLine($"朗读异常: {ex.Message}");
             }
-            
-            await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(false));
-            
-            // Start countdown for next word
-            StartCountdown();
+            finally
+            {
+                await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(false));
+                
+                // If this was the last word and speech is done, trigger completion
+                if (isLastWord)
+                {
+                    await InvokeOnUIThread(() => TestCompleted?.Invoke());
+                }
+                else
+                {
+                    // Start countdown for next word after speech completes
+                    StartCountdown();
+                }
+            }
         }
         
         private async void StartCountdown()
@@ -235,7 +280,19 @@ namespace English_Listen_WinUI.Services
         {
             _countdownTimer?.Stop();
             _countdownTimer?.Dispose();
-            _speechSynthesizer?.Dispose();
+            
+            // Unsubscribe from events
+            if (_speechService != null)
+            {
+                _speechService.StateChanged -= OnSpeechStateChanged;
+                _speechService.SpeakCompleted -= OnSpeakCompleted;
+                _speechService?.Dispose();
+            }
+        }
+
+        public WindowsTtsService.SpeechState GetCurrentSpeechState()
+        {
+            return _speechService?.CurrentState ?? WindowsTtsService.SpeechState.Idle;
         }
     }
 }

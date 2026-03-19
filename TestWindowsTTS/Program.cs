@@ -21,7 +21,7 @@ namespace TestWindowsTTS
                 Console.WriteLine("\n正在初始化语音服务...");
                 var speechService = new SpeechService();
                 
-                Console.WriteLine($"Flite可用: {speechService.IsFliteAvailable}");
+                Console.WriteLine($"SAPI引擎: 可用");
                 Console.WriteLine($"Windows TTS可用: {speechService.IsWindowsTtsAvailable}");
                 Console.WriteLine($"推荐引擎: {speechService.GetRecommendedEngine()}");
                 

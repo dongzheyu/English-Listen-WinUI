@@ -16,12 +16,21 @@ namespace English_Listen_WinUI.Services
     /// </summary>
     public class WindowsTtsService : IDisposable
     {
+        public enum SpeechState
+        {
+            Idle,
+            Speaking,
+            Paused,
+            Completed
+        }
+        
         private readonly SpeechSynthesizer _synthesizer;
         private readonly MediaPlayer _mediaPlayer;
         private readonly object _lockObject = new object();
         private bool _isInitialized;
         private bool _isSpeaking;
         private bool _isPaused;
+        private SpeechState _currentState = SpeechState.Idle;
 
         // 可用的语音列表
         private List<Models.VoiceInfo> _availableVoices = new List<Models.VoiceInfo>();
@@ -29,11 +38,31 @@ namespace English_Listen_WinUI.Services
         // 当前选中的语音
         private Models.VoiceInfo? _currentVoice;
 
+        // 事件
+        public event Action<SpeechState>? StateChanged;
+        public event Action? SpeakCompleted;
+        
         // 属性
         public bool IsSpeaking 
         { 
             get { lock (_lockObject) { return _isSpeaking; } }
             private set { lock (_lockObject) { _isSpeaking = value; } }
+        }
+
+        public SpeechState CurrentState 
+        {
+            get { lock (_lockObject) { return _currentState; } }
+            private set 
+            { 
+                lock (_lockObject) 
+                { 
+                    if (_currentState != value)
+                    {
+                        _currentState = value;
+                        StateChanged?.Invoke(value);
+                    }
+                } 
+            }
         }
 
         public bool IsInitialized => _isInitialized;
@@ -231,7 +260,15 @@ namespace English_Listen_WinUI.Services
 
             try
             {
+                // Check state before starting to avoid conflicts
+                if (IsSpeaking)
+                {
+                    System.Diagnostics.Debug.WriteLine("Speech service is already speaking, cannot start new speech");
+                    return;
+                }
+                
                 IsSpeaking = true;
+                CurrentState = SpeechState.Speaking;
                 
                 // 合成语音到流
                 var stream = await _synthesizer.SynthesizeTextToStreamAsync(text);
@@ -247,7 +284,11 @@ namespace English_Listen_WinUI.Services
                 void PlaybackSession_PlaybackStateChanged(MediaPlaybackSession sender, object args)
                 {
                     // 如果处于暂停状态，不触发完成事件
-                    if (_isPaused) return;
+                    if (_isPaused) 
+                    {
+                        CurrentState = SpeechState.Paused;
+                        return;
+                    }
                     
                     if (sender.PlaybackState == MediaPlaybackState.None || 
                         (sender.PlaybackState == MediaPlaybackState.Paused && sender.Position >= sender.NaturalDuration))
@@ -275,14 +316,22 @@ namespace English_Listen_WinUI.Services
                 await Task.Delay(500);
                 tcs.TrySetResult(true);
                 await tcs.Task;
+                
+                // Speech completed successfully
+                SpeakCompleted?.Invoke();
+                CurrentState = SpeechState.Completed;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"朗读异常: {ex.Message}");
+                CurrentState = SpeechState.Idle;
             }
             finally
             {
                 IsSpeaking = false;
+                // Reset to idle state after a brief delay
+                await Task.Delay(100);
+                CurrentState = SpeechState.Idle;
             }
         }
 
@@ -295,6 +344,7 @@ namespace English_Listen_WinUI.Services
             {
                 _mediaPlayer.Pause();
                 IsSpeaking = false;
+                CurrentState = SpeechState.Idle;
             }
             catch (Exception ex)
             {
@@ -311,6 +361,10 @@ namespace English_Listen_WinUI.Services
             {
                 _isPaused = true;
                 _mediaPlayer.Pause();
+                if (IsSpeaking)
+                {
+                    CurrentState = SpeechState.Paused;
+                }
             }
             catch (Exception ex)
             {
@@ -328,6 +382,10 @@ namespace English_Listen_WinUI.Services
             {
                 _isPaused = false;
                 _mediaPlayer.Play();
+                if (IsSpeaking)
+                {
+                    CurrentState = SpeechState.Speaking;
+                }
             }
             catch (Exception ex)
             {
