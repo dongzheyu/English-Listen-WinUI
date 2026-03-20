@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
-using System.Threading.Tasks;
 using English_Listen_WinUI.ViewModels;
+using Microsoft.Windows.AppLifecycle;
 
 namespace English_Listen_WinUI
 {
@@ -19,39 +19,84 @@ namespace English_Listen_WinUI
 
         protected override async void OnLaunched(LaunchActivatedEventArgs args)
         {
-            // Set environment variable for single file publishing
-            Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
+            System.Diagnostics.Debug.WriteLine("[STARTUP] 1. OnLaunched called");
 
-            // Reset temporary file on startup
-            ClearTemporaryFile();
+            try
+            {
+                // Set environment variable for single file publishing
+                Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 2. Environment variable set");
 
-            SharedViewModel = new MainViewModel();
-            await SharedViewModel.InitializeAsync();
-            
-            _window = new MainWindow();
-            _window.Closed += OnWindowClosed;
-            
-            ApplyTheme(SharedViewModel.ThemeMode);
-            
-            _window.Activate();
+                // Reset temporary file on startup
+                ClearTemporaryFile();
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 3. Temporary file cleared");
+
+                SharedViewModel = new MainViewModel();
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 4. ViewModel created");
+
+                await SharedViewModel.InitializeAsync();
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 5. ViewModel initialized");
+
+                // Create window
+                _window = new MainWindow();
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 6. Window created");
+
+                _window.Closed += OnWindowClosed;
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 7. Closed handler attached");
+
+                ApplyTheme(SharedViewModel.ThemeMode);
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 8. Theme applied");
+
+                // CRITICAL: Activate the window to bring it to foreground
+                // Activate() is the correct WinUI3 method to show and focus the window
+                _window.Activate();
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 9. Window activated - should now be visible");
+
+                System.Diagnostics.Debug.WriteLine("[STARTUP] 10. COMPLETE - Window activation attempted");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[STARTUP] FATAL ERROR: {ex}");
+                System.Diagnostics.Debug.WriteLine($"[STARTUP] Stack trace: {ex.StackTrace}");
+
+                // Write to a log file as last resort
+                try
+                {
+                    var logPath = System.IO.Path.Combine(AppContext.BaseDirectory, "startup_error.log");
+                    System.IO.File.WriteAllText(logPath, $"[{DateTime.Now}] FATAL ERROR:\n{ex}\n\nStack:\n{ex.StackTrace}");
+                }
+                catch { }
+            }
         }
 
         public static void ApplyTheme(int themeMode)
         {
-            if (MainWindow?.Content is FrameworkElement rootElement && rootElement.XamlRoot != null)
+            try
             {
-                rootElement.RequestedTheme = themeMode switch
+                if (MainWindow?.Content is FrameworkElement rootElement && rootElement.XamlRoot != null)
                 {
-                    0 => ElementTheme.Light,
-                    1 => ElementTheme.Dark,
-                    _ => ElementTheme.Default
-                };
+                    rootElement.RequestedTheme = themeMode switch
+                    {
+                        0 => ElementTheme.Light,
+                        1 => ElementTheme.Dark,
+                        _ => ElementTheme.Default
+                    };
+                    System.Diagnostics.Debug.WriteLine($"[THEME] Applied theme mode: {themeMode}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[THEME] Could not apply theme - MainWindow or Content is null");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[THEME] Failed to apply theme: {ex.Message}");
             }
         }
 
         private void OnWindowClosed(object sender, WindowEventArgs args)
         {
-            // Clean up temporary files when application closes
+            System.Diagnostics.Debug.WriteLine("[APP] Window closed - cleaning up");
             CleanupTempFiles();
         }
 
@@ -63,12 +108,12 @@ namespace English_Listen_WinUI
                 if (System.IO.File.Exists(tempPath))
                 {
                     System.IO.File.Delete(tempPath);
+                    System.Diagnostics.Debug.WriteLine("[APP] Temp file deleted");
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Log error but don't crash the application
-                System.Diagnostics.Debug.WriteLine("Failed to cleanup temp files");
+                System.Diagnostics.Debug.WriteLine($"[APP] Failed to cleanup temp files: {ex.Message}");
             }
         }
 
@@ -79,10 +124,9 @@ namespace English_Listen_WinUI
                 var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
                 System.IO.File.WriteAllText(tempPath, string.Empty);
             }
-            catch
+            catch (Exception ex)
             {
-                // Log error but don't crash the application
-                System.Diagnostics.Debug.WriteLine("Failed to clear temporary file");
+                System.Diagnostics.Debug.WriteLine($"[APP] Failed to clear temporary file: {ex.Message}");
             }
         }
     }

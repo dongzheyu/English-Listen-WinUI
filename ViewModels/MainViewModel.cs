@@ -25,9 +25,8 @@ namespace English_Listen_WinUI.ViewModels
 
     public class MainViewModel : ViewModelBase
     {
-        private readonly SettingsService _settingsService;
-        private readonly SpeechService _speechService;
-        private readonly NativeDictationService _nativeDictationService;
+        private readonly SettingsService _settingsService = new();
+        private readonly SpeechService _speechService = new();
 
         public SpeechService SpeechService => _speechService;
 
@@ -35,22 +34,12 @@ namespace English_Listen_WinUI.ViewModels
         private int _themeMode; // 0 = Light, 1 = Dark, 2 = System
         private string _welcomeMessage = "欢迎使用英语听写训练系统";
         private string _userStatus = "未登录";
-        private string _currentWord = "";
-        private int _countdown;
-        private bool _isPaused;
-        private bool _isTesting;
         private int _readInterval = 5;
-        private int _currentIndex;
         private string _currentWordListName = "";
         private List<string> _currentWords = new();
         private List<TestResult> _testHistory = new();
         private string _wordsText = "";
-        private bool _showAnswers;
-        private int _dictationMode; // 0 = 纸笔听写, 1 = 在线听写
-        private List<string> _userInputs = new();
         private bool _isRandomOrder;
-        private bool _isOnlineDictationMode;
-        private List<string> _originalWordsOrder = new();
         private ObservableCollection<UserData> _users = new();
 
         public ObservableCollection<UserData> Users
@@ -83,30 +72,6 @@ namespace English_Listen_WinUI.ViewModels
             set => SetProperty(ref _userStatus, value);
         }
 
-        public string CurrentWord
-        {
-            get => _currentWord;
-            set => SetProperty(ref _currentWord, value);
-        }
-
-        public int Countdown
-        {
-            get => _countdown;
-            set => SetProperty(ref _countdown, value);
-        }
-
-        public bool IsPaused
-        {
-            get => _isPaused;
-            set => SetProperty(ref _isPaused, value);
-        }
-
-        public bool IsTesting
-        {
-            get => _isTesting;
-            set => SetProperty(ref _isTesting, value);
-        }
-
         public int ReadInterval
         {
             get => _readInterval;
@@ -120,16 +85,16 @@ namespace English_Listen_WinUI.ViewModels
             }
         }
 
-        public int CurrentIndex
-        {
-            get => _currentIndex;
-            set => SetProperty(ref _currentIndex, value);
-        }
-
         public string CurrentWordListName
         {
             get => _currentWordListName;
             set => SetProperty(ref _currentWordListName, value);
+        }
+
+        public List<string> CurrentWords
+        {
+            get => _currentWords;
+            private set => SetProperty(ref _currentWords, value);
         }
 
         public List<TestResult> TestHistory
@@ -141,38 +106,13 @@ namespace English_Listen_WinUI.ViewModels
         public string WordsText
         {
             get => _wordsText;
-            set 
-            { 
+            set
+            {
                 if (SetProperty(ref _wordsText, value))
                 {
-                    // Update CurrentWords when WordsText changes
                     UpdateCurrentWordsFromText();
                 }
             }
-        }
-
-        public bool ShowAnswers
-        {
-            get => _showAnswers;
-            set => SetProperty(ref _showAnswers, value);
-        }
-
-        public int DictationMode
-        {
-            get => _dictationMode;
-            set => SetProperty(ref _dictationMode, value);
-        }
-
-        public List<string> CurrentWords
-        {
-            get => _currentWords;
-            set => SetProperty(ref _currentWords, value);
-        }
-
-        public List<string> UserInputs
-        {
-            get => _userInputs;
-            set => SetProperty(ref _userInputs, value);
         }
 
         public bool IsRandomOrder
@@ -186,18 +126,6 @@ namespace English_Listen_WinUI.ViewModels
                     _ = _settingsService.SaveSettingsAsync();
                 }
             }
-        }
-
-        public bool IsOnlineDictationMode
-        {
-            get => _isOnlineDictationMode;
-            set => SetProperty(ref _isOnlineDictationMode, value);
-        }
-
-        public List<string> OriginalWordsOrder
-        {
-            get => _originalWordsOrder;
-            set => SetProperty(ref _originalWordsOrder, value);
         }
 
         public int WordsCount => _currentWords.Count;
@@ -216,10 +144,9 @@ namespace English_Listen_WinUI.ViewModels
                     .ToList();
                 CurrentWords = words;
             }
-            
-            // Update command availability
+
             OnPropertyChanged(nameof(CanStartTest));
-            if (StartTestCommand is RelayCommand rc)
+            if (SaveWordsCommand is RelayCommand rc)
             {
                 rc.RaiseCanExecuteChanged();
             }
@@ -231,89 +158,81 @@ namespace English_Listen_WinUI.ViewModels
         public ObservableCollection<TestResultViewModel> TestHistoryViewModels { get; } = new();
         public ObservableCollection<string> AvailableVoices { get; } = new();
 
-        private System.Timers.Timer? _testTimer;
-
-        public ICommand NavigateCommand { get; }
-        public ICommand ToggleThemeCommand { get; }
-        public ICommand StartTestCommand { get; }
-        public ICommand StopTestCommand { get; }
-        public ICommand NextWordCommand { get; }
-        public ICommand PreviousWordCommand { get; }
-        public ICommand RepeatWordCommand { get; }
-        public ICommand PauseResumeCommand { get; }
-        public ICommand SaveWordsCommand { get; }
-        public ICommand LoadWordsCommand { get; }
+        public ICommand NavigateCommand { get; } = null!;
+        public ICommand ToggleThemeCommand { get; } = null!;
+        public ICommand SaveWordsCommand { get; } = null!;
+        public ICommand LoadWordsCommand { get; } = null!;
 
         public MainViewModel()
         {
-            _settingsService = new SettingsService();
-            _speechService = new SpeechService();
-            _nativeDictationService = new NativeDictationService();
+            System.Diagnostics.Debug.WriteLine("[MainViewModel] Constructor started");
 
-            // Set up callbacks for native dictation service
-            _nativeDictationService.WordChanged += OnWordChanged;
-            _nativeDictationService.CountdownChanged += OnCountdownChanged;
-            _nativeDictationService.TestStateChanged += OnTestStateChanged;
-            _nativeDictationService.SpeechStatusChanged += OnSpeechStatusChanged;
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[MainViewModel] Services already initialized inline");
 
-            NavigateCommand = new RelayCommand<string>(Navigate);
-            ToggleThemeCommand = new RelayCommand(ToggleTheme);
-            StartTestCommand = new RelayCommand(StartTest, CanStartTest);
-            StopTestCommand = new RelayCommand(StopTest, () => IsTesting);
-            NextWordCommand = new RelayCommand(NextWord, () => IsTesting);
-            PreviousWordCommand = new RelayCommand(PreviousWord, () => IsTesting);
-            RepeatWordCommand = new RelayCommand(RepeatWord, () => IsTesting);
-            PauseResumeCommand = new RelayCommand(PauseResume, () => IsTesting);
-            SaveWordsCommand = new RelayCommand(async () => await SaveWordsAsync());
-            LoadWordsCommand = new RelayCommand<string>(async (file) => await LoadWordsAsync(file));
+                NavigateCommand = new RelayCommand<string>(Navigate);
+                ToggleThemeCommand = new RelayCommand(ToggleTheme);
+                SaveWordsCommand = new RelayCommand(async () => await SaveWordsAsync());
+                LoadWordsCommand = new RelayCommand<string>(async (file) => await LoadWordsAsync(file));
 
-            _ = InitializeAsync();
+                System.Diagnostics.Debug.WriteLine("[MainViewModel] Commands initialized");
+
+                _ = InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Constructor error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Stack trace: {ex.StackTrace}");
+            }
+
+            System.Diagnostics.Debug.WriteLine("[MainViewModel] Constructor completed");
         }
 
-        // Native dictation service callbacks
-        private void OnWordChanged(string word, int currentIndex, int totalWords)
+        private void Navigate(string? page)
         {
-            CurrentWord = word;
-            CurrentIndex = currentIndex - 1; // Convert to 0-based index
+            if (string.IsNullOrEmpty(page)) return;
+            CurrentPage = page;
         }
 
-        private void OnCountdownChanged(int countdown)
+        private void ToggleTheme()
         {
-            Countdown = countdown;
-        }
-
-        private void OnTestStateChanged(bool isTesting, bool isPaused)
-        {
-            IsTesting = isTesting;
-            IsPaused = isPaused;
-        }
-
-        private void OnSpeechStatusChanged(bool isSpeaking)
-        {
-            // Handle speech status if needed
+            ThemeMode = (ThemeMode + 1) % 3;
+            _settingsService.Settings.ThemeMode = ThemeMode;
+            _ = _settingsService.SaveSettingsAsync();
         }
 
         public async Task InitializeAsync()
         {
-            await _settingsService.LoadSettingsAsync();
-            _themeMode = _settingsService.Settings.ThemeMode;
-            _readInterval = _settingsService.Settings.ReadInterval;
-            _isRandomOrder = _settingsService.Settings.IsRandomOrder;
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[MainViewModel] InitializeAsync started");
 
-            await LoadWordListFilesAsync();
-            await LoadTestHistoryAsync();
-            
-            // 加载临时词库，确保大文本框和听写功能都能访问
-            await LoadWordsFromTempFileAsync();
+                await _settingsService.LoadSettingsAsync();
+                _themeMode = _settingsService.Settings.ThemeMode;
+                _readInterval = _settingsService.Settings.ReadInterval;
+                _isRandomOrder = _settingsService.Settings.IsRandomOrder;
 
-            // Load users without password (will only load unencrypted users)
-            var users = await _settingsService.LoadUsersAsync();
-            await LoadUsersFromListAsync(users);
+                await LoadWordListFilesAsync();
+                await LoadTestHistoryAsync();
 
-            LoadVoices();
-            OnPropertyChanged(nameof(ThemeMode));
-            OnPropertyChanged(nameof(ReadInterval));
-            OnPropertyChanged(nameof(IsRandomOrder));
+                await LoadWordsFromTempFileAsync();
+
+                var users = await _settingsService.LoadUsersAsync();
+                await LoadUsersFromListAsync(users);
+
+                LoadVoices();
+                OnPropertyChanged(nameof(ThemeMode));
+                OnPropertyChanged(nameof(ReadInterval));
+                OnPropertyChanged(nameof(IsRandomOrder));
+
+                System.Diagnostics.Debug.WriteLine("[MainViewModel] InitializeAsync completed");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainViewModel] InitializeAsync error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Stack trace: {ex.StackTrace}");
+            }
         }
 
         public async Task LoadUsersFromListAsync(List<UserData> users)
@@ -323,8 +242,7 @@ namespace English_Listen_WinUI.ViewModels
             {
                 Users.Add(user);
             }
-            
-            // Update UI based on loaded users
+
             if (Users.Count > 0)
             {
                 UserStatus = $"已加载 {Users.Count} 个用户";
@@ -337,133 +255,7 @@ namespace English_Listen_WinUI.ViewModels
 
         private void LoadVoices()
         {
-            // SAPI voices only - no Flite models
             AvailableVoices.Clear();
-        }
-
-        private void Navigate(string? page)
-        {
-            if (string.IsNullOrEmpty(page)) return;
-            CurrentPage = page;
-        }
-
-        private void ToggleTheme()
-        {
-            // Cycle through theme modes: 0 (Light) -> 1 (Dark) -> 2 (System)
-            ThemeMode = (ThemeMode + 1) % 3;
-            _settingsService.Settings.ThemeMode = ThemeMode;
-            _ = _settingsService.SaveSettingsAsync();
-        }
-
-        private bool CanStartTest()
-        {
-            return _currentWords.Count > 0 && !IsTesting;
-        }
-
-        private async void StartTest()
-        {
-            if (_currentWords.Count == 0) return;
-
-            // Set words and settings in native backend
-            _nativeDictationService.SetWords(_currentWords);
-            _nativeDictationService.SetRandomOrder(IsRandomOrder);
-            _nativeDictationService.SetReadInterval(ReadInterval);
-            // SAPI only - no Flite voice model needed
-
-            // Start test using native backend
-            if (_nativeDictationService.StartTest(DictationMode))
-            {
-                ShowTestInterface();
-            }
-        }
-
-        private void StopTest()
-        {
-            _nativeDictationService.StopTest();
-        }
-
-        private void NextWord()
-        {
-            _nativeDictationService.NextWord();
-        }
-
-        private void PreviousWord()
-        {
-            _nativeDictationService.PreviousWord();
-        }
-
-        private void RepeatWord()
-        {
-            _nativeDictationService.RepeatWord();
-        }
-
-        private void PauseResume()
-        {
-            _nativeDictationService.PauseResume();
-        }
-
-        private async void StartTimer()
-        {
-            // Timer is now handled by the TestPage to prevent conflicts
-            // StopTimer();
-            // _testTimer = new System.Timers.Timer(1000);
-            // _testTimer.Elapsed += async (s, e) =>
-            // {
-            //     if (!IsPaused)
-            //     {
-            //         _testCountdown++;
-            //         var countdown = ReadInterval - _testCountdown;
-            //         var currentIdx = CurrentIndex;
-            //         var totalWords = CurrentWords.Count;
-            //         var shouldStop = _testCountdown >= ReadInterval;
-
-            //         try
-            //         {
-            //             await Windows.ApplicationModel.Core.CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(
-            //                 Windows.UI.Core.CoreDispatcherPriority.Normal,
-            //                 () =>
-            //                 {
-            //                     Countdown = countdown;
-            //                     if (shouldStop)
-            //                     {
-            //                         _testCountdown = 0;
-            //                         if (currentIdx < totalWords - 1)
-            //                         {
-            //                             NextWord();
-            //                         }
-            //                         else
-            //                         {
-            //                             StopTest();
-            //                         }
-            //                     }
-            //                 });
-            //         }
-            //         catch { }
-            //     }
-            // };
-            // _testTimer.Start();
-        }
-
-        private void StopTimer()
-        {
-            _testTimer?.Stop();
-            _testTimer?.Dispose();
-            _testTimer = null;
-        }
-
-        private async Task PlayCurrentWordAsync()
-        {
-            if (CurrentIndex >= 0 && CurrentIndex < CurrentWords.Count)
-            {
-                CurrentWord = CurrentWords[CurrentIndex];
-                Countdown = ReadInterval;
-                await _speechService.SpeakAsync(CurrentWord);
-            }
-        }
-
-        private void ShowTestInterface()
-        {
-            CurrentPage = "Test";
         }
 
         public async Task SaveWordsAsync()
@@ -483,11 +275,9 @@ namespace English_Listen_WinUI.ViewModels
                 .ToList();
 
             await _settingsService.SaveWordsToFileAsync(filePath, words);
-            
-            // Update CurrentWords
+
             CurrentWords = words;
-            
-            // 同时保存到临时文件用于听考
+
             await System.IO.File.WriteAllLinesAsync(TempWordListPath, words);
         }
 
@@ -505,33 +295,31 @@ namespace English_Listen_WinUI.ViewModels
             var words = await _settingsService.LoadWordsFromFileAsync(filePath);
             CurrentWords = words;
             WordsText = string.Join(Environment.NewLine, words);
-            
-            // 保存到临时文件用于听考
+
             await System.IO.File.WriteAllLinesAsync(TempWordListPath, words);
 
             OnPropertyChanged(nameof(CanStartTest));
-            if (StartTestCommand is RelayCommand rc)
+            if (SaveWordsCommand is RelayCommand rc)
             {
                 rc.RaiseCanExecuteChanged();
             }
         }
-        
+
         public async Task LoadWordsFromTempFileAsync()
         {
-            // 如果临时文件不存在，创建新的空文件
             if (!System.IO.File.Exists(TempWordListPath))
             {
                 await System.IO.File.WriteAllTextAsync(TempWordListPath, "");
             }
-            
+
             var words = await _settingsService.LoadWordsFromFileAsync(TempWordListPath);
             CurrentWords = words;
             WordsText = string.Join(Environment.NewLine, words);
-            
+
             CurrentWordListName = "临时词库";
 
             OnPropertyChanged(nameof(CanStartTest));
-            if (StartTestCommand is RelayCommand rc)
+            if (SaveWordsCommand is RelayCommand rc)
             {
                 rc.RaiseCanExecuteChanged();
             }
@@ -574,10 +362,11 @@ namespace English_Listen_WinUI.ViewModels
             await LoadWordListFilesAsync();
         }
 
+        public bool CanStartTest => CurrentWords.Count > 0;
+
         public void Cleanup()
         {
-            StopTimer();
-            _speechService.Dispose();
+            _speechService?.Dispose();
         }
     }
 

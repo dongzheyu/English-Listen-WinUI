@@ -228,30 +228,40 @@ namespace English_Listen_WinUI.Views
                 if (WindowsTtsVoiceComboBox != null && _viewModel?.SpeechService != null)
                 {
                     WindowsTtsVoiceComboBox.Items.Clear();
-                    
+
                     var voices = _viewModel.SpeechService.GetWindowsTtsVoices();
                     var savedVoice = _viewModel.Settings.Settings.WindowsTtsVoiceName;
-                    
-                    foreach (var voice in voices)
+                    var selectedIndex = -1;
+
+                    for (int i = 0; i < voices.Length; i++)
                     {
-                        var item = new ComboBoxItem 
-                        { 
-                            Content = voice.DisplayName, 
-                            Tag = voice.Name 
+                        var voice = voices[i];
+                        var item = new ComboBoxItem
+                        {
+                            Content = voice.DisplayName,
+                            Tag = voice.Name
                         };
                         WindowsTtsVoiceComboBox.Items.Add(item);
-                        
+
                         // 选择之前保存的语音
                         if (voice.Name == savedVoice)
                         {
-                            WindowsTtsVoiceComboBox.SelectedItem = item;
+                            selectedIndex = i;
                         }
                     }
-                    
+
                     // 如果没有找到保存的语音，选择第一个
-                    if (WindowsTtsVoiceComboBox.SelectedIndex == -1 && voices.Length > 0)
+                    if (selectedIndex == -1 && voices.Length > 0)
                     {
-                        WindowsTtsVoiceComboBox.SelectedIndex = 0;
+                        selectedIndex = 0;
+                    }
+
+                    WindowsTtsVoiceComboBox.SelectedIndex = selectedIndex;
+
+                    // 应用保存的语音设置到SpeechService
+                    if (selectedIndex >= 0 && !string.IsNullOrEmpty(savedVoice))
+                    {
+                        _viewModel.SpeechService.SetWindowsTtsVoice(savedVoice);
                     }
                 }
             }
@@ -320,10 +330,17 @@ namespace English_Listen_WinUI.Views
             {
                 if (WindowsTtsVoiceComboBox.SelectedItem is ComboBoxItem item && item.Tag != null)
                 {
-                    _viewModel.Settings.Settings.WindowsTtsVoiceName = item.Tag.ToString();
+                    var voiceName = item.Tag.ToString();
+                    if (string.IsNullOrEmpty(voiceName)) return;
+
+                    // 保存到设置
+                    _viewModel.Settings.Settings.WindowsTtsVoiceName = voiceName;
                     _ = _viewModel.Settings.SaveSettingsAsync();
-                    
-                    System.Diagnostics.Debug.WriteLine($"Windows TTS语音切换为: {item.Tag}");
+
+                    // 通知SpeechService更新语音设置
+                    _viewModel.SpeechService?.SetWindowsTtsVoice(voiceName);
+
+                    System.Diagnostics.Debug.WriteLine($"Windows TTS语音切换为: {voiceName}");
                 }
             }
             catch (Exception ex)

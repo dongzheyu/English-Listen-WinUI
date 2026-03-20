@@ -10,15 +10,15 @@
   IgnorableNamespaces="uap rescap systemai uap18">
 
   <Identity
-    Name="0cce1389-0c1b-4ed6-baf8-815e429cb626"
-    Publisher="CN=ASUS"
-    Version="2.7.0.0" />
+    Name="dongle.English-Listen-WinUI"
+    Publisher="CN=9C81AFF4-83F7-49D8-BC9D-3FB4B60AE536"
+    Version="1.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="0cce1389-0c1b-4ed6-baf8-815e429cb626" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>English-Listen-WinUI</DisplayName>
-    <PublisherDisplayName>ASUS</PublisherDisplayName>
+    <PublisherDisplayName>dongle</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
