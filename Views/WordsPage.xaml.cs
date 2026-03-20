@@ -388,7 +388,68 @@ namespace English_Listen_WinUI.Views
             Frame?.Navigate(typeof(HomePage));
         }
 
+        private async void StartDictationButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 获取临时文件路径
+            string tempFilePath = Path.Combine(Path.GetTempPath(), "english_listen_temp.txt");
 
+            // 检查临时文件是否存在
+            if (!File.Exists(tempFilePath))
+            {
+                var errorDialog = new ContentDialog
+                {
+                    Title = "提示",
+                    Content = "临时词库不存在，请先添加单词。",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                return;
+            }
+
+            // 读取临时文件内容，检查是否有有效单词
+            var lines = await File.ReadAllLinesAsync(tempFilePath);
+            var validLines = lines.Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+
+            if (validLines.Count == 0)
+            {
+                var emptyDialog = new ContentDialog
+                {
+                    Title = "提示",
+                    Content = "当前没有单词，请先添加单词。",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await emptyDialog.ShowAsync();
+                return;
+            }
+
+            // 询问随机顺序
+            var dialog = new ContentDialog
+            {
+                Title = "听写测试选项",
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+            var randomCheckBox = new CheckBox
+            {
+                Content = "随机顺序",
+                IsChecked = false
+            };
+            stackPanel.Children.Add(randomCheckBox);
+            dialog.Content = stackPanel;
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                bool randomOrder = randomCheckBox.IsChecked ?? false;
+                var testParams = new DictationTestParams(tempFilePath, randomOrder);
+                Frame?.Navigate(typeof(DictationTestPage), testParams);
+            }
+        }
 
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {

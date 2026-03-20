@@ -21,7 +21,10 @@ namespace English_Listen_WinUI
         {
             // Set environment variable for single file publishing
             Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
-            
+
+            // Reset temporary file on startup
+            ClearTemporaryFile();
+
             SharedViewModel = new MainViewModel();
             await SharedViewModel.InitializeAsync();
             
@@ -66,6 +69,20 @@ namespace English_Listen_WinUI
             {
                 // Log error but don't crash the application
                 System.Diagnostics.Debug.WriteLine("Failed to cleanup temp files");
+            }
+        }
+
+        private void ClearTemporaryFile()
+        {
+            try
+            {
+                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
+                System.IO.File.WriteAllText(tempPath, string.Empty);
+            }
+            catch
+            {
+                // Log error but don't crash the application
+                System.Diagnostics.Debug.WriteLine("Failed to clear temporary file");
             }
         }
     }

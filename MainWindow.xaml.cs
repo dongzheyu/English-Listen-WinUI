@@ -97,7 +97,6 @@ namespace English_Listen_WinUI
             Type pageType = pageName switch
             {
                 "HomePage" => typeof(HomePage),
-                "ModernDictationPage" => typeof(DictationTestPage),
                 "WordsPage" => typeof(WordsPage),
                 "UserPage" => typeof(UserPage),
                 "ProgressPage" => typeof(ProgressPage),

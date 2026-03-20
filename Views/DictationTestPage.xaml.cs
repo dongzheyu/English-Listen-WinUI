@@ -25,8 +25,10 @@ namespace English_Listen_WinUI.Views
         private SpeechSynthesizer? synthesizer;
         private TaskCompletionSource<bool>? speakTaskSource;
         private bool isTestActive;
+        private bool isSpeaking = false;
         private Random random = new Random();
         private string currentFileName = string.Empty;
+        private HashSet<int> correctIndices = new HashSet<int>();
 
         public DictationTestPage()
         {
@@ -47,6 +49,10 @@ namespace English_Listen_WinUI.Views
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            var mainWindow = App.MainWindow as MainWindow;
+            mainWindow?.SetSidebarVisibility(false);
+
             if (e.Parameter is DictationTestParams testParams)
             {
                 currentFileName = testParams.FileName;
@@ -67,6 +73,10 @@ namespace English_Listen_WinUI.Views
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+
+            var mainWindow = App.MainWindow as MainWindow;
+            mainWindow?.SetSidebarVisibility(true);
+
             countdownTimer?.Stop();
             synthesizer?.SpeakAsyncCancelAll();
             synthesizer?.Dispose();
@@ -120,6 +130,7 @@ namespace English_Listen_WinUI.Views
             totalWords = wordList.Count;
             currentIndex = 0;
             correctCount = 0;
+            correctIndices.Clear();
             isTestActive = true;
             UpdateUI();
             _ = PlayCurrentWordAndStartCountdown();
@@ -154,6 +165,7 @@ namespace English_Listen_WinUI.Views
             countdownTimer?.Stop();
 
             SpeakingStatusText.Text = "正在朗读...";
+            isSpeaking = true;
 
             string word = wordList[currentIndex];
             try
@@ -172,6 +184,7 @@ namespace English_Listen_WinUI.Views
             }
             finally
             {
+                isSpeaking = false;
                 SpeakingStatusText.Text = string.Empty;
             }
 
@@ -200,17 +213,26 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        private void Submit()
+        private async void Submit()
         {
+            if (isSpeaking)
+            {
+                await ShowPleaseWaitDialogAsync();
+                return;
+            }
+
             if (!isTestActive || currentIndex >= totalWords) return;
             countdownTimer?.Stop();
 
             string input = InputTextBox.Text?.Trim() ?? "";
             string correct = wordList[currentIndex].Trim();
 
-            if (input.Equals(correct, StringComparison.OrdinalIgnoreCase))
+            // Only increment correctCount if this index hasn't been correctly answered before
+            if (input.Equals(correct, StringComparison.OrdinalIgnoreCase) && !correctIndices.Contains(currentIndex))
             {
                 correctCount++;
+                correctIndices.Add(currentIndex);
+                ScoreText.Text = $"正确: {correctCount} / {totalWords}";
             }
 
             MoveToNextWord();
@@ -223,9 +245,12 @@ namespace English_Listen_WinUI.Views
             string input = InputTextBox.Text?.Trim() ?? "";
             string correct = wordList[currentIndex].Trim();
 
-            if (input.Equals(correct, StringComparison.OrdinalIgnoreCase))
+            // Only increment correctCount if this index hasn't been correctly answered before
+            if (input.Equals(correct, StringComparison.OrdinalIgnoreCase) && !correctIndices.Contains(currentIndex))
             {
                 correctCount++;
+                correctIndices.Add(currentIndex);
+                ScoreText.Text = $"正确: {correctCount} / {totalWords}";
             }
 
             MoveToNextWord();
@@ -245,17 +270,46 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        private void Skip()
+        private async void Skip()
         {
+            if (isSpeaking)
+            {
+                await ShowPleaseWaitDialogAsync();
+                return;
+            }
+
             if (!isTestActive || currentIndex >= totalWords) return;
             countdownTimer?.Stop();
             MoveToNextWord();
         }
 
-        private void Replay()
+        private async void Replay()
         {
+            if (isSpeaking)
+            {
+                await ShowPleaseWaitDialogAsync();
+                return;
+            }
+
             if (!isTestActive || currentIndex >= totalWords) return;
             countdownTimer?.Stop();
+            _ = PlayCurrentWordAndStartCountdown();
+        }
+
+        private async void Previous()
+        {
+            if (isSpeaking)
+            {
+                await ShowPleaseWaitDialogAsync();
+                return;
+            }
+
+            if (!isTestActive) return;
+            if (currentIndex <= 0) return;
+
+            countdownTimer?.Stop();
+            currentIndex--;
+            UpdateUI();
             _ = PlayCurrentWordAndStartCountdown();
         }
 
@@ -263,15 +317,24 @@ namespace English_Listen_WinUI.Views
         {
             isTestActive = false;
             countdownTimer?.Stop();
-            
-            // 等待当前语音播放完成后再显示结束对话框
+
+            // 如果正在播放语音，先取消
+            if (isSpeaking)
+            {
+                synthesizer?.SpeakAsyncCancelAll();
+            }
+
+            // 等待当前语音播放任务完成
             if (speakTaskSource != null)
             {
                 try
                 {
                     await speakTaskSource.Task;
                 }
-                catch { }
+                catch
+                {
+                    // 忽略取消异常
+                }
             }
 
             double accuracy = totalWords > 0 ? (double)correctCount / totalWords * 100 : 0;
@@ -291,6 +354,7 @@ namespace English_Listen_WinUI.Views
             {
                 currentIndex = 0;
                 correctCount = 0;
+                correctIndices.Clear();
                 UpdateUI();
                 isTestActive = true;
                 _ = PlayCurrentWordAndStartCountdown();
@@ -301,11 +365,16 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        private void Next()
+        private async Task ShowPleaseWaitDialogAsync()
         {
-            if (!isTestActive || currentIndex >= totalWords) return;
-            countdownTimer?.Stop();
-            MoveToNextWord();
+            var dialog = new ContentDialog
+            {
+                Title = "提示",
+                Content = "请先等待朗读结束",
+                CloseButtonText = "确定",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
         }
 
         private async Task ShowErrorDialogAsync(string message)
@@ -344,11 +413,6 @@ namespace English_Listen_WinUI.Views
             _ = ShowEmptyListDialogAsync();
         }
 
-        private void PlayButton_Click(object sender, RoutedEventArgs e)
-        {
-            Replay();
-        }
-
         private void SubmitButton_Click(object sender, RoutedEventArgs e)
         {
             Submit();
@@ -364,9 +428,9 @@ namespace English_Listen_WinUI.Views
             Skip();
         }
 
-        private void NextButton_Click(object sender, RoutedEventArgs e)
+        private void PreviousButton_Click(object sender, RoutedEventArgs e)
         {
-            Next();
+            Previous();
         }
 
         private async void EndButton_Click(object sender, RoutedEventArgs e)

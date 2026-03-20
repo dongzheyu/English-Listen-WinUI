@@ -6,13 +6,13 @@
     <RootNamespace>English_Listen_WinUI</RootNamespace>
     <Platforms>x64</Platforms>
     <UseWinUI>true</UseWinUI>
-    <EnableMsixTooling>false</EnableMsixTooling>
+    <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <NoWarn>$(NoWarn);CA1416</NoWarn>
-    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsPackageType>MSIX</WindowsPackageType>
     <EnableDefaultXamlItems>true</EnableDefaultXamlItems>
   </PropertyGroup>
   <ItemGroup>
