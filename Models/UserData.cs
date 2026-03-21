@@ -45,6 +45,8 @@ namespace English_Listen_WinUI.Models
         public string? WindowsTtsVoiceName { get; set; }
         public int WindowsTtsVolume { get; set; } = 100; // 0-100
         public int WindowsTtsRate { get; set; } = 0; // -10 to 10
+        public string? BaiduTranslateApiMode { get; set; } = "default";
+        public string? BaiduTranslateApiKey { get; set; }
     }
 
 

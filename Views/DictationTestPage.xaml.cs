@@ -10,12 +10,13 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.System;
+using English_Listen_WinUI.Services;
 
 namespace English_Listen_WinUI.Views
 {
     public sealed partial class DictationTestPage : Page
     {
-        private List<string> wordList = new List<string>();
+        private List<WordTranslationPair> wordList = new List<WordTranslationPair>();
         private int currentIndex;
         private int correctCount;
         private int totalWords;
@@ -29,6 +30,14 @@ namespace English_Listen_WinUI.Views
         private Random random = new Random();
         private string currentFileName = string.Empty;
         private HashSet<int> correctIndices = new HashSet<int>();
+        private BaiduTranslateService _translateService;
+        private SpeechSynthesizer? chineseSynthesizer;
+
+        public class WordTranslationPair
+        {
+            public required string Word { get; set; }
+            public required string Translation { get; set; }
+        }
 
         public DictationTestPage()
         {
@@ -38,6 +47,7 @@ namespace English_Listen_WinUI.Views
             countdownTimer = new DispatcherTimer();
             countdownTimer.Interval = TimeSpan.FromSeconds(1);
             countdownTimer.Tick += CountdownTimer_Tick;
+            _translateService = new BaiduTranslateService();
             InputTextBox.Focus(FocusState.Programmatic);
         }
 
@@ -57,6 +67,33 @@ namespace English_Listen_WinUI.Views
             {
                 currentFileName = testParams.FileName;
                 LoadWordList(currentFileName, testParams.RandomOrder);
+            }
+            else if (e.Parameter.GetType().Name == "DictationTestParamsWithTranslations")
+            {
+                var wordListProperty = e.Parameter.GetType().GetProperty("WordList");
+                var randomOrderProperty = e.Parameter.GetType().GetProperty("RandomOrder");
+                
+                if (wordListProperty != null && randomOrderProperty != null)
+                {
+                    var wordListValue = wordListProperty.GetValue(e.Parameter) as List<WordTranslationPair>;
+                    var randomOrderValue = (bool)(randomOrderProperty.GetValue(e.Parameter) ?? false);
+                    
+                    if (wordListValue != null)
+                    {
+                        wordList = wordListValue;
+                        if (randomOrderValue)
+                        {
+                            ShuffleWordList();
+                        }
+                        totalWords = wordList.Count;
+                        currentIndex = 0;
+                        correctCount = 0;
+                        correctIndices.Clear();
+                        isTestActive = true;
+                        UpdateUI();
+                        _ = PlayCurrentWordAndStartCountdown();
+                    }
+                }
             }
             else if (e.Parameter is string fileName)
             {
@@ -79,8 +116,7 @@ namespace English_Listen_WinUI.Views
 
             countdownTimer?.Stop();
             synthesizer?.SpeakAsyncCancelAll();
-            synthesizer?.Dispose();
-            synthesizer = null;
+            chineseSynthesizer?.SpeakAsyncCancelAll();
         }
 
         private void LoadWordList(string filePath, bool randomOrder)
@@ -108,6 +144,27 @@ namespace English_Listen_WinUI.Views
                 var lines = File.ReadAllLines(fullPath);
                 wordList = lines.Where(line => !string.IsNullOrWhiteSpace(line))
                                 .Select(line => line.Trim())
+                                .Select(line => 
+                                {
+                                    // 尝试解析单词和翻译（格式：单词|翻译）
+                                    var parts = line.Split('|');
+                                    if (parts.Length >= 2)
+                                    {
+                                        return new WordTranslationPair 
+                                        { 
+                                            Word = parts[0].Trim(), 
+                                            Translation = parts[1].Trim() 
+                                        };
+                                    }
+                                    else
+                                    {
+                                        return new WordTranslationPair 
+                                        { 
+                                            Word = line, 
+                                            Translation = "" 
+                                        };
+                                    }
+                                })
                                 .ToList();
             }
             catch (Exception ex)
@@ -124,7 +181,7 @@ namespace English_Listen_WinUI.Views
 
             if (randomOrder)
             {
-                FisherYatesShuffle();
+                ShuffleWordList();
             }
 
             totalWords = wordList.Count;
@@ -136,16 +193,16 @@ namespace English_Listen_WinUI.Views
             _ = PlayCurrentWordAndStartCountdown();
         }
 
-        private void FisherYatesShuffle()
+        private void ShuffleWordList()
         {
             int n = wordList.Count;
             while (n > 1)
             {
                 n--;
                 int k = random.Next(n + 1);
-                string value = wordList[k];
+                var temp = wordList[k];
                 wordList[k] = wordList[n];
-                wordList[n] = value;
+                wordList[n] = temp;
             }
         }
 
@@ -156,6 +213,7 @@ namespace English_Listen_WinUI.Views
             InputTextBox.Text = string.Empty;
             CountdownText.Text = string.Empty;
             SpeakingStatusText.Text = string.Empty;
+            TranslationText.Text = string.Empty;
         }
 
         private async Task PlayCurrentWordAndStartCountdown()
@@ -164,10 +222,13 @@ namespace English_Listen_WinUI.Views
 
             countdownTimer?.Stop();
 
+            var wordPair = wordList[currentIndex];
+            string word = wordPair.Word;
+            string translation = wordPair.Translation;
+            
             SpeakingStatusText.Text = "正在朗读...";
             isSpeaking = true;
-
-            string word = wordList[currentIndex];
+            
             try
             {
                 if (synthesizer != null)
@@ -175,7 +236,34 @@ namespace English_Listen_WinUI.Views
                     speakTaskSource = new TaskCompletionSource<bool>();
                     synthesizer.SpeakAsyncCancelAll();
                     synthesizer.SpeakAsync(word);
-                    await speakTaskSource.Task;
+                    
+                    var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(10000));
+                    if (completedTask != speakTaskSource.Task)
+                    {
+                        synthesizer.SpeakAsyncCancelAll();
+                        System.Diagnostics.Debug.WriteLine("语音播放超时");
+                    }
+                }
+                
+                if (!string.IsNullOrEmpty(translation))
+                {
+                    if (chineseSynthesizer == null)
+                    {
+                        chineseSynthesizer = new SpeechSynthesizer();
+                        chineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+                    }
+                    
+                    await Task.Delay(300);
+                    
+                    speakTaskSource = new TaskCompletionSource<bool>();
+                    chineseSynthesizer.SpeakAsyncCancelAll();
+                    chineseSynthesizer.SpeakAsync(translation);
+                    
+                    var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(10000));
+                    if (completedTask != speakTaskSource.Task)
+                    {
+                        chineseSynthesizer.SpeakAsyncCancelAll();
+                    }
                 }
             }
             catch (Exception ex)
@@ -185,8 +273,11 @@ namespace English_Listen_WinUI.Views
             finally
             {
                 isSpeaking = false;
+                speakTaskSource = null;
                 SpeakingStatusText.Text = string.Empty;
             }
+
+            TranslationText.Text = !string.IsNullOrEmpty(translation) ? $"翻译: {translation}" : "";
 
             if (isTestActive && currentIndex < totalWords)
             {
@@ -215,19 +306,21 @@ namespace English_Listen_WinUI.Views
 
         private async void Submit()
         {
-            if (isSpeaking)
-            {
-                await ShowPleaseWaitDialogAsync();
-                return;
-            }
-
             if (!isTestActive || currentIndex >= totalWords) return;
             countdownTimer?.Stop();
+            
+            if (isSpeaking)
+            {
+                synthesizer?.SpeakAsyncCancelAll();
+                chineseSynthesizer?.SpeakAsyncCancelAll();
+                isSpeaking = false;
+                speakTaskSource = null;
+                SpeakingStatusText.Text = string.Empty;
+            }
 
             string input = InputTextBox.Text?.Trim() ?? "";
-            string correct = wordList[currentIndex].Trim();
+            string correct = wordList[currentIndex].Word.Trim();
 
-            // Only increment correctCount if this index hasn't been correctly answered before
             if (input.Equals(correct, StringComparison.OrdinalIgnoreCase) && !correctIndices.Contains(currentIndex))
             {
                 correctCount++;
@@ -243,7 +336,7 @@ namespace English_Listen_WinUI.Views
             if (!isTestActive || currentIndex >= totalWords) return;
 
             string input = InputTextBox.Text?.Trim() ?? "";
-            string correct = wordList[currentIndex].Trim();
+            string correct = wordList[currentIndex].Word.Trim();
 
             // Only increment correctCount if this index hasn't been correctly answered before
             if (input.Equals(correct, StringComparison.OrdinalIgnoreCase) && !correctIndices.Contains(currentIndex))
@@ -270,44 +363,56 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        private async void Skip()
+        private void Skip()
         {
-            if (isSpeaking)
-            {
-                await ShowPleaseWaitDialogAsync();
-                return;
-            }
-
             if (!isTestActive || currentIndex >= totalWords) return;
             countdownTimer?.Stop();
+            
+            if (isSpeaking)
+            {
+                synthesizer?.SpeakAsyncCancelAll();
+                chineseSynthesizer?.SpeakAsyncCancelAll();
+                isSpeaking = false;
+                speakTaskSource = null;
+                SpeakingStatusText.Text = string.Empty;
+            }
+            
             MoveToNextWord();
         }
 
-        private async void Replay()
+        private void Replay()
         {
-            if (isSpeaking)
-            {
-                await ShowPleaseWaitDialogAsync();
-                return;
-            }
-
             if (!isTestActive || currentIndex >= totalWords) return;
             countdownTimer?.Stop();
+            
+            if (isSpeaking)
+            {
+                synthesizer?.SpeakAsyncCancelAll();
+                chineseSynthesizer?.SpeakAsyncCancelAll();
+                isSpeaking = false;
+                speakTaskSource = null;
+                SpeakingStatusText.Text = string.Empty;
+            }
+            
             _ = PlayCurrentWordAndStartCountdown();
         }
 
-        private async void Previous()
+        private void Previous()
         {
-            if (isSpeaking)
-            {
-                await ShowPleaseWaitDialogAsync();
-                return;
-            }
-
             if (!isTestActive) return;
             if (currentIndex <= 0) return;
 
             countdownTimer?.Stop();
+            
+            if (isSpeaking)
+            {
+                synthesizer?.SpeakAsyncCancelAll();
+                chineseSynthesizer?.SpeakAsyncCancelAll();
+                isSpeaking = false;
+                speakTaskSource = null;
+                SpeakingStatusText.Text = string.Empty;
+            }
+            
             currentIndex--;
             UpdateUI();
             _ = PlayCurrentWordAndStartCountdown();

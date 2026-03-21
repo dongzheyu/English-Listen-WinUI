@@ -102,6 +102,55 @@
                         BorderThickness="1"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                     <StackPanel>
+                        <TextBlock Text="百度翻译API设置" 
+                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
+                        
+                        <StackPanel Margin="0,10">
+                            <TextBlock Text="API模式:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <ComboBox x:Name="TranslateApiModeComboBox" Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="TranslateApiModeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="默认API" Tag="default"/>
+                                <ComboBoxItem Content="自定义API" Tag="custom"/>
+                            </ComboBox>
+                        </StackPanel>
+                        
+                        <StackPanel Margin="0,15,0,10" x:Name="CustomApiPanel" Visibility="Collapsed">
+                            <TextBlock Text="API Key:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBox x:Name="ApiKeyTextBox" Width="300"
+                                     PlaceholderText="请输入百度翻译API Key"
+                                     TextChanged="ApiKeyTextBox_TextChanged"/>
+                        </StackPanel>
+                        
+                        <StackPanel Margin="0,15,0,10">
+                            <TextBlock Text="剩余翻译限额:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock x:Name="TranslationLimitText" Text="--" 
+                                           Style="{ThemeResource BodyTextBlockStyle}" VerticalAlignment="Center"/>
+                                <Button x:Name="ClaimLimitButton" Grid.Column="1" 
+                                        Content="领取限额" Margin="10,0,0,0" Width="100"
+                                        Click="ClaimLimitButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                        
+                        <StackPanel Margin="0,15,0,10">
+                            <TextBlock Text="获取API Key:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <HyperlinkButton Content="前往百度翻译开放平台" 
+                                            NavigateUri="https://fanyi-api.baidu.com/" 
+                                            Click="HyperlinkButton_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="8" Padding="20"
+                        BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <StackPanel>
                         <TextBlock Text="系统设置" 
                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
                         

@@ -13,7 +13,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -40,47 +39,55 @@
             <Button Content="重置" Click="ResetFilterButton_Click" Margin="10"/>
         </StackPanel>
 
-        <!-- Wordlist Files List -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10">
-            <TextBlock Text="词库文件:" VerticalAlignment="Center" Margin="5"/>
-            <Button Content="加载词库" Click="LoadWordlistButton_Click" Margin="5" Width="100"/>
-            <Button Content="加载分组" Click="LoadGroupButton_Click" Margin="5" Width="100"/>
-            <Button Content="创建分组" Click="CreateGroupButton_Click" Margin="5" Width="100"/>
-            <Button Content="编辑分组" Click="EditGroupButton_Click" Margin="5" Width="100"/>
-            <Button Content="删除分组" Click="DeleteGroupButton_Click" Margin="5" Width="100"/>
-            <Button Content="开始听写" Click="StartDictationButton_Click" Margin="5" Width="100" Background="#4CAF50" Foreground="White"/>
-            <ListBox x:Name="WordlistListBox" Width="300" Height="120" 
-                     SelectionChanged="WordlistListBox_SelectionChanged"/>
+        <!-- Main Operations -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+            <Button Content="📁 词库管理" Click="WordlistManagementButton_Click" Width="140" Height="45" Margin="10" Background="#4CAF50" Foreground="White" FontSize="14"/>
+            <Button Content="⚙️ 单词操作" Click="WordOperationsButton_Click" Width="140" Height="45" Margin="10" Background="#2196F3" Foreground="White" FontSize="14"/>
+            <Button Content="▶️ 开始听写" Click="StartDictationButton_Click" Width="140" Height="45" Margin="10" Background="#FF9800" Foreground="White" FontSize="14"/>
         </StackPanel>
 
         <!-- Word List -->
         <Grid Grid.Row="3" Margin="10">
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Margin="10">
-                <TextBox x:Name="WordsTextBox" 
-                          AcceptsReturn="True" 
-                          TextWrapping="Wrap"
-                          FontSize="14"
-                          MinHeight="300"
-                          TextChanged="WordsTextBox_TextChanged"/>
-            </ScrollViewer>
-
-            <!-- Buttons -->
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10" HorizontalAlignment="Center">
-                <TextBox x:Name="WordInput" Width="150" 
-                          KeyDown="WordInput_KeyDown"
-                          PlaceholderText="输入单词"/>
-                <Button Content="添加单词" Click="AddWordButton_Click" Width="110" Height="35" Margin="10"/>
-                <Button Content="删除选中" Click="DeleteSelectedButton_Click" Width="110" Height="35" Margin="10"/>
-                <Button Content="清空列表" Click="ClearButton_Click" Width="110" Height="35" Margin="10"/>
-                <Button Content="导入词库" Click="ImportButton_Click" Width="110" Height="35" Margin="10"/>
-                <Button Content="导出词库" Click="ExportButton_Click" Width="110" Height="35" Margin="10"/>
+            <!-- Select All Checkbox and Word Count -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10,5">
+                <CheckBox x:Name="SelectAllCheckBox" 
+                          Content="全选/全不选" 
+                          Click="SelectAllCheckBox_Click"
+                          Margin="10,0"/>
+                <TextBlock x:Name="WordCountTextBlock" Text="单词数量: 0" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666666"/>
             </StackPanel>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="10">
+                <ListBox x:Name="WordsListBox" 
+                         SelectionMode="Single" 
+                         MinHeight="300" 
+                         FontSize="14">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Width="600">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="5" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="WordTextBlock" Grid.Column="1" Text="{Binding Word}" Margin="10" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TranslationTextBlock" Grid.Column="2" Text="{Binding Translation}" Margin="10" VerticalAlignment="Center" Foreground="#666666"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </ScrollViewer>
         </Grid>
+
+        <!-- Hidden controls for code compatibility -->
+        <ListBox x:Name="WordlistListBox" Visibility="Collapsed"/>
+        <TextBox x:Name="WordInput" Visibility="Collapsed"/>
 
         <!-- Footer Buttons -->
         <!-- 保存按钮已删除，改为自动保存机制 -->

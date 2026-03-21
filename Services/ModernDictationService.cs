@@ -8,7 +8,8 @@ namespace English_Listen_WinUI.Services
     {
         private WindowsTtsService _speechService;
         private string _currentVoice = "";
-        private List<string> _wordList;
+        private string _currentChineseVoice = "";
+        private List<WordTranslationPair> _wordList;
         private int _currentIndex;
         private int _readInterval;
         private bool _isRandomOrder;
@@ -17,16 +18,22 @@ namespace English_Listen_WinUI.Services
         private System.Timers.Timer _countdownTimer;
         private int _currentCountdown;
         
-        public event Action<string, int, int, bool>? WordChanged;
+        public event Action<string, string, int, int, bool>? WordChanged;
         public event Action<int>? CountdownChanged;
         public event Action<bool, bool>? TestStateChanged;
         public event Action<bool>? SpeechStatusChanged;
         public event Action? TestCompleted;
         
+        public class WordTranslationPair
+        {
+            public required string Word { get; set; }
+            public required string Translation { get; set; }
+        }
+        
         public ModernDictationService()
         {
             _speechService = new WindowsTtsService();
-            _wordList = new List<string>();
+            _wordList = new List<WordTranslationPair>();
             _currentIndex = 0;
             _readInterval = 5;
             _isRandomOrder = false;
@@ -58,6 +65,20 @@ namespace English_Listen_WinUI.Services
         public void SetWords(List<string> words)
         {
             _wordList.Clear();
+            foreach (var word in words)
+            {
+                _wordList.Add(new WordTranslationPair { Word = word, Translation = "" });
+            }
+            
+            if (_isRandomOrder && _wordList.Count > 0)
+            {
+                ShuffleWordList();
+            }
+        }
+        
+        public void SetWordsWithTranslations(List<WordTranslationPair> words)
+        {
+            _wordList.Clear();
             _wordList.AddRange(words);
             
             if (_isRandomOrder && _wordList.Count > 0)
@@ -87,6 +108,11 @@ namespace English_Listen_WinUI.Services
             {
                 _speechService.SelectVoice(voiceName);
             }
+        }
+        
+        public void SetChineseVoice(string voiceName)
+        {
+            _currentChineseVoice = voiceName;
         }
         
         public async Task<bool> StartTest(int dictationMode)
@@ -167,9 +193,11 @@ namespace English_Listen_WinUI.Services
             if (_currentIndex >= _wordList.Count)
                 return;
             
-            var word = _wordList[_currentIndex];
+            var wordPair = _wordList[_currentIndex];
+            var word = wordPair.Word;
+            var translation = wordPair.Translation;
             var isLastWord = _currentIndex == _wordList.Count - 1;
-            await InvokeOnUIThread(() => WordChanged?.Invoke(word, _currentIndex + 1, _wordList.Count, isLastWord));
+            await InvokeOnUIThread(() => WordChanged?.Invoke(word, translation, _currentIndex + 1, _wordList.Count, isLastWord));
             
             // Show "正在朗读" immediately when starting speech
             await InvokeOnUIThread(() => CountdownChanged?.Invoke(-1)); // -1 indicates "正在朗读"
@@ -185,7 +213,28 @@ namespace English_Listen_WinUI.Services
                     await Task.Delay(500);
                 }
                 
+                // Read the word
                 await _speechService.SpeakAsync(word);
+                
+                // If translation exists, read it after the word
+                if (!string.IsNullOrEmpty(translation))
+                {
+                    await Task.Delay(500); // Small pause between word and translation
+                    
+                    // Switch to Chinese voice if available
+                    if (!string.IsNullOrEmpty(_currentChineseVoice))
+                    {
+                        _speechService.SelectVoice(_currentChineseVoice);
+                    }
+                    
+                    await _speechService.SpeakAsync(translation);
+                    
+                    // Switch back to English voice
+                    if (!string.IsNullOrEmpty(_currentVoice))
+                    {
+                        _speechService.SelectVoice(_currentVoice);
+                    }
+                }
             }
             catch (Exception ex)
             {

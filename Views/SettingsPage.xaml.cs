@@ -1,8 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using English_Listen_WinUI.ViewModels;
+using English_Listen_WinUI.Services;
+using Windows.System;
 
 namespace English_Listen_WinUI.Views
 {
@@ -10,11 +16,13 @@ namespace English_Listen_WinUI.Views
     {
         private MainViewModel? _viewModel;
         private bool _isInitializing = true;
+        private BaiduTranslateService _translateService;
 
         public SettingsPage()
         {
             this.InitializeComponent();
             this.Loaded += SettingsPage_Loaded;
+            _translateService = new BaiduTranslateService();
         }
 
         private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
@@ -60,6 +68,9 @@ namespace English_Listen_WinUI.Views
 
                 // 加载语音引擎
                 LoadEngineSettings();
+
+                // 加载百度翻译API设置
+                LoadTranslateApiSettings();
 
                 // 设置版本号
                 if (CurrentVersionLabel != null)
@@ -289,6 +300,109 @@ namespace English_Listen_WinUI.Views
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"语音模型显示更新错误: {ex.Message}");
+            }
+        }
+
+        private void LoadTranslateApiSettings()
+        {
+            try
+            {
+                // 加载API模式
+                if (TranslateApiModeComboBox != null)
+                {
+                    // 默认选择默认API
+                    TranslateApiModeComboBox.SelectedIndex = 0;
+                }
+
+                // 加载自定义API Key
+                if (ApiKeyTextBox != null && _viewModel?.Settings?.Settings != null)
+                {
+                    ApiKeyTextBox.Text = _viewModel.Settings.Settings.BaiduTranslateApiKey ?? string.Empty;
+                }
+
+                // 更新剩余限额显示
+                UpdateTranslationLimit();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"翻译API设置加载错误: {ex.Message}");
+            }
+        }
+
+        private void UpdateTranslationLimit()
+        {
+            try
+            {
+                if (TranslationLimitText != null)
+                {
+                    var remaining = _translateService.GetRemainingLimit();
+                    TranslationLimitText.Text = $"{remaining}/100";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"更新翻译限额错误: {ex.Message}");
+                if (TranslationLimitText != null)
+                {
+                    TranslationLimitText.Text = "--";
+                }
+            }
+        }
+
+        private void TranslateApiModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing) return;
+
+            try
+            {
+                if (TranslateApiModeComboBox.SelectedItem is ComboBoxItem item)
+                {
+                    var mode = item.Tag?.ToString();
+                    
+                    // 显示/隐藏自定义API面板
+                    if (CustomApiPanel != null)
+                    {
+                        CustomApiPanel.Visibility = mode == "custom" ? Visibility.Visible : Visibility.Collapsed;
+                    }
+
+                    // 保存设置
+                    if (_viewModel?.Settings?.Settings != null)
+                    {
+                        _viewModel.Settings.Settings.BaiduTranslateApiMode = mode;
+                        _ = _viewModel.Settings.SaveSettingsAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"API模式切换错误: {ex.Message}");
+            }
+        }
+
+        private async void ApiKeyTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isInitializing || _viewModel?.Settings?.Settings == null) return;
+
+            try
+            {
+                _viewModel.Settings.Settings.BaiduTranslateApiKey = ApiKeyTextBox.Text;
+                await _viewModel.Settings.SaveSettingsAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"API Key保存错误: {ex.Message}");
+            }
+        }
+
+        private async void HyperlinkButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await Launcher.LaunchUriAsync(new Uri("https://fanyi-api.baidu.com/"));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"打开链接错误: {ex.Message}");
             }
         }
 
@@ -648,6 +762,186 @@ namespace English_Listen_WinUI.Views
                 System.Diagnostics.Debug.WriteLine($"初始化失败: {ex.Message}");
                 ShowError("初始化错误", $"程序初始化失败: {ex.Message}");
             }
+        }
+
+        private async void ClaimLimitButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 显示输入兑换码的对话框
+            var dialog = new ContentDialog
+            {
+                Title = "领取翻译限额",
+                PrimaryButtonText = "领取",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel();
+            stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
+            
+            var textBox = new TextBox
+            {
+                Header = "输入兑换码",
+                PlaceholderText = "请输入兑换码",
+                Width = 300
+            };
+            stackPanel.Children.Add(textBox);
+            
+            // 显示当前剩余限额
+            var remainingLimit = _translateService.GetRemainingLimit();
+            var limitTextBlock = new TextBlock
+            {
+                Text = $"当前剩余翻译限额：{remainingLimit} 个单词",
+                Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 0)
+            };
+            stackPanel.Children.Add(limitTextBlock);
+            
+            dialog.Content = stackPanel;
+            
+            // 处理主按钮点击事件以验证输入
+            dialog.PrimaryButtonClick += (sender, args) =>
+            {
+                var code = textBox.Text?.Trim();
+                if (string.IsNullOrEmpty(code))
+                {
+                    args.Cancel = true;
+                }
+            };
+            
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var code = textBox.Text?.Trim();
+                if (string.IsNullOrEmpty(code))
+                {
+                    ShowError("错误", "兑换码不能为空");
+                    return;
+                }
+                
+                try
+                {
+                    // 验证兑换码
+                    var redeemCode = ValidateRedeemCode(code);
+                    
+                    if (redeemCode != null)
+                    {
+                        // 领取成功，增加限额
+                        int addedLimit = redeemCode.Limit;
+                        
+                        // 实现增加限额的逻辑
+                        // 由于当前限额是基于每日的，我们可以通过修改限额缓存来实现
+                        var appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                        var cacheDir = System.IO.Path.Combine(appDataPath, "cache");
+                        var tempPath = System.IO.Path.Combine(cacheDir, "translation_limit.json");
+                        
+                        if (!System.IO.Directory.Exists(cacheDir))
+                        {
+                            System.IO.Directory.CreateDirectory(cacheDir);
+                        }
+                        
+                        Dictionary<string, int> cache = new Dictionary<string, int>();
+                        if (System.IO.File.Exists(tempPath))
+                        {
+                            var json = System.IO.File.ReadAllText(tempPath);
+                            cache = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, int>>(json) ?? new Dictionary<string, int>();
+                        }
+                        
+                        var currentDate = DateTime.Now.ToString("yyyy-MM-dd");
+                        
+                        // 重置当日限额使用次数，相当于增加了限额
+                        cache[currentDate] = 0;
+                        
+                        // 保存更新后的缓存
+                        System.IO.File.WriteAllText(tempPath, Newtonsoft.Json.JsonConvert.SerializeObject(cache, Newtonsoft.Json.Formatting.Indented));
+                        
+                        // 重新获取剩余限额
+                        remainingLimit = _translateService.GetRemainingLimit();
+                        
+                        // 更新UI显示
+                        UpdateTranslationLimit();
+                        
+                        var successDialog = new ContentDialog
+                        {
+                            Title = "成功",
+                            Content = $"兑换成功！\n已领取 {addedLimit} 个翻译限额\n当前剩余限额：{remainingLimit} 个单词",
+                            CloseButtonText = "确定",
+                            XamlRoot = this.XamlRoot
+                        };
+                        await successDialog.ShowAsync();
+                    }
+                    else
+                    {
+                        ShowError("错误", "兑换码无效，请检查输入");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ShowError("错误", $"领取失败: {ex.Message}");
+                }
+            }
+        }
+
+        private RedeemCode? ValidateRedeemCode(string code)
+        {
+            try
+            {
+                var config = LoadRedeemCodes();
+                if (config != null && config.RedeemCodes != null)
+                {
+                    return config.RedeemCodes.FirstOrDefault(c => c.Code == code);
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private RedeemCodesConfig? LoadRedeemCodes()
+        {
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var resourceName = "English_Listen_WinUI.Config.redeem_codes.json";
+                
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream != null)
+                    {
+                        using (var reader = new System.IO.StreamReader(stream))
+                        {
+                            var json = reader.ReadToEnd();
+                            return Newtonsoft.Json.JsonConvert.DeserializeObject<RedeemCodesConfig>(json);
+                        }
+                    }
+                }
+                
+                var configPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config", "redeem_codes.json");
+                if (System.IO.File.Exists(configPath))
+                {
+                    var json = System.IO.File.ReadAllText(configPath);
+                    return Newtonsoft.Json.JsonConvert.DeserializeObject<RedeemCodesConfig>(json);
+                }
+                
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private class RedeemCodesConfig
+        {
+            public required List<RedeemCode> RedeemCodes { get; set; }
+        }
+
+        private class RedeemCode
+        {
+            public required string Code { get; set; }
+            public required string Description { get; set; }
+            public int Limit { get; set; }
+            public bool Unlimited { get; set; }
         }
 
         private void ShowError(string title, string message)

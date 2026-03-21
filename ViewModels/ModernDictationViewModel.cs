@@ -17,6 +17,7 @@ namespace English_Listen_WinUI.ViewModels
         private readonly SettingsService _settingsService;
         
         private string _currentWord = "";
+        private string _currentTranslation = "";
         private int _countdown = 0;
         private bool _isPaused = false;
         private bool _isTesting = false;
@@ -80,6 +81,12 @@ namespace English_Listen_WinUI.ViewModels
         {
             get => _currentWord;
             set => SetProperty(ref _currentWord, value);
+        }
+        
+        public string CurrentTranslation
+        {
+            get => _currentTranslation;
+            set => SetProperty(ref _currentTranslation, value);
         }
         
         public int Countdown
@@ -244,9 +251,10 @@ namespace English_Listen_WinUI.ViewModels
         
         #region Event Handlers
         
-        private void OnWordChanged(string word, int currentIndex, int totalWords, bool isLastWord)
+        private void OnWordChanged(string word, string translation, int currentIndex, int totalWords, bool isLastWord)
         {
             CurrentWord = word;
+            CurrentTranslation = translation;
             CurrentIndex = currentIndex - 1;
             TotalWords = totalWords;
             IsLastWord = isLastWord;
@@ -296,7 +304,7 @@ namespace English_Listen_WinUI.ViewModels
             ShowWordList = false;
             IsSidebarVisible = false; // Hide sidebar
             
-            // Set up the service
+            // Set up service with words and translations
             _dictationService.SetWords(WordList);
             _dictationService.SetRandomOrder(IsRandomOrder);
             _dictationService.SetReadInterval(ReadInterval);
@@ -305,6 +313,12 @@ namespace English_Listen_WinUI.ViewModels
             if (!string.IsNullOrEmpty(EnglishVoice))
             {
                 _dictationService.SetVoice(EnglishVoice);
+            }
+            
+            // Set Chinese voice for reading translations
+            if (!string.IsNullOrEmpty(ChineseVoice))
+            {
+                _dictationService.SetChineseVoice(ChineseVoice);
             }
             
             await _dictationService.StartTest(0); // 0 = paper dictation mode
