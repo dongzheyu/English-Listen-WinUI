@@ -41,9 +41,10 @@
 
         <!-- Main Operations -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-            <Button Content="📁 词库管理" Click="WordlistManagementButton_Click" Width="140" Height="45" Margin="10" Background="#4CAF50" Foreground="White" FontSize="14"/>
-            <Button Content="⚙️ 单词操作" Click="WordOperationsButton_Click" Width="140" Height="45" Margin="10" Background="#2196F3" Foreground="White" FontSize="14"/>
-            <Button Content="▶️ 开始听写" Click="StartDictationButton_Click" Width="140" Height="45" Margin="10" Background="#FF9800" Foreground="White" FontSize="14"/>
+            <Button Content="词库管理" Click="WordlistManagementButton_Click" Width="120" Height="40" Margin="10"/>
+            <Button Content="单词操作" Click="WordOperationsButton_Click" Width="120" Height="40" Margin="10"/>
+            <Button Content="批量翻译" Click="BatchTranslateButton_Click" Width="120" Height="40" Margin="10"/>
+            <Button Content="开始听写" Click="StartDictationButton_Click" Width="120" Height="40" Margin="10"/>
         </StackPanel>
 
         <!-- Word List -->

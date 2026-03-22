@@ -27,6 +27,8 @@ namespace English_Listen_WinUI.Views
         private TaskCompletionSource<bool>? speakTaskSource;
         private bool isTestActive;
         private bool isSpeaking = false;
+        private bool _readTranslation = false;
+        private bool _isPaperMode = false;
         private Random random = new Random();
         private string currentFileName = string.Empty;
         private HashSet<int> correctIndices = new HashSet<int>();
@@ -72,11 +74,15 @@ namespace English_Listen_WinUI.Views
             {
                 var wordListProperty = e.Parameter.GetType().GetProperty("WordList");
                 var randomOrderProperty = e.Parameter.GetType().GetProperty("RandomOrder");
+                var readTranslationProperty = e.Parameter.GetType().GetProperty("ReadTranslation");
+                var isPaperModeProperty = e.Parameter.GetType().GetProperty("IsPaperMode");
                 
                 if (wordListProperty != null && randomOrderProperty != null)
                 {
                     var wordListValue = wordListProperty.GetValue(e.Parameter) as List<WordTranslationPair>;
                     var randomOrderValue = (bool)(randomOrderProperty.GetValue(e.Parameter) ?? false);
+                    var readTranslationValue = (bool)(readTranslationProperty?.GetValue(e.Parameter) ?? false);
+                    var isPaperModeValue = (bool)(isPaperModeProperty?.GetValue(e.Parameter) ?? false);
                     
                     if (wordListValue != null)
                     {
@@ -90,6 +96,8 @@ namespace English_Listen_WinUI.Views
                         correctCount = 0;
                         correctIndices.Clear();
                         isTestActive = true;
+                        _readTranslation = readTranslationValue;
+                        _isPaperMode = isPaperModeValue;
                         UpdateUI();
                         _ = PlayCurrentWordAndStartCountdown();
                     }
@@ -209,8 +217,21 @@ namespace English_Listen_WinUI.Views
         private void UpdateUI()
         {
             ProgressText.Text = $"第 {currentIndex + 1} / {totalWords} 个";
-            ScoreText.Text = $"正确: {correctCount} / {totalWords}";
-            InputTextBox.Text = string.Empty;
+            
+            if (_isPaperMode)
+            {
+                ScoreText.Text = "正确: N/A";
+                InputTextBox.Visibility = Visibility.Collapsed;
+                SubmitButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ScoreText.Text = $"正确: {correctCount} / {totalWords}";
+                InputTextBox.Visibility = Visibility.Visible;
+                SubmitButton.Visibility = Visibility.Visible;
+                InputTextBox.Text = string.Empty;
+            }
+            
             CountdownText.Text = string.Empty;
             SpeakingStatusText.Text = string.Empty;
             TranslationText.Text = string.Empty;
@@ -245,7 +266,7 @@ namespace English_Listen_WinUI.Views
                     }
                 }
                 
-                if (!string.IsNullOrEmpty(translation))
+                if (_readTranslation && !string.IsNullOrEmpty(translation))
                 {
                     if (chineseSynthesizer == null)
                     {
@@ -423,13 +444,11 @@ namespace English_Listen_WinUI.Views
             isTestActive = false;
             countdownTimer?.Stop();
 
-            // 如果正在播放语音，先取消
             if (isSpeaking)
             {
                 synthesizer?.SpeakAsyncCancelAll();
             }
 
-            // 等待当前语音播放任务完成
             if (speakTaskSource != null)
             {
                 try
@@ -438,10 +457,102 @@ namespace English_Listen_WinUI.Views
                 }
                 catch
                 {
-                    // 忽略取消异常
                 }
             }
 
+            if (_isPaperMode)
+            {
+                await ShowPaperModeResultDialogAsync();
+            }
+            else
+            {
+                await ShowOnlineModeResultDialogAsync();
+            }
+        }
+
+        private async Task ShowPaperModeResultDialogAsync()
+        {
+            var inputDialog = new ContentDialog
+            {
+                Title = "测试完成",
+                Content = new StackPanel
+                {
+                    Margin = new Thickness(0, 10, 0, 0),
+                    Children = 
+                    {
+                        new TextBlock { Text = "请输入您答对的单词数量：" },
+                        new NumberBox 
+                        { 
+                            Width = 200, 
+                            Minimum = 0, 
+                            Maximum = totalWords,
+                            Value = 0,
+                            Margin = new Thickness(0, 10, 0, 0)
+                        }
+                    }
+                },
+                PrimaryButtonText = "确定",
+                CloseButtonText = "返回主菜单",
+                XamlRoot = this.XamlRoot
+            };
+
+            var result = await inputDialog.ShowAsync();
+
+            if (result == ContentDialogResult.Primary)
+            {
+                var numberBox = inputDialog.Content as StackPanel;
+                var inputBox = numberBox?.Children[1] as NumberBox;
+                var userCorrectCount = (int)(inputBox?.Value ?? 0);
+
+                if (userCorrectCount > totalWords)
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "错误",
+                        Content = "正确数不能超过总单词数",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                    await ShowPaperModeResultDialogAsync();
+                    return;
+                }
+
+                double accuracy = totalWords > 0 ? (double)userCorrectCount / totalWords * 100 : 0;
+
+                var accuracyDialog = new ContentDialog
+                {
+                    Title = "测试结果",
+                    Content = $"正确率：{accuracy:F1}% ({userCorrectCount}/{totalWords})",
+                    PrimaryButtonText = "再测一次",
+                    CloseButtonText = "返回主菜单",
+                    XamlRoot = this.XamlRoot
+                };
+
+                var accuracyResult = await accuracyDialog.ShowAsync();
+
+                if (accuracyResult == ContentDialogResult.Primary)
+                {
+                    currentIndex = 0;
+                    correctCount = 0;
+                    correctIndices.Clear();
+                    UpdateUI();
+                    isTestActive = true;
+                    _ = PlayCurrentWordAndStartCountdown();
+                }
+                else
+                {
+                    Frame?.GoBack();
+                }
+            }
+            else
+            {
+                Frame?.GoBack();
+            }
+        }
+
+        private async Task ShowOnlineModeResultDialogAsync()
+        {
             double accuracy = totalWords > 0 ? (double)correctCount / totalWords * 100 : 0;
 
             ContentDialog dialog = new ContentDialog

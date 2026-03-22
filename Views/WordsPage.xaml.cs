@@ -55,6 +55,7 @@ namespace English_Listen_WinUI.Views
         private DispatcherTimer? _autoSaveTimer;
         private List<WordItem> _wordList = new List<WordItem>();
         private BaiduTranslateService _translateService;
+        private TranslationLibraryService _translationLibrary;
 
         public WordsPage()
         {
@@ -64,10 +65,10 @@ namespace English_Listen_WinUI.Views
             Loaded += WordsPage_Loaded;
             
             _translateService = new BaiduTranslateService();
+            _translationLibrary = new TranslationLibraryService();
             
-            // 初始化自动保存计时器
             _autoSaveTimer = new DispatcherTimer();
-            _autoSaveTimer.Interval = TimeSpan.FromMilliseconds(500); // 500ms延迟，避免频繁保存
+            _autoSaveTimer.Interval = TimeSpan.FromMilliseconds(500);
             _autoSaveTimer.Tick += AutoSaveTimer_Tick;
         }
 
@@ -84,31 +85,30 @@ namespace English_Listen_WinUI.Views
                 catch { }
             }
             
-            // 初始化时处理临时文件 - 保留现有内容，不再重置
             var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
             
-            // 如果临时文件不存在，创建新的空文件
             if (!System.IO.File.Exists(tempPath))
             {
                 System.IO.File.WriteAllText(tempPath, "");
             }
             
-            // 从临时文件加载内容
             var tempContent = System.IO.File.ReadAllText(tempPath);
             _wordList = tempContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(w => w.Trim())
                 .Where(w => !string.IsNullOrEmpty(w))
-                .Select(w => new WordItem { Word = w, Translation = "" })
+                .Select(w => new WordItem 
+                { 
+                    Word = w, 
+                    Translation = _translationLibrary.GetTranslation(w) ?? "" 
+                })
                 .ToList();
             
             UpdateWordsListBox();
             _originalWordsText = tempContent;
             
-            // 更新ViewModel - WordsText setter will automatically update CurrentWords
             _viewModel.WordsText = tempContent;
             _viewModel.CurrentWordListName = "临时词库";
             
-            // Populate list
             PopulateWordList();
         }
 
@@ -588,17 +588,6 @@ namespace English_Listen_WinUI.Views
             clearButton.Click += async (s, args) => { dialog.Hide(); await Task.Delay(100); ClearButton_Click(s, args); };
             buttonsPanel.Children.Add(clearButton);
             
-            var batchTranslateButton = new Button 
-            { 
-                Content = "批量翻译", 
-                Width = 110, 
-                Height = 35,
-                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 33, 150, 243)),
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
-            };
-            batchTranslateButton.Click += async (s, args) => { dialog.Hide(); await Task.Delay(100); BatchTranslateButton_Click(s, args); };
-            buttonsPanel.Children.Add(batchTranslateButton);
-            
             stackPanel.Children.Add(buttonsPanel);
             
             dialog.Content = stackPanel;
@@ -630,21 +619,51 @@ namespace English_Listen_WinUI.Views
                 XamlRoot = this.XamlRoot
             };
 
-            var stackPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
-            var randomCheckBox = new CheckBox
+            var stackPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0), Spacing = 10 };
+            
+            var modeStackPanel = new StackPanel { Spacing = 5 };
+            var onlineModeRadio = new RadioButton
             {
-                Content = "随机顺序",
-                IsChecked = false
+                Content = "在线听写",
+                IsChecked = true,
+                GroupName = "DictationMode"
             };
-            stackPanel.Children.Add(randomCheckBox);
+            var paperModeRadio = new RadioButton
+            {
+                Content = "纸笔听写",
+                GroupName = "DictationMode"
+            };
+            modeStackPanel.Children.Add(onlineModeRadio);
+            modeStackPanel.Children.Add(paperModeRadio);
+            stackPanel.Children.Add(modeStackPanel);
+            
+            var randomOrderSwitch = new ToggleSwitch
+            {
+                Header = "随机顺序",
+                IsOn = false,
+                OffContent = "关闭",
+                OnContent = "开启"
+            };
+            stackPanel.Children.Add(randomOrderSwitch);
+            
+            var readTranslationSwitch = new ToggleSwitch
+            {
+                Header = "朗读翻译",
+                IsOn = false,
+                OffContent = "关闭",
+                OnContent = "开启"
+            };
+            stackPanel.Children.Add(readTranslationSwitch);
+            
             dialog.Content = stackPanel;
 
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
-                bool randomOrder = randomCheckBox.IsChecked ?? false;
+                bool randomOrder = randomOrderSwitch.IsOn;
+                bool readTranslation = readTranslationSwitch.IsOn;
+                bool isPaperMode = paperModeRadio.IsChecked ?? false;
                 
-                // 创建带有翻译的单词列表
                 var wordListWithTranslations = _wordList.Select(w => 
                     new DictationTestPage.WordTranslationPair 
                     { 
@@ -652,7 +671,7 @@ namespace English_Listen_WinUI.Views
                         Translation = w.Translation 
                     }).ToList();
                 
-                var testParams = new DictationTestParamsWithTranslations(wordListWithTranslations, randomOrder);
+                var testParams = new DictationTestParamsWithTranslations(wordListWithTranslations, randomOrder, readTranslation, isPaperMode);
                 Frame?.Navigate(typeof(DictationTestPage), testParams);
             }
         }
@@ -820,7 +839,7 @@ namespace English_Listen_WinUI.Views
                     break;
             }
             
-            _wordList = filteredLines.Select(w => w.Trim()).Where(w => !string.IsNullOrEmpty(w)).Select(w => new WordItem { Word = w, Translation = "" }).ToList();
+            _wordList = filteredLines.Select(w => w.Trim()).Where(w => !string.IsNullOrEmpty(w)).Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" }).ToList();
             UpdateWordsListBox();
         }
 
@@ -840,7 +859,6 @@ namespace English_Listen_WinUI.Views
                 return;
             }
             
-            // 检查剩余翻译限额
             var remaining = _translateService.GetRemainingLimit();
             if (remaining < selectedItems.Count)
             {
@@ -855,13 +873,15 @@ namespace English_Listen_WinUI.Views
                 return;
             }
             
-            // 批量翻译并更新列表
+            var translationsToSave = new List<(string Word, string Translation)>();
+            
             foreach (var item in selectedItems)
             {
                 try
                 {
                     var translation = await _translateService.TranslateAsync(item.Word);
                     item.Translation = translation;
+                    translationsToSave.Add((item.Word, translation));
                 }
                 catch (Exception ex)
                 {
@@ -870,12 +890,14 @@ namespace English_Listen_WinUI.Views
                 }
             }
             
+            _translationLibrary.SaveTranslations(translationsToSave);
+            
             UpdateWordsListBox();
             
             var successDialog = new ContentDialog
             {
                 Title = "成功",
-                Content = $"成功翻译 {selectedItems.Count} 个单词",
+                Content = $"成功翻译 {selectedItems.Count} 个单词，已保存到翻译库",
                 CloseButtonText = "确定",
                 XamlRoot = this.XamlRoot
             };
@@ -1201,11 +1223,15 @@ namespace English_Listen_WinUI.Views
         {
             public List<DictationTestPage.WordTranslationPair> WordList { get; set; } = new List<DictationTestPage.WordTranslationPair>();
             public bool RandomOrder { get; set; } = false;
+            public bool ReadTranslation { get; set; } = false;
+            public bool IsPaperMode { get; set; } = false;
 
-            public DictationTestParamsWithTranslations(List<DictationTestPage.WordTranslationPair> wordList, bool randomOrder = false)
+            public DictationTestParamsWithTranslations(List<DictationTestPage.WordTranslationPair> wordList, bool randomOrder = false, bool readTranslation = false, bool isPaperMode = false)
             {
                 WordList = wordList;
                 RandomOrder = randomOrder;
+                ReadTranslation = readTranslation;
+                IsPaperMode = isPaperMode;
             }
         }
     }
