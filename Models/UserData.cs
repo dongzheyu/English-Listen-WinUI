@@ -42,7 +42,8 @@ namespace English_Listen_WinUI.Models
         public string WordlistDirPath { get; set; } = "./wordlist";
         public string? CurrentUser { get; set; }
         public string SpeechEngineType { get; set; } = "Auto"; // "Auto", "Flite", "WindowsTTS"
-        public string? WindowsTtsVoiceName { get; set; }
+        public string? WindowsTtsEnglishVoiceName { get; set; }
+        public string? WindowsTtsChineseVoiceName { get; set; }
         public int WindowsTtsVolume { get; set; } = 100; // 0-100
         public int WindowsTtsRate { get; set; } = 0; // -10 to 10
         public string? BaiduTranslateApiMode { get; set; } = "default";

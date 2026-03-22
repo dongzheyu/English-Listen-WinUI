@@ -26,7 +26,7 @@
                     <TextBlock Text="版本信息" 
                                FontSize="16" FontWeight="SemiBold" 
                                Margin="0,0,0,10"/>
-                    <TextBlock Text="English Listen v2.7.0" 
+                    <TextBlock Text="English Listen v1.0.0" 
                                FontSize="14" TextWrapping="Wrap"/>
                     <TextBlock Text="智能英语听写训练系统" 
                                FontSize="14" TextWrapping="Wrap" 
@@ -135,13 +135,13 @@
                     <StackPanel Spacing="8">
                         <TextBlock Text="GitHub 仓库地址：" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <HyperlinkButton Content="https://github.com/dongzheyu/English_Listen" 
-                                         NavigateUri="https://github.com/dongzheyu/English_Listen"
+                        <HyperlinkButton Content="https://github.com/dongzheyu/English-Listen-WinUI" 
+                                         NavigateUri="https://github.com/dongzheyu/English-Listen-WinUI"
                                          FontSize="14"/>
                         <TextBlock Text="Gitee 仓库地址：" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <HyperlinkButton Content="https://gitee.com/jetcpp/english_-listen" 
-                                         NavigateUri="https://gitee.com/jetcpp/english_-listen"
+                        <HyperlinkButton Content="https://gitee.com/jetcpp/English-Listen-WinUI/" 
+                                         NavigateUri="https://gitee.com/jetcpp/English-Listen-WinUI/"
                                          FontSize="14"/>
                     </StackPanel>
                 </StackPanel>

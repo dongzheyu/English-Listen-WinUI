@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Speech.Synthesis;
 using Windows.Media.SpeechSynthesis;
 using Windows.Media.Playback;
 using Windows.Foundation;
@@ -24,7 +25,7 @@ namespace English_Listen_WinUI.Services
             Completed
         }
         
-        private readonly SpeechSynthesizer _synthesizer;
+        private readonly Windows.Media.SpeechSynthesis.SpeechSynthesizer _synthesizer;
         private readonly MediaPlayer _mediaPlayer;
         private readonly object _lockObject = new object();
         private bool _isInitialized;
@@ -71,7 +72,7 @@ namespace English_Listen_WinUI.Services
 
         public WindowsTtsService()
         {
-            _synthesizer = new SpeechSynthesizer();
+            _synthesizer = new Windows.Media.SpeechSynthesis.SpeechSynthesizer();
             _mediaPlayer = new MediaPlayer();
             InitializeService();
         }
@@ -112,27 +113,31 @@ namespace English_Listen_WinUI.Services
             {
                 _availableVoices.Clear();
                 
-                var voices = SpeechSynthesizer.AllVoices;
-                
-                foreach (var voice in voices)
+                using (var synthesizer = new System.Speech.Synthesis.SpeechSynthesizer())
                 {
-                    if (voice != null)
+                    var installedVoices = synthesizer.GetInstalledVoices();
+                    
+                    foreach (var voice in installedVoices)
                     {
-                        // 检查是否为中文语音或英文语音
-                        var language = voice.Language;
-                        if (language.StartsWith("zh-", StringComparison.OrdinalIgnoreCase) || 
-                            language.StartsWith("en-", StringComparison.OrdinalIgnoreCase))
+                        if (voice != null && voice.Enabled)
                         {
-                        var voiceInfo = new Models.VoiceInfo
-                        {
-                            Name = voice.DisplayName,
-                            DisplayName = voice.DisplayName,
-                            Culture = language,
-                            Gender = ConvertGender(voice.Gender),
-                            Engine = "WindowsTTS"
-                        };
-                            
-                            _availableVoices.Add(voiceInfo);
+                            var voiceInfo = voice.VoiceInfo;
+                            // 检查是否为中文语音或英文语音
+                            var language = voiceInfo.Culture.Name;
+                            if (language.StartsWith("zh-", StringComparison.OrdinalIgnoreCase) || 
+                                language.StartsWith("en-", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var voiceInfoModel = new Models.VoiceInfo
+                                {
+                                    Name = voiceInfo.Name,
+                                    DisplayName = voiceInfo.Name,
+                                    Culture = language,
+                                    Gender = ConvertGender(voiceInfo.Gender),
+                                    Engine = "WindowsTTS"
+                                };
+                                    
+                                _availableVoices.Add(voiceInfoModel);
+                            }
                         }
                     }
                 }
@@ -145,7 +150,7 @@ namespace English_Listen_WinUI.Services
                     return 2;
                 }).ThenBy(v => v.DisplayName).ToList();
 
-                System.Diagnostics.Debug.WriteLine($"找到 {_availableVoices.Count} 个语音:");
+                System.Diagnostics.Debug.WriteLine($"找到 {_availableVoices.Count} 个已启用的语音:");
                 foreach (var voice in _availableVoices)
                 {
                     System.Diagnostics.Debug.WriteLine($"  - {voice.DisplayName} ({voice.Culture}, {voice.Gender})");
@@ -174,14 +179,14 @@ namespace English_Listen_WinUI.Services
                     if (chineseVoice != null)
                     {
                         _currentVoice = chineseVoice;
-                        _synthesizer.Voice = SpeechSynthesizer.AllVoices.FirstOrDefault(v => 
+                        _synthesizer.Voice = Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices.FirstOrDefault(v => 
                             v?.DisplayName == chineseVoice.DisplayName);
                     }
                     else
                     {
                         // 如果没有中文语音，使用第一个可用的
                         _currentVoice = _availableVoices[0];
-                        _synthesizer.Voice = SpeechSynthesizer.AllVoices.FirstOrDefault(v => 
+                        _synthesizer.Voice = Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices.FirstOrDefault(v => 
                             v?.DisplayName == _availableVoices[0].DisplayName);
                     }
                     
@@ -213,6 +218,16 @@ namespace English_Listen_WinUI.Services
             };
         }
 
+        private Models.VoiceGender ConvertGender(System.Speech.Synthesis.VoiceGender voiceGender)
+        {
+            return voiceGender switch
+            {
+                System.Speech.Synthesis.VoiceGender.Male => Models.VoiceGender.Male,
+                System.Speech.Synthesis.VoiceGender.Female => Models.VoiceGender.Female,
+                _ => Models.VoiceGender.Neutral
+            };
+        }
+
         /// <summary>
         /// 选择指定语音
         /// </summary>
@@ -228,7 +243,7 @@ namespace English_Listen_WinUI.Services
 
                 if (voice != null)
                 {
-                    var windowsVoice = SpeechSynthesizer.AllVoices.FirstOrDefault(v => 
+                    var windowsVoice = Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices.FirstOrDefault(v => 
                         v?.DisplayName.Equals(voiceName, StringComparison.OrdinalIgnoreCase) == true);
                     
                     if (windowsVoice != null)

@@ -27,13 +27,15 @@
                                FontSize="16" FontWeight="SemiBold" 
                                Margin="0,0,0,10"/>
                     <StackPanel Spacing="8">
-                        <TextBlock Text="1. 点击'查看单词'添加您的词库" 
+                        <TextBlock Text="1. 通过侧边栏导航到'单词管理'页面" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="2. 返回主页点击'开始听写测试'" 
+                        <TextBlock Text="2. 点击'词库管理'添加或导入您的词库" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="3. 选择听写模式并开始练习" 
+                        <TextBlock Text="3. 在单词列表中勾选要听写的单词" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="4. 完成后查看答案和统计信息" 
+                        <TextBlock Text="4. 点击'开始听写'按钮，选择听写模式" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="5. 完成后查看答案和统计信息" 
                                    FontSize="14" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
@@ -51,13 +53,43 @@
                                FontSize="16" FontWeight="SemiBold" 
                                Margin="0,0,0,10"/>
                     <StackPanel Spacing="8">
-                        <TextBlock Text="• 在'查看单词'页面可以添加、编辑和删除单词" 
+                        <TextBlock Text="• 在输入框中输入单词，点击'添加单词'按钮" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 支持从文件导入词库 (.txt格式)" 
+                        <TextBlock Text="• 勾选单词前面的复选框选择单词" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 可以创建和管理多个词库分组" 
+                        <TextBlock Text="• 点击'删除选中'按钮删除选中的单词" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 支持搜索和筛选单词" 
+                        <TextBlock Text="• 点击'批量翻译'按钮翻译未翻译的单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 使用搜索框快速查找单词" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Word Library Management Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,20"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="📁 词库管理" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="• 点击'词库管理'按钮打开管理对话框" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 从列表中选择词库文件并点击'加载词库'" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 点击'导入词库'从文件导入词库" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 点击'导出词库'将当前词库导出到文件" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 点击'删除词库'删除选中的词库文件" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 使用分组功能管理多个词库" 
                                    FontSize="14" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
@@ -75,13 +107,15 @@
                                FontSize="16" FontWeight="SemiBold" 
                                Margin="0,0,0,10"/>
                     <StackPanel Spacing="8">
-                        <TextBlock Text="• 顺序听写：按词库顺序朗读单词" 
+                        <TextBlock Text="• 在线听写：在输入框中输入听到的单词，系统自动判断正误" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 随机听写：随机顺序朗读单词" 
+                        <TextBlock Text="• 纸笔听写：在纸上记录答案，最后输入答对的单词数量" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 可调节朗读时间间隔 (2-10秒)" 
+                        <TextBlock Text="• 随机顺序：打乱单词顺序进行听写" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 支持 Windows SAPI 和 Flite 两种语音引擎" 
+                        <TextBlock Text="• 朗读翻译：听写时同时朗读中文翻译" 
+                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 支持重播、上一个、下一个等操作" 
                                    FontSize="14" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
@@ -101,11 +135,9 @@
                     <StackPanel Spacing="8">
                         <TextBlock Text="• 空格键：重复朗读当前单词" 
                                    FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• Enter键：确认输入或提交答案" 
+                                   FontSize="14" TextWrapping="Wrap"/>
                         <TextBlock Text="• 方向键：切换单词" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• Enter键：确认输入" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• Esc键：退出当前操作" 
                                    FontSize="14" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
@@ -123,13 +155,15 @@
                                FontSize="16" FontWeight="SemiBold" 
                                Margin="0,0,0,10"/>
                     <StackPanel Spacing="8">
+                        <TextBlock Text="• 在'用户管理'页面创建新用户或登录现有用户" 
+                                   FontSize="14" TextWrapping="Wrap"/>
                         <TextBlock Text="• 登录后可以查看个人学习进度和测试历史" 
                                    FontSize="14" TextWrapping="Wrap"/>
                         <TextBlock Text="• 测试结果会自动保存到个人账户" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 可以在设置中配置个性化选项" 
+                        <TextBlock Text="• 可以在'学习进度'页面查看详细的学习数据" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 未登录用户无法查看学习进度" 
+                        <TextBlock Text="• 支持多用户管理，每个用户数据独立" 
                                    FontSize="14" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
@@ -146,13 +180,13 @@
                                FontSize="16" FontWeight="SemiBold" 
                                Margin="0,0,0,10"/>
                     <StackPanel Spacing="8">
-                        <TextBlock Text="• 主题切换：深色/浅色模式" 
+                        <TextBlock Text="• 系统语音设置：选择语音引擎和试听效果" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 语音引擎选择：SAPI或Flite" 
+                        <TextBlock Text="• 百度翻译API设置：配置翻译服务参数" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 朗读间隔设置：2-10秒" 
+                        <TextBlock Text="• 随机播放单词：开启或关闭随机顺序" 
                                    FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 词库目录配置" 
+                        <TextBlock Text="• 初始化程序：清除所有数据并重启程序" 
                                    FontSize="14" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>

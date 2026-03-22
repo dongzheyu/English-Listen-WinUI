@@ -72,9 +72,6 @@ namespace English_Listen_WinUI.Views
                 // 加载百度翻译API设置
                 LoadTranslateApiSettings();
 
-                // 设置版本号
-                if (CurrentVersionLabel != null)
-                    CurrentVersionLabel.Text = $"当前版本: v{GetCurrentVersion()}";
             }
             catch (Exception ex)
             {
@@ -236,43 +233,96 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                if (WindowsTtsVoiceComboBox != null && _viewModel?.SpeechService != null)
+                if (_viewModel?.SpeechService != null)
                 {
-                    WindowsTtsVoiceComboBox.Items.Clear();
-
-                    var voices = _viewModel.SpeechService.GetWindowsTtsVoices();
-                    var savedVoice = _viewModel.Settings.Settings.WindowsTtsVoiceName;
-                    var selectedIndex = -1;
-
-                    for (int i = 0; i < voices.Length; i++)
+                    // 加载英文语音
+                    if (WindowsTtsEnglishVoiceComboBox != null)
                     {
-                        var voice = voices[i];
-                        var item = new ComboBoxItem
-                        {
-                            Content = voice.DisplayName,
-                            Tag = voice.Name
-                        };
-                        WindowsTtsVoiceComboBox.Items.Add(item);
+                        WindowsTtsEnglishVoiceComboBox.Items.Clear();
 
-                        // 选择之前保存的语音
-                        if (voice.Name == savedVoice)
+                        var voices = _viewModel.SpeechService.GetWindowsTtsVoices();
+                        var savedVoice = _viewModel.Settings.Settings.WindowsTtsEnglishVoiceName;
+                        var selectedIndex = -1;
+
+                        for (int i = 0; i < voices.Length; i++)
                         {
-                            selectedIndex = i;
+                            var voice = voices[i];
+                            // 只添加英文语音
+                            if (voice.Culture?.StartsWith("en-", StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                var item = new ComboBoxItem
+                                {
+                                    Content = voice.DisplayName,
+                                    Tag = voice.Name
+                                };
+                                WindowsTtsEnglishVoiceComboBox.Items.Add(item);
+
+                                // 选择之前保存的语音
+                                if (voice.Name == savedVoice)
+                                {
+                                    selectedIndex = WindowsTtsEnglishVoiceComboBox.Items.Count - 1;
+                                }
+                            }
+                        }
+
+                        // 如果没有找到保存的语音，选择第一个
+                        if (selectedIndex == -1 && WindowsTtsEnglishVoiceComboBox.Items.Count > 0)
+                        {
+                            selectedIndex = 0;
+                        }
+
+                        WindowsTtsEnglishVoiceComboBox.SelectedIndex = selectedIndex;
+
+                        // 应用保存的语音设置到SpeechService
+                        if (selectedIndex >= 0 && !string.IsNullOrEmpty(savedVoice))
+                        {
+                            _viewModel.SpeechService.SetWindowsTtsEnglishVoice(savedVoice);
                         }
                     }
 
-                    // 如果没有找到保存的语音，选择第一个
-                    if (selectedIndex == -1 && voices.Length > 0)
+                    // 加载中文语音
+                    if (WindowsTtsChineseVoiceComboBox != null)
                     {
-                        selectedIndex = 0;
-                    }
+                        WindowsTtsChineseVoiceComboBox.Items.Clear();
 
-                    WindowsTtsVoiceComboBox.SelectedIndex = selectedIndex;
+                        var voices = _viewModel.SpeechService.GetWindowsTtsVoices();
+                        var savedVoice = _viewModel.Settings.Settings.WindowsTtsChineseVoiceName;
+                        var selectedIndex = -1;
 
-                    // 应用保存的语音设置到SpeechService
-                    if (selectedIndex >= 0 && !string.IsNullOrEmpty(savedVoice))
-                    {
-                        _viewModel.SpeechService.SetWindowsTtsVoice(savedVoice);
+                        for (int i = 0; i < voices.Length; i++)
+                        {
+                            var voice = voices[i];
+                            // 只添加中文语音
+                            if (voice.Culture?.StartsWith("zh-", StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                var item = new ComboBoxItem
+                                {
+                                    Content = voice.DisplayName,
+                                    Tag = voice.Name
+                                };
+                                WindowsTtsChineseVoiceComboBox.Items.Add(item);
+
+                                // 选择之前保存的语音
+                                if (voice.Name == savedVoice)
+                                {
+                                    selectedIndex = WindowsTtsChineseVoiceComboBox.Items.Count - 1;
+                                }
+                            }
+                        }
+
+                        // 如果没有找到保存的语音，选择第一个
+                        if (selectedIndex == -1 && WindowsTtsChineseVoiceComboBox.Items.Count > 0)
+                        {
+                            selectedIndex = 0;
+                        }
+
+                        WindowsTtsChineseVoiceComboBox.SelectedIndex = selectedIndex;
+
+                        // 应用保存的语音设置到SpeechService
+                        if (selectedIndex >= 0 && !string.IsNullOrEmpty(savedVoice))
+                        {
+                            _viewModel.SpeechService.SetWindowsTtsChineseVoice(savedVoice);
+                        }
                     }
                 }
             }
@@ -286,7 +336,7 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                if (WindowsTtsVoicePanel != null && EngineComboBox != null)
+                if (WindowsTtsVoicePanel != null && WindowsTtsChineseVoicePanel != null && EngineComboBox != null)
                 {
                     var selectedEngine = EngineComboBox.SelectedItem as ComboBoxItem;
                     var engineType = selectedEngine?.Tag?.ToString() ?? "Auto";
@@ -295,11 +345,106 @@ namespace English_Listen_WinUI.Views
                     var showWindowsTtsModel = engineType == "WindowsTTS" || 
                                             (engineType == "Auto" && _viewModel?.SpeechService?.IsWindowsTtsAvailable == true);
                     WindowsTtsVoicePanel.Visibility = showWindowsTtsModel ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+                    WindowsTtsChineseVoicePanel.Visibility = showWindowsTtsModel ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"语音模型显示更新错误: {ex.Message}");
+            }
+        }
+
+        private void WindowsTtsEnglishVoiceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (_viewModel?.Settings?.Settings == null) return;
+                
+                if (WindowsTtsEnglishVoiceComboBox.SelectedItem is ComboBoxItem item && item.Tag != null)
+                {
+                    var voiceName = item.Tag.ToString();
+                    if (string.IsNullOrEmpty(voiceName)) return;
+
+                    // 保存到设置
+                    _viewModel.Settings.Settings.WindowsTtsEnglishVoiceName = voiceName;
+                    _ = _viewModel.Settings.SaveSettingsAsync();
+
+                    // 通知SpeechService更新语音设置
+                    _viewModel.SpeechService?.SetWindowsTtsEnglishVoice(voiceName);
+
+                    System.Diagnostics.Debug.WriteLine($"Windows TTS英文语音切换为: {voiceName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Windows TTS语音选择错误: {ex.Message}");
+            }
+        }
+
+        private void WindowsTtsChineseVoiceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (_viewModel?.Settings?.Settings == null) return;
+                
+                if (WindowsTtsChineseVoiceComboBox.SelectedItem is ComboBoxItem item && item.Tag != null)
+                {
+                    var voiceName = item.Tag.ToString();
+                    if (string.IsNullOrEmpty(voiceName)) return;
+
+                    // 保存到设置
+                    _viewModel.Settings.Settings.WindowsTtsChineseVoiceName = voiceName;
+                    _ = _viewModel.Settings.SaveSettingsAsync();
+
+                    // 通知SpeechService更新语音设置
+                    _viewModel.SpeechService?.SetWindowsTtsChineseVoice(voiceName);
+
+                    System.Diagnostics.Debug.WriteLine($"Windows TTS中文语音切换为: {voiceName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Windows TTS语音选择错误: {ex.Message}");
+            }
+        }
+
+        private async void WindowsTtsEnglishPreviewButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_viewModel?.SpeechService == null) return;
+                
+                if (WindowsTtsEnglishVoiceComboBox.SelectedItem is ComboBoxItem item && item.Tag != null)
+                {
+                    var voiceName = item.Tag.ToString();
+                    if (string.IsNullOrEmpty(voiceName)) return;
+
+                    await _viewModel.SpeechService.SpeakAsync("Hello, this is a test for English voice.", voiceName, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("试听失败", $"Windows TTS试听失败: {ex.Message}");
+            }
+        }
+
+        private async void WindowsTtsChinesePreviewButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_viewModel?.SpeechService == null) return;
+                
+                if (WindowsTtsChineseVoiceComboBox.SelectedItem is ComboBoxItem item && item.Tag != null)
+                {
+                    var voiceName = item.Tag.ToString();
+                    if (string.IsNullOrEmpty(voiceName)) return;
+
+                    await _viewModel.SpeechService.SpeakAsync("你好，这是中文语音的测试。", voiceName, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("试听失败", $"Windows TTS试听失败: {ex.Message}");
             }
         }
 
@@ -311,17 +456,11 @@ namespace English_Listen_WinUI.Views
                 if (TranslateApiModeComboBox != null)
                 {
                     // 默认选择默认API
-                    TranslateApiModeComboBox.SelectedIndex = 0;
-                }
+                TranslateApiModeComboBox.SelectedIndex = 0;
+            }
 
-                // 加载自定义API Key
-                if (ApiKeyTextBox != null && _viewModel?.Settings?.Settings != null)
-                {
-                    ApiKeyTextBox.Text = _viewModel.Settings.Settings.BaiduTranslateApiKey ?? string.Empty;
-                }
-
-                // 更新剩余限额显示
-                UpdateTranslationLimit();
+            // 更新剩余限额显示
+            UpdateTranslationLimit();
             }
             catch (Exception ex)
             {
@@ -381,16 +520,45 @@ namespace English_Listen_WinUI.Views
 
         private async void ApiKeyTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (_isInitializing || _viewModel?.Settings?.Settings == null) return;
+            // 这个方法不再使用，替换为CustomApiTextBox_TextChanged
+        }
 
+        private void CustomApiTextBox_TextChanged(object sender, RoutedEventArgs e)
+        {
+            // 文本框变化时不自动保存，等待用户点击确认按钮
+        }
+
+        private async void ConfirmCustomApiButton_Click(object sender, RoutedEventArgs e)
+        {
             try
             {
-                _viewModel.Settings.Settings.BaiduTranslateApiKey = ApiKeyTextBox.Text;
+                if (_viewModel?.Settings?.Settings == null) return;
+
+                var appId = AppIdTextBox?.Text ?? string.Empty;
+                var secretKey = SecretKeyBox?.Password ?? string.Empty;
+
+                if (string.IsNullOrEmpty(appId) || string.IsNullOrEmpty(secretKey))
+                {
+                    ShowError("错误", "请输入App ID和密钥");
+                    return;
+                }
+
+                // 更新设置
+                _viewModel.Settings.Settings.BaiduTranslateApiKey = $"{appId}:{secretKey}";
                 await _viewModel.Settings.SaveSettingsAsync();
+
+                // 设置自定义API
+                _translateService.SetCustomApiKey(appId, secretKey);
+
+                // 更新限额显示
+                UpdateTranslationLimit();
+
+                ShowInfo("成功", "自定义API配置已保存");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"API Key保存错误: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"保存自定义API错误: {ex.Message}");
+                ShowError("错误", $"保存自定义API失败: {ex.Message}");
             }
         }
 
@@ -408,162 +576,9 @@ namespace English_Listen_WinUI.Views
 
 
 
-        // Windows TTS试听按钮点击事件
-        private async void WindowsTtsPreviewButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (_viewModel?.SpeechService == null) return;
-                
-                // 获取当前选择的Windows TTS语音
-                if (WindowsTtsVoiceComboBox?.SelectedItem is ComboBoxItem item && item.Tag != null)
-                {
-                    var voiceName = item.Tag.ToString() ?? "";
-                    
-                    // 使用指定语音直接播放测试文本
-                    await _viewModel.SpeechService.SpeakWithWindowsTtsVoiceAsync(
-                        "这是一段语音测试，您正在试听Windows系统语音引擎。", 
-                        voiceName);
-                    
-                    System.Diagnostics.Debug.WriteLine($"Windows TTS试听完成: {voiceName}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Windows TTS试听失败: {ex.Message}");
-                ShowError("试听失败", $"Windows TTS试听失败: {ex.Message}");
-            }
-        }
 
-        // Windows TTS语音选择变化事件
-        private void WindowsTtsVoiceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_isInitializing || _viewModel?.Settings?.Settings == null) return;
 
-            try
-            {
-                if (WindowsTtsVoiceComboBox.SelectedItem is ComboBoxItem item && item.Tag != null)
-                {
-                    var voiceName = item.Tag.ToString();
-                    if (string.IsNullOrEmpty(voiceName)) return;
 
-                    // 保存到设置
-                    _viewModel.Settings.Settings.WindowsTtsVoiceName = voiceName;
-                    _ = _viewModel.Settings.SaveSettingsAsync();
-
-                    // 通知SpeechService更新语音设置
-                    _viewModel.SpeechService?.SetWindowsTtsVoice(voiceName);
-
-                    System.Diagnostics.Debug.WriteLine($"Windows TTS语音切换为: {voiceName}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Windows TTS语音选择错误: {ex.Message}");
-            }
-        }
-
-        // 检查更新按钮点击事件
-        private async void CheckUpdateButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (UpdateStatusText != null)
-                {
-                    UpdateStatusText.Text = "正在检查更新...";
-                    UpdateStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
-                }
-
-                if (CheckUpdateButton != null)
-                {
-                    CheckUpdateButton.IsEnabled = false;
-                }
-
-                var updateService = new Services.UpdateService();
-                var updateInfo = await updateService.CheckForUpdatesAsync();
-
-                if (UpdateStatusText != null)
-                {
-                    if (updateInfo != null && updateInfo.IsUpdateAvailable)
-                    {
-                        UpdateStatusText.Text = $"发现新版本: {updateInfo.NewVersion}";
-                        UpdateStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
-                    }
-                    else if (updateInfo != null && updateInfo.IsDevelopmentVersion)
-                    {
-                        UpdateStatusText.Text = "您正在使用开发版本";
-                        UpdateStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange);
-                    }
-                    else
-                    {
-                        UpdateStatusText.Text = "当前已是最新版本";
-                        UpdateStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
-                    }
-                }
-
-                // 显示详细的更新信息对话框（简化版本，避免UI依赖）
-                if (updateInfo != null)
-                {
-                    // 如果是开发版本，只显示提示信息，不提供下载
-                    if (updateInfo.IsDevelopmentVersion)
-                    {
-                        var devDialog = new ContentDialog
-                        {
-                            Title = "开发版本",
-                            Content = $"您正在使用开发版本 {updateInfo.CurrentVersion}，比最新稳定版 {updateInfo.NewVersion} 更高。\n\n开发版本可能不稳定，请谨慎使用。",
-                            CloseButtonText = "确定",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await devDialog.ShowAsync();
-                    }
-                    else if (updateInfo.IsUpdateAvailable)
-                    {
-                        // 只有真正需要更新时才显示下载选项
-                        var resultDialog = new ContentDialog
-                        {
-                            Title = "发现新版本",
-                            Content = updateService.GetUpdateDescription(updateInfo),
-                            PrimaryButtonText = "下载更新",
-                            CloseButtonText = "取消",
-                            XamlRoot = this.XamlRoot
-                        };
-
-                        var result = await resultDialog.ShowAsync();
-                        if (result == ContentDialogResult.Primary)
-                        {
-                            // 开始下载更新
-                            await DownloadAndInstallUpdateAsync(updateInfo);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"检查更新失败: {ex.Message}");
-                
-                if (UpdateStatusText != null)
-                {
-                    UpdateStatusText.Text = $"检查更新失败: {ex.Message}";
-                    UpdateStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
-                }
-
-                var errorDialog = new ContentDialog
-                {
-                    Title = "检查更新失败",
-                    Content = $"无法连接到更新服务器: {ex.Message}\n\n请检查网络连接后重试。",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
-            }
-            finally
-            {
-                if (CheckUpdateButton != null)
-                {
-                    CheckUpdateButton.IsEnabled = true;
-                }
-            }
-        }
 
         // 下载并安装更新
         private async Task DownloadAndInstallUpdateAsync(Services.UpdateInfo updateInfo)
@@ -722,7 +737,7 @@ namespace English_Listen_WinUI.Views
             }
             catch
             {
-                return "2.7.0"; // 默认版本号
+                return "1.0.0"; // 默认版本号
             }
         }
 
@@ -734,7 +749,7 @@ namespace English_Listen_WinUI.Views
                 var dialog = new ContentDialog
                 {
                     Title = "初始化程序",
-                    Content = "程序将初始化，所有数据将被删除！\n\n此操作不可恢复，确定要继续吗？",
+                    Content = "程序将初始化，所有数据将被删除！\n\n包括：\n- 所有词库文件\n- 用户配置文件\n- 设置配置\n- 词库分组配置\n\n此操作不可恢复，确定要继续吗？",
                     PrimaryButtonText = "确定",
                     CloseButtonText = "取消",
                     XamlRoot = this.XamlRoot
@@ -743,18 +758,57 @@ namespace English_Listen_WinUI.Views
                 var result = await dialog.ShowAsync();
                 if (result == ContentDialogResult.Primary)
                 {
-                    var appDataPath = System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "EnglishListen");
+                    var appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                    var configPath = System.IO.Path.Combine(appDataPath, "config");
+                    var userDataPath = System.IO.Path.Combine(configPath, "users");
                     
-                    if (System.IO.Directory.Exists(appDataPath))
+                    // 删除用户配置文件
+                    if (System.IO.Directory.Exists(userDataPath))
                     {
-                        System.IO.Directory.Delete(appDataPath, true);
+                        System.IO.Directory.Delete(userDataPath, true);
                     }
                     
-                    // 返回主页
-                    if (this.Frame != null)
-                        this.Frame.Navigate(typeof(HomePage));
+                    // 删除设置配置文件
+                    var settingsPath = System.IO.Path.Combine(configPath, "settings.json");
+                    if (System.IO.File.Exists(settingsPath))
+                    {
+                        System.IO.File.Delete(settingsPath);
+                    }
+                    
+                    // 删除词库分组配置文件
+                    var wordlistGroupsPath = System.IO.Path.Combine(configPath, "wordlist_groups.ini");
+                    if (System.IO.File.Exists(wordlistGroupsPath))
+                    {
+                        System.IO.File.Delete(wordlistGroupsPath);
+                    }
+                    
+                    // 删除所有词库文件 - 直接删除wordlist文件夹然后重新创建
+                    var wordlistPath = System.IO.Path.Combine(appDataPath, "wordlist");
+                    if (System.IO.Directory.Exists(wordlistPath))
+                    {
+                        System.IO.Directory.Delete(wordlistPath, true);
+                    }
+                    // 重新创建wordlist文件夹
+                    System.IO.Directory.CreateDirectory(wordlistPath);
+                    
+                    // 显示成功消息
+                    var successDialog = new ContentDialog
+                    {
+                        Title = "初始化完成",
+                        Content = "程序已成功初始化！\n\n所有数据已清除，程序将自动重启。",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await successDialog.ShowAsync();
+                    
+                    // 自动重启程序
+                    var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+                    var mainModule = currentProcess.MainModule;
+                    if (mainModule != null && !string.IsNullOrEmpty(mainModule.FileName))
+                    {
+                        System.Diagnostics.Process.Start(mainModule.FileName);
+                        Application.Current.Exit();
+                    }
                 }
             }
             catch (Exception ex)
@@ -824,34 +878,11 @@ namespace English_Listen_WinUI.Views
                     
                     if (redeemCode != null)
                     {
-                        // 领取成功，增加限额
-                        int addedLimit = redeemCode.Limit;
+                        // 领取成功，重置限额为配置的兑换码限额
+                        int newLimit = redeemCode.Unlimited ? 1000000 : redeemCode.Limit;
                         
-                        // 实现增加限额的逻辑
-                        // 由于当前限额是基于每日的，我们可以通过修改限额缓存来实现
-                        var appDataPath = AppDomain.CurrentDomain.BaseDirectory;
-                        var cacheDir = System.IO.Path.Combine(appDataPath, "cache");
-                        var tempPath = System.IO.Path.Combine(cacheDir, "translation_limit.json");
-                        
-                        if (!System.IO.Directory.Exists(cacheDir))
-                        {
-                            System.IO.Directory.CreateDirectory(cacheDir);
-                        }
-                        
-                        Dictionary<string, int> cache = new Dictionary<string, int>();
-                        if (System.IO.File.Exists(tempPath))
-                        {
-                            var json = System.IO.File.ReadAllText(tempPath);
-                            cache = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, int>>(json) ?? new Dictionary<string, int>();
-                        }
-                        
-                        var currentDate = DateTime.Now.ToString("yyyy-MM-dd");
-                        
-                        // 重置当日限额使用次数，相当于增加了限额
-                        cache[currentDate] = 0;
-                        
-                        // 保存更新后的缓存
-                        System.IO.File.WriteAllText(tempPath, Newtonsoft.Json.JsonConvert.SerializeObject(cache, Newtonsoft.Json.Formatting.Indented));
+                        // 重置当日限额
+                        _translateService.ResetDailyLimit(newLimit);
                         
                         // 重新获取剩余限额
                         remainingLimit = _translateService.GetRemainingLimit();
@@ -862,7 +893,7 @@ namespace English_Listen_WinUI.Views
                         var successDialog = new ContentDialog
                         {
                             Title = "成功",
-                            Content = $"兑换成功！\n已领取 {addedLimit} 个翻译限额\n当前剩余限额：{remainingLimit} 个单词",
+                            Content = $"兑换成功！\n已重置翻译限额为 {newLimit} 个单词\n当前剩余限额：{remainingLimit} 个单词",
                             CloseButtonText = "确定",
                             XamlRoot = this.XamlRoot
                         };
@@ -945,6 +976,27 @@ namespace English_Listen_WinUI.Views
         }
 
         private void ShowError(string title, string message)
+        {
+            try
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = title,
+                    Content = message,
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+
+                _ = dialog.ShowAsync();
+            }
+            catch
+            {
+                // 如果对话框也失败，就记录到调试输出
+                System.Diagnostics.Debug.WriteLine($"{title}: {message}");
+            }
+        }
+
+        private void ShowInfo(string title, string message)
         {
             try
             {

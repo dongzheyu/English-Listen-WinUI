@@ -34,11 +34,6 @@ namespace English_Listen_WinUI.Views
             // 不需要复杂动画，避免性能问题和颜色异常
         }
 
-        private void StartButton_Click(object sender, RoutedEventArgs e)
-        {
-            Frame?.Navigate(typeof(WordsPage));
-        }
-
 
     }
 }

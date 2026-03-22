@@ -110,10 +110,16 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                var savedVoice = GetSavedWindowsTtsVoiceName();
-                if (!string.IsNullOrEmpty(savedVoice))
+                var savedEnglishVoice = GetSavedWindowsTtsEnglishVoiceName();
+                var savedChineseVoice = GetSavedWindowsTtsChineseVoiceName();
+                
+                if (!string.IsNullOrEmpty(savedEnglishVoice))
                 {
-                    SetWindowsTtsVoice(savedVoice);
+                    SetWindowsTtsEnglishVoice(savedEnglishVoice);
+                }
+                if (!string.IsNullOrEmpty(savedChineseVoice))
+                {
+                    SetWindowsTtsChineseVoice(savedChineseVoice);
                 }
                 _isVoiceInitialized = true;
             }
@@ -127,18 +133,37 @@ namespace English_Listen_WinUI.Services
         /// <summary>
         /// 获取保存的Windows TTS语音名称
         /// </summary>
-        private string GetSavedWindowsTtsVoiceName()
+        private string GetSavedWindowsTtsEnglishVoiceName()
         {
             try
             {
                 if (App.SharedViewModel?.Settings?.Settings != null)
                 {
-                    return App.SharedViewModel.Settings.Settings.WindowsTtsVoiceName ?? string.Empty;
+                    return App.SharedViewModel.Settings.Settings.WindowsTtsEnglishVoiceName ?? string.Empty;
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"获取保存的语音名称失败: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"获取保存的英文语音名称失败: {ex.Message}");
+            }
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// 获取保存的Windows TTS中文语音名称
+        /// </summary>
+        private string GetSavedWindowsTtsChineseVoiceName()
+        {
+            try
+            {
+                if (App.SharedViewModel?.Settings?.Settings != null)
+                {
+                    return App.SharedViewModel.Settings.Settings.WindowsTtsChineseVoiceName ?? string.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"获取保存的中文语音名称失败: {ex.Message}");
             }
             return string.Empty;
         }
@@ -181,11 +206,11 @@ namespace English_Listen_WinUI.Services
         }
 
         /// <summary>
-        /// 设置Windows TTS语音
+        /// 设置Windows TTS英文语音
         /// </summary>
         /// <param name="voiceName">语音名称（DisplayName）</param>
         /// <returns>是否设置成功</returns>
-        public bool SetWindowsTtsVoice(string voiceName)
+        public bool SetWindowsTtsEnglishVoice(string voiceName)
         {
             if (_windowsTtsService == null || string.IsNullOrEmpty(voiceName))
                 return false;
@@ -197,19 +222,52 @@ namespace English_Listen_WinUI.Services
                     if (_windowsTtsService.SelectVoice(voiceName))
                     {
                         _currentWindowsTtsVoice = voiceName;
-                        System.Diagnostics.Debug.WriteLine($"SpeechService: Windows TTS语音已设置为: {voiceName}");
+                        System.Diagnostics.Debug.WriteLine($"SpeechService: Windows TTS英文语音已设置为: {voiceName}");
                         return true;
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"SpeechService: 无法设置Windows TTS语音: {voiceName}");
+                        System.Diagnostics.Debug.WriteLine($"SpeechService: 无法设置Windows TTS英文语音: {voiceName}");
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"设置Windows TTS语音失败: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"设置Windows TTS英文语音失败: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 设置Windows TTS中文语音
+        /// </summary>
+        /// <param name="voiceName">语音名称（DisplayName）</param>
+        /// <returns>是否设置成功</returns>
+        public bool SetWindowsTtsChineseVoice(string voiceName)
+        {
+            if (_windowsTtsService == null || string.IsNullOrEmpty(voiceName))
+                return false;
+
+            try
+            {
+                lock (_lockObject)
+                {
+                    if (_windowsTtsService.SelectVoice(voiceName))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"SpeechService: Windows TTS中文语音已设置为: {voiceName}");
+                        return true;
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"SpeechService: 无法设置Windows TTS中文语音: {voiceName}");
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"设置Windows TTS中文语音失败: {ex.Message}");
                 return false;
             }
         }
@@ -228,6 +286,61 @@ namespace English_Listen_WinUI.Services
             if (string.IsNullOrWhiteSpace(text)) return Task.CompletedTask;
             _queue.Enqueue((text, null));
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 使用指定语音模型进行朗读（用于设置界面试听功能）
+        /// </summary>
+        public async Task SpeakAsync(string text, string voiceName, bool isEnglish)
+        {
+            if (string.IsNullOrWhiteSpace(text) || _windowsTtsService == null)
+                return;
+
+            try
+            {
+                // 临时保存当前语音
+                var originalVoice = _windowsTtsService.CurrentVoice;
+
+                // 切换到指定语音
+                if (_windowsTtsService.SelectVoice(voiceName))
+                {
+                    // 直接播放，不经过队列
+                    await _windowsTtsService.SpeakAsync(text);
+                }
+                else
+                {
+                    // 如果指定的语音失败，使用默认语音
+                    System.Diagnostics.Debug.WriteLine($"指定的语音 {voiceName} 不存在，使用默认语音");
+                    if (isEnglish)
+                    {
+                        // 尝试使用英文默认语音
+                        await _windowsTtsService.SpeakAsync(text);
+                    }
+                    else
+                    {
+                        // 尝试使用中文默认语音（Microsoft Huihui）
+                        if (_windowsTtsService.SelectVoice("Microsoft Huihui"))
+                        {
+                            await _windowsTtsService.SpeakAsync(text);
+                        }
+                        else
+                        {
+                            // 如果默认语音也失败，使用当前语音
+                            await _windowsTtsService.SpeakAsync(text);
+                        }
+                    }
+                }
+
+                // 恢复原始语音（如果有）
+                if (originalVoice != null)
+                {
+                    _windowsTtsService.SelectVoice(originalVoice.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"指定语音朗读失败: {ex.Message}");
+            }
         }
 
         /// <summary>

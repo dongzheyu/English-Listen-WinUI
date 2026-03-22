@@ -447,13 +447,18 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            Frame?.Navigate(typeof(HomePage));
-        }
-
         private async void WordlistManagementButton_Click(object sender, RoutedEventArgs e)
         {
+            // 确保词库文件列表已加载
+            if (_viewModel != null && _viewModel.WordListFiles.Count == 0)
+            {
+                try
+                {
+                    await _viewModel.LoadWordListFilesAsync();
+                }
+                catch { }
+            }
+
             var dialog = new ContentDialog
             {
                 Title = "词库管理",
@@ -470,18 +475,53 @@ namespace English_Listen_WinUI.Views
             var wordlistListBox = new ListBox 
             { 
                 Width = 300, 
-                Height = 100,
-                ItemsSource = WordlistListBox.ItemsSource
+                Height = 150,
+                ItemsSource = _viewModel?.WordListFiles
             };
             wordlistListBox.SelectionChanged += (s, args) => 
             {
                 if (wordlistListBox.SelectedItem != null)
                 {
-                    WordlistListBox.SelectedItem = wordlistListBox.SelectedItem;
+                    _selectedFileName = wordlistListBox.SelectedItem?.ToString() ?? "";
                 }
             };
             fileListPanel.Children.Add(wordlistListBox);
             stackPanel.Children.Add(fileListPanel);
+            
+            // 加载词库按钮
+            var loadWordlistButton = new Button { Content = "加载选中的词库", Width = 150, Height = 35, Margin = new Thickness(0, 5, 0, 0) };
+            loadWordlistButton.Click += async (s, args) => 
+            {
+                if (wordlistListBox.SelectedItem != null)
+                {
+                    _selectedFileName = wordlistListBox.SelectedItem?.ToString() ?? "";
+                    dialog.Hide();
+                    await Task.Delay(100);
+                    
+                    // 直接加载词库
+                    if (_viewModel != null && !string.IsNullOrEmpty(_selectedFileName))
+                    {
+                        await _viewModel.LoadWordsAsync(_selectedFileName);
+                        _wordList = _viewModel.WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(w => w.Trim())
+                            .Where(w => !string.IsNullOrEmpty(w))
+                            .Select(w => new WordItem { Word = w, Translation = "" })
+                            .ToList();
+                        UpdateWordsListBox();
+                        _originalWordsText = _viewModel.WordsText;
+                    }
+                }
+            };
+            stackPanel.Children.Add(loadWordlistButton);
+            
+            // 分隔线
+            var separator = new Microsoft.UI.Xaml.Shapes.Rectangle 
+            { 
+                Height = 1, 
+                Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 200, 200)),
+                Margin = new Thickness(0, 10, 0, 10)
+            };
+            stackPanel.Children.Add(separator);
             
             // 操作按钮 - 使用异步lambda来隐藏对话框后再执行操作
             var buttonsPanel1 = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 10 };
@@ -515,7 +555,16 @@ namespace English_Listen_WinUI.Views
                 Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 68, 68)),
                 Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
             };
-            deleteWordlistButton.Click += async (s, args) => { dialog.Hide(); await Task.Delay(100); DeleteWordlistButton_Click(s, args); };
+            deleteWordlistButton.Click += async (s, args) => 
+            {
+                if (wordlistListBox.SelectedItem != null)
+                {
+                    _selectedFileName = wordlistListBox.SelectedItem?.ToString() ?? "";
+                    dialog.Hide();
+                    await Task.Delay(100);
+                    DeleteWordlistButton_Click(s, args);
+                }
+            };
             buttonsPanel2.Children.Add(deleteWordlistButton);
             
             stackPanel.Children.Add(buttonsPanel2);
@@ -596,13 +645,16 @@ namespace English_Listen_WinUI.Views
 
         private async void StartDictationButton_Click(object sender, RoutedEventArgs e)
         {
-            // 检查是否有单词
-            if (_wordList.Count == 0)
+            // 获取选中的单词
+            var selectedWords = _wordList.Where(w => w.IsSelected).ToList();
+            
+            // 检查是否有选中的单词
+            if (selectedWords.Count == 0)
             {
                 var errorDialog = new ContentDialog
                 {
                     Title = "提示",
-                    Content = "当前没有单词，请先添加单词。",
+                    Content = "请先选择要听写的单词。",
                     CloseButtonText = "确定",
                     XamlRoot = this.XamlRoot
                 };
@@ -664,7 +716,7 @@ namespace English_Listen_WinUI.Views
                 bool readTranslation = readTranslationSwitch.IsOn;
                 bool isPaperMode = paperModeRadio.IsChecked ?? false;
                 
-                var wordListWithTranslations = _wordList.Select(w => 
+                var wordListWithTranslations = selectedWords.Select(w => 
                     new DictationTestPage.WordTranslationPair 
                     { 
                         Word = w.Word, 
@@ -1000,7 +1052,7 @@ namespace English_Listen_WinUI.Views
 
         private async void DeleteWordlistButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectedFileName = WordlistListBox.SelectedItem?.ToString();
+            var selectedFileName = _selectedFileName;
             if (string.IsNullOrEmpty(selectedFileName))
             {
                 var errorDialog = new ContentDialog

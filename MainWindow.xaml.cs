@@ -28,7 +28,12 @@ namespace English_Listen_WinUI
                 // Set up navigation
                 MainNavigationView.SelectionChanged += NavigationView_SelectionChanged;
                 MainNavigationView.ItemInvoked += NavigationView_ItemInvoked;
+                MainNavigationView.BackRequested += NavigationView_BackRequested;
+                ContentFrame.Navigated += ContentFrame_Navigated;
                 System.Diagnostics.Debug.WriteLine("[MainWindow] Navigation handlers attached");
+                
+                // 设置返回按钮状态
+                UpdateBackButtonState();
 
                 // Navigate to home page initially
                 NavigateToPage(typeof(HomePage));
@@ -159,50 +164,7 @@ namespace English_Listen_WinUI
             }
         }
 
-        private void NavigateToPage(Type pageType)
-        {
-            if (pageType == null) return;
 
-            try
-            {
-                _isNavigating = true;
-                System.Diagnostics.Debug.WriteLine($"[Navigation] Navigating to {pageType.Name}");
-
-                if (ContentFrame?.Content?.GetType() == pageType)
-                {
-                    // Already on this page, do nothing
-                    return;
-                }
-
-                var navigationResult = ContentFrame?.Navigate(pageType) ?? false;
-
-                if (!navigationResult)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Failed to navigate to {pageType.Name}");
-                    ShowErrorDialog("导航失败", $"无法导航到页面: {pageType.Name}");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"[Navigation] Successfully navigated to {pageType.Name}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Page navigation failed: {ex.Message}");
-                try
-                {
-                    ShowErrorDialog("导航错误", $"页面导航出错: {ex.Message}");
-                }
-                catch
-                {
-                    // Ignore dialog errors
-                }
-            }
-            finally
-            {
-                _isNavigating = false;
-            }
-        }
 
         private async void ShowErrorDialog(string title, string message)
         {
@@ -239,7 +201,7 @@ namespace English_Listen_WinUI
                 var scrollViewer = new ScrollViewer();
                 var textBlock = new TextBlock
                 {
-                    Text = @"English Listen v2.7.0
+                    Text = @"English Listen v1.0.0
 
 一个帮助学习英语的听写练习工具
 
@@ -292,6 +254,135 @@ namespace English_Listen_WinUI
         public void NavigateToHome()
         {
             NavigateToPage(typeof(HomePage));
+        }
+
+        // 返回按钮点击事件处理
+        private void NavigationView_BackRequested(NavigationView sender, NavigationViewBackRequestedEventArgs args)
+        {
+            if (ContentFrame != null && ContentFrame.CanGoBack)
+            {
+                ContentFrame.GoBack();
+                UpdateBackButtonState();
+            }
+        }
+
+        // 内容框架导航完成事件处理
+        private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
+        {
+            if (e.Content != null)
+            {
+                var currentPageType = e.Content.GetType();
+                UpdateNavigationViewSelection(currentPageType);
+                UpdateBackButtonState();
+            }
+        }
+
+        // 根据页面类型更新导航栏选中项
+        private void UpdateNavigationViewSelection(Type pageType)
+        {
+            if (pageType == null) return;
+
+            string pageName = pageType.Name;
+            
+            // 查找对应的NavigationViewItem
+            NavigationViewItem? selectedItem = null;
+            
+            // 检查菜单项
+            foreach (var item in MainNavigationView.MenuItems)
+            {
+                if (item is NavigationViewItem navItem)
+                {
+                    string itemTag = navItem.Tag?.ToString() ?? "";
+                    if (itemTag == pageName)
+                    {
+                        selectedItem = navItem;
+                        break;
+                    }
+                }
+            }
+            
+            // 检查底部菜单项
+            if (selectedItem == null)
+            {
+                foreach (var item in MainNavigationView.FooterMenuItems)
+                {
+                    if (item is NavigationViewItem navItem)
+                    {
+                        string itemTag = navItem.Tag?.ToString() ?? "";
+                        if (itemTag == pageName)
+                        {
+                            selectedItem = navItem;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // 更新选中项
+            if (selectedItem != null)
+            {
+                _isNavigating = true;
+                MainNavigationView.SelectedItem = selectedItem;
+                _isNavigating = false;
+            }
+            // 设置页面不需要特殊处理，因为它通过IsSettingsInvoked处理
+        }
+
+        // 更新返回按钮状态
+        private void UpdateBackButtonState()
+        {
+            if (ContentFrame != null)
+            {
+                MainNavigationView.IsBackEnabled = ContentFrame.CanGoBack;
+            }
+        }
+
+        // 重写导航方法以更新返回按钮状态
+        private void NavigateToPage(Type pageType)
+        {
+            if (pageType == null) return;
+
+            try
+            {
+                _isNavigating = true;
+                System.Diagnostics.Debug.WriteLine($"[Navigation] Navigating to {pageType.Name}");
+
+                if (ContentFrame?.Content?.GetType() == pageType)
+                {
+                    // Already on this page, do nothing
+                    return;
+                }
+
+                var navigationResult = ContentFrame?.Navigate(pageType) ?? false;
+
+                if (!navigationResult)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to navigate to {pageType.Name}");
+                    ShowErrorDialog("导航失败", $"无法导航到页面: {pageType.Name}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Navigation] Successfully navigated to {pageType.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Page navigation failed: {ex.Message}");
+                try
+                {
+                    ShowErrorDialog("导航错误", $"页面导航出错: {ex.Message}");
+                }
+                catch
+                {
+                    // Ignore dialog errors
+                }
+            }
+            finally
+            {
+                _isNavigating = false;
+                // 更新返回按钮状态
+                UpdateBackButtonState();
+            }
         }
     }
 }

@@ -241,10 +241,5 @@ namespace English_Listen_WinUI.Views
                 LoadStats();
             }
         }
-
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            Frame?.Navigate(typeof(HomePage));
-        }
     }
 }

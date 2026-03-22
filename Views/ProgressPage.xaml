@@ -127,7 +127,6 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="20">
             <Button Content="导出记录" Click="ExportButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="清空记录" Click="ClearButton_Click" Width="120" Height="40" Margin="10"/>
-            <Button Content="返回主页" Click="BackButton_Click" Width="120" Height="40" Margin="10"/>
         </StackPanel>
     </Grid>
 </Page>

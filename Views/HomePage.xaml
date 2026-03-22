@@ -27,12 +27,7 @@
                            Foreground="{StaticResource WelcomeGradientBrush}">
                 </TextBlock>
              
-             <!-- Start Button -->
-             <StackPanel HorizontalAlignment="Center" Margin="0,0,0,30">
-                 <Button x:Name="StartButton" Content="开始听写测试" 
-                         Click="StartButton_Click" 
-                         Width="200" Height="60"/>
-             </StackPanel>
+
 
             <!-- Quick Stats -->
             <StackPanel x:Name="StatsPanel" Orientation="Horizontal" 
@@ -137,7 +132,7 @@
 
              <!-- Footer -->
              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-                 <TextBlock Text="English Listen v2.7.0 | 智能英语听写训练系统" 
+                 <TextBlock Text="English Listen v1.0.0 | 智能英语听写训练系统" 
                             FontSize="12"
                             Foreground="{ThemeResource TextFillColorSecondary}"/>
              </StackPanel>

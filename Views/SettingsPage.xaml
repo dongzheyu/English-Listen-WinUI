@@ -77,14 +77,27 @@
                         
                         <!-- Windows TTS 语音选择 -->
                         <StackPanel Margin="0,15,0,10" x:Name="WindowsTtsVoicePanel" Visibility="Collapsed">
-                            <TextBlock Text="系统语音:" 
+                            <TextBlock Text="英文语音:" 
                                        Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
                             <Grid ColumnDefinitions="*,Auto">
-                                <ComboBox x:Name="WindowsTtsVoiceComboBox" Grid.Column="0"
-                                          SelectionChanged="WindowsTtsVoiceComboBox_SelectionChanged"/>
-                                <Button x:Name="WindowsTtsPreviewButton" Grid.Column="1" 
+                                <ComboBox x:Name="WindowsTtsEnglishVoiceComboBox" Grid.Column="0"
+                                          SelectionChanged="WindowsTtsEnglishVoiceComboBox_SelectionChanged"/>
+                                <Button x:Name="WindowsTtsEnglishPreviewButton" Grid.Column="1" 
                                         Content="试听" Margin="10,0,0,0" Width="60"
-                                        Click="WindowsTtsPreviewButton_Click"/>
+                                        Click="WindowsTtsEnglishPreviewButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                        
+                        <!-- Windows TTS 中文语音选择 -->
+                        <StackPanel Margin="0,15,0,10" x:Name="WindowsTtsChineseVoicePanel" Visibility="Collapsed">
+                            <TextBlock Text="中文语音:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <ComboBox x:Name="WindowsTtsChineseVoiceComboBox" Grid.Column="0"
+                                          SelectionChanged="WindowsTtsChineseVoiceComboBox_SelectionChanged"/>
+                                <Button x:Name="WindowsTtsChinesePreviewButton" Grid.Column="1" 
+                                        Content="试听" Margin="10,0,0,0" Width="60"
+                                        Click="WindowsTtsChinesePreviewButton_Click"/>
                             </Grid>
                         </StackPanel>
                         
@@ -117,11 +130,21 @@
                         </StackPanel>
                         
                         <StackPanel Margin="0,15,0,10" x:Name="CustomApiPanel" Visibility="Collapsed">
-                            <TextBlock Text="API Key:" 
+                            <TextBlock Text="App ID:" 
                                        Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
-                            <TextBox x:Name="ApiKeyTextBox" Width="300"
-                                     PlaceholderText="请输入百度翻译API Key"
-                                     TextChanged="ApiKeyTextBox_TextChanged"/>
+                            <TextBox x:Name="AppIdTextBox" Width="300"
+                                     PlaceholderText="请输入百度翻译App ID"
+                                     TextChanged="CustomApiTextBox_TextChanged"/>
+                            
+                            <TextBlock Text="密钥:" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,15,0,5"/>
+                            <PasswordBox x:Name="SecretKeyBox" Width="300"
+                                     PlaceholderText="请输入百度翻译密钥"
+                                     PasswordChanged="CustomApiTextBox_TextChanged"/>
+                            
+                            <Button x:Name="ConfirmCustomApiButton" Content="确认" 
+                                   Width="100" Margin="0,15,0,0"
+                                   Click="ConfirmCustomApiButton_Click"/>
                         </StackPanel>
                         
                         <StackPanel Margin="0,15,0,10">
@@ -154,28 +177,10 @@
                         <TextBlock Text="系统设置" 
                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
                         
-                        <!-- 更新设置 -->
-                        <StackPanel Margin="0,0,0,15">
-                            <TextBlock Text="更新设置" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
-                            <TextBlock x:Name="CurrentVersionLabel" Text="当前版本: v2.7.0" 
-                                       Style="{ThemeResource BodyTextBlockStyle}" Margin="0,0,0,5"/>
-                            <TextBlock Text="点击检查更新按钮将会连接到服务器检查是否有新版本可用。如果有新版本，程序会自动下载并安装。" 
-                                       Style="{ThemeResource CaptionTextBlockStyle}" 
-                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
-                            <Button x:Name="CheckUpdateButton" Content="检查更新" 
-                                    Click="CheckUpdateButton_Click" 
-                                    Style="{ThemeResource AccentButtonStyle}"
-                                    HorizontalAlignment="Left"/>
-                            <TextBlock x:Name="UpdateStatusText" Text="" 
-                                       Style="{ThemeResource CaptionTextBlockStyle}" 
-                                       Margin="0,5,0,0"/>
-                        </StackPanel>
-                        
                         <Button Content="初始化程序" Click="InitializeButton_Click" 
                                 Style="{ThemeResource AccentButtonStyle}"
                                 HorizontalAlignment="Left"/>
-                        <TextBlock x:Name="VersionLabel" Text="当前版本: v2.7.0" 
+                        <TextBlock x:Name="VersionLabel" Text="当前版本: v1.0.0" 
                                    Style="{ThemeResource BodyTextBlockStyle}" Margin="0,10,0,0" Visibility="Collapsed"/>
                     </StackPanel>
                 </Border>

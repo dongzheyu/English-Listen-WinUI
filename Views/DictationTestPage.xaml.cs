@@ -11,6 +11,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.System;
 using English_Listen_WinUI.Services;
+using English_Listen_WinUI.Models;
 
 namespace English_Listen_WinUI.Views
 {
@@ -20,7 +21,7 @@ namespace English_Listen_WinUI.Views
         private int currentIndex;
         private int correctCount;
         private int totalWords;
-        private int countdownSeconds = 10;
+        private int countdownSeconds;
         private int remainingSeconds;
         private DispatcherTimer? countdownTimer;
         private SpeechSynthesizer? synthesizer;
@@ -46,6 +47,10 @@ namespace English_Listen_WinUI.Views
             this.InitializeComponent();
             synthesizer = new SpeechSynthesizer();
             synthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+            synthesizer.SetOutputToDefaultAudioDevice();
+            chineseSynthesizer = new SpeechSynthesizer();
+            chineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+            chineseSynthesizer.SetOutputToDefaultAudioDevice();
             countdownTimer = new DispatcherTimer();
             countdownTimer.Interval = TimeSpan.FromSeconds(1);
             countdownTimer.Tick += CountdownTimer_Tick;
@@ -64,6 +69,17 @@ namespace English_Listen_WinUI.Views
 
             var mainWindow = App.MainWindow as MainWindow;
             mainWindow?.SetSidebarVisibility(false);
+
+            // 从共享的ViewModel获取设置，而不是创建新的SettingsService实例
+            countdownSeconds = App.SharedViewModel?.Settings?.Settings?.ReadInterval ?? 5;
+
+            // 同步设置到UI控件（OnNavigatedTo 在 UI 线程上调用，可以直接设置）
+            if (CountdownSetter != null)
+            {
+                CountdownSetter.Value = countdownSeconds;
+            }
+
+            SetVoicesFromSettings();
 
             if (e.Parameter is DictationTestParams testParams)
             {
@@ -252,39 +268,13 @@ namespace English_Listen_WinUI.Views
             
             try
             {
-                if (synthesizer != null)
-                {
-                    speakTaskSource = new TaskCompletionSource<bool>();
-                    synthesizer.SpeakAsyncCancelAll();
-                    synthesizer.SpeakAsync(word);
-                    
-                    var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(10000));
-                    if (completedTask != speakTaskSource.Task)
-                    {
-                        synthesizer.SpeakAsyncCancelAll();
-                        System.Diagnostics.Debug.WriteLine("语音播放超时");
-                    }
-                }
+                // 第一步：英文朗读 - 使用设置的英文语音模型
+                await SpeakEnglishWordAsync(word);
                 
+                // 第二步：中文朗读 - 使用设置的中文语音模型
                 if (_readTranslation && !string.IsNullOrEmpty(translation))
                 {
-                    if (chineseSynthesizer == null)
-                    {
-                        chineseSynthesizer = new SpeechSynthesizer();
-                        chineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
-                    }
-                    
-                    await Task.Delay(300);
-                    
-                    speakTaskSource = new TaskCompletionSource<bool>();
-                    chineseSynthesizer.SpeakAsyncCancelAll();
-                    chineseSynthesizer.SpeakAsync(translation);
-                    
-                    var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(10000));
-                    if (completedTask != speakTaskSource.Task)
-                    {
-                        chineseSynthesizer.SpeakAsyncCancelAll();
-                    }
+                    await SpeakChineseTranslationAsync(translation);
                 }
             }
             catch (Exception ex)
@@ -303,6 +293,66 @@ namespace English_Listen_WinUI.Views
             if (isTestActive && currentIndex < totalWords)
             {
                 StartCountdown();
+            }
+        }
+
+        private async Task SpeakEnglishWordAsync(string word)
+        {
+            if (synthesizer == null) return;
+
+            // 1. 彻底取消所有正在进行的朗读（包括中文实例，防止干扰）
+            chineseSynthesizer?.SpeakAsyncCancelAll();
+            synthesizer.SpeakAsyncCancelAll();
+
+            // 2. 强制重新应用英文语音设置
+            var englishVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsEnglishVoiceName;
+            if (!string.IsNullOrEmpty(englishVoiceName))
+            {
+                SetEnglishVoice(englishVoiceName);
+            }
+
+            // 3. 稍微等待一小会（约50ms），让 SAPI 引擎完成内部切换
+            await Task.Delay(50);
+
+            speakTaskSource = new TaskCompletionSource<bool>();
+            synthesizer.SpeakAsync(word);
+
+            // 增加超时保护
+            var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(8000));
+            if (completedTask != speakTaskSource.Task)
+            {
+                synthesizer.SpeakAsyncCancelAll();
+                System.Diagnostics.Debug.WriteLine("英文语音播放超时");
+            }
+        }
+
+        private async Task SpeakChineseTranslationAsync(string translation)
+        {
+            if (chineseSynthesizer == null)
+            {
+                chineseSynthesizer = new SpeechSynthesizer();
+                chineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+                chineseSynthesizer.SetOutputToDefaultAudioDevice();
+            }
+            
+            // 在朗读前设置中文语音模型
+            var chineseVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsChineseVoiceName;
+            if (!string.IsNullOrEmpty(chineseVoiceName))
+            {
+                SetChineseVoice(chineseVoiceName);
+            }
+            
+            await Task.Delay(300);
+            
+            speakTaskSource = new TaskCompletionSource<bool>();
+            chineseSynthesizer.SpeakAsyncCancelAll();
+            chineseSynthesizer.SpeakAsync(translation);
+            
+            var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(10000));
+            if (completedTask != speakTaskSource.Task)
+            {
+                chineseSynthesizer.SpeakAsyncCancelAll();
+                System.Diagnostics.Debug.WriteLine("中文语音播放超时");
             }
         }
 
@@ -520,6 +570,8 @@ namespace English_Listen_WinUI.Views
 
                 double accuracy = totalWords > 0 ? (double)userCorrectCount / totalWords * 100 : 0;
 
+                await SaveTestResultAsync(userCorrectCount, accuracy);
+
                 var accuracyDialog = new ContentDialog
                 {
                     Title = "测试结果",
@@ -554,6 +606,8 @@ namespace English_Listen_WinUI.Views
         private async Task ShowOnlineModeResultDialogAsync()
         {
             double accuracy = totalWords > 0 ? (double)correctCount / totalWords * 100 : 0;
+
+            await SaveTestResultAsync(correctCount, accuracy);
 
             ContentDialog dialog = new ContentDialog
             {
@@ -668,6 +722,169 @@ namespace English_Listen_WinUI.Views
             {
                 Submit();
                 e.Handled = true;
+            }
+        }
+
+        private async Task SaveTestResultAsync(int correctCount, double accuracy)
+        {
+            try
+            {
+                var settingsService = App.SharedViewModel?.Settings;
+                if (settingsService == null) return;
+
+                // 确保设置已加载
+                await settingsService.LoadSettingsAsync();
+
+                var currentUser = settingsService.Settings.CurrentUser;
+                if (string.IsNullOrEmpty(currentUser)) return;
+
+                var testHistory = await settingsService.LoadTestHistoryAsync(currentUser);
+
+                var testResult = new TestResult
+                {
+                    Timestamp = DateTime.Now,
+                    TotalWords = totalWords,
+                    CorrectCount = correctCount,
+                    Accuracy = accuracy,
+                    WordListName = currentFileName
+                };
+
+                testHistory.Add(testResult);
+                await settingsService.SaveTestHistoryAsync(currentUser, testHistory);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"保存测试结果失败: {ex.Message}");
+            }
+        }
+
+        private void SetVoicesFromSettings()
+        {
+            try
+            {
+                // 只设置英文语音到 synthesizer
+                var englishVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsEnglishVoiceName;
+                if (!string.IsNullOrEmpty(englishVoiceName))
+                {
+                    SetEnglishVoice(englishVoiceName);
+                }
+
+                // 只设置中文语音到 chineseSynthesizer
+                var chineseVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsChineseVoiceName;
+                if (!string.IsNullOrEmpty(chineseVoiceName))
+                {
+                    SetChineseVoice(chineseVoiceName);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"设置语音失败: {ex.Message}");
+            }
+        }
+
+        private void SetEnglishVoice(string voiceName)
+        {
+            try
+            {
+                if (synthesizer == null) return;
+
+                // 获取所有已启用的语音
+                var installedVoices = synthesizer.GetInstalledVoices();
+
+                // 打印所有可用语音用于调试
+                System.Diagnostics.Debug.WriteLine("=== synthesizer 可用语音列表 ===");
+                foreach (var v in installedVoices)
+                {
+                    System.Diagnostics.Debug.WriteLine($"可用语音: {v.VoiceInfo.Name} | 语言: {v.VoiceInfo.Culture}");
+                }
+
+                // 1. 尝试匹配用户设置的特定名称
+                var targetVoice = installedVoices.FirstOrDefault(v =>
+                    v.Enabled && v.VoiceInfo.Name == voiceName);
+
+                if (targetVoice != null)
+                {
+                    synthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
+                    System.Diagnostics.Debug.WriteLine($"英文语音已设置为: {voiceName}");
+                }
+                else
+                {
+                    // 2. 保底：如果设置的语音失效，强制寻找任何一个 Culture 为 "en" 的语音
+                    var fallbackVoice = installedVoices.FirstOrDefault(v =>
+                        v.Enabled && v.VoiceInfo.Culture.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase));
+
+                    if (fallbackVoice != null)
+                    {
+                        synthesizer.SelectVoice(fallbackVoice.VoiceInfo.Name);
+                        System.Diagnostics.Debug.WriteLine($"警告：未找到指定语音 {voiceName}，已自动回退到英文语音：{fallbackVoice.VoiceInfo.Name}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"错误：未找到任何英文语音，将使用系统默认语音");
+                    }
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                // 如果提供的语音名称找不到，会抛出 ArgumentException
+                System.Diagnostics.Debug.WriteLine($"错误：找不到名为 '{voiceName}' 的英文语音模型。请检查名称是否正确。详细信息：{ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"设置英文语音失败: {ex.Message}");
+            }
+        }
+
+        private void SetChineseVoice(string voiceName)
+        {
+            try
+            {
+                if (chineseSynthesizer == null) return;
+
+                // 获取所有已启用的语音
+                var installedVoices = chineseSynthesizer.GetInstalledVoices();
+
+                // 打印所有可用语音用于调试
+                System.Diagnostics.Debug.WriteLine("=== chineseSynthesizer 可用语音列表 ===");
+                foreach (var v in installedVoices)
+                {
+                    System.Diagnostics.Debug.WriteLine($"可用语音: {v.VoiceInfo.Name} | 语言: {v.VoiceInfo.Culture}");
+                }
+
+                // 1. 尝试匹配用户设置的特定名称
+                var targetVoice = installedVoices.FirstOrDefault(v =>
+                    v.Enabled && v.VoiceInfo.Name == voiceName);
+
+                if (targetVoice != null)
+                {
+                    chineseSynthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
+                    System.Diagnostics.Debug.WriteLine($"中文语音已设置为: {voiceName}");
+                }
+                else
+                {
+                    // 2. 保底：如果设置的语音失效，强制寻找任何一个 Culture 为 "zh" 的语音
+                    var fallbackVoice = installedVoices.FirstOrDefault(v =>
+                        v.Enabled && v.VoiceInfo.Culture.TwoLetterISOLanguageName.Equals("zh", StringComparison.OrdinalIgnoreCase));
+
+                    if (fallbackVoice != null)
+                    {
+                        chineseSynthesizer.SelectVoice(fallbackVoice.VoiceInfo.Name);
+                        System.Diagnostics.Debug.WriteLine($"警告：未找到指定语音 {voiceName}，已自动回退到中文语音：{fallbackVoice.VoiceInfo.Name}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"错误：未找到任何中文语音，将使用系统默认语音");
+                    }
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                // 如果提供的语音名称找不到，会抛出 ArgumentException
+                System.Diagnostics.Debug.WriteLine($"错误：找不到名为 '{voiceName}' 的中文语音模型。请检查名称是否正确。详细信息：{ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"设置中文语音失败: {ex.Message}");
             }
         }
     }

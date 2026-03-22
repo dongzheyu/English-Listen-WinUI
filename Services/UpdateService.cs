@@ -15,7 +15,7 @@ namespace English_Listen_WinUI.Services
         private static readonly HttpClient _httpClient = new HttpClient();
         private const string UPDATE_URL = "https://gitee.com/jetcpp/english_-listen/raw/master/update.txt";
         private const string USER_AGENT = "English-Listen-Updater/1.0";
-        private const string CURRENT_VERSION = "2.7.0"; // WinUI3版本号
+        private const string CURRENT_VERSION = "1.0.0"; // WinUI3版本号
 
         static UpdateService()
         {

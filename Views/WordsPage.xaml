@@ -12,12 +12,12 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-            <Button Content="返回" Click="BackButton_Click" Width="120" Height="40" Margin="10"/>
             <TextBlock Text="单词管理" FontSize="24" FontWeight="Bold" 
                        VerticalAlignment="Center" Margin="20"/>
         </StackPanel>
@@ -42,13 +42,20 @@
         <!-- Main Operations -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
             <Button Content="词库管理" Click="WordlistManagementButton_Click" Width="120" Height="40" Margin="10"/>
-            <Button Content="单词操作" Click="WordOperationsButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="批量翻译" Click="BatchTranslateButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="开始听写" Click="StartDictationButton_Click" Width="120" Height="40" Margin="10"/>
         </StackPanel>
 
+        <!-- Word Operations -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+            <TextBox x:Name="WordInput" Width="200" PlaceholderText="输入单词" Margin="5" KeyDown="WordInput_KeyDown"/>
+            <Button Content="添加单词" Click="AddWordButton_Click" Width="100" Height="35" Margin="5"/>
+            <Button Content="删除选中" Click="DeleteSelectedButton_Click" Width="100" Height="35" Margin="5"/>
+            <Button Content="清空列表" Click="ClearButton_Click" Width="100" Height="35" Margin="5"/>
+        </StackPanel>
+
         <!-- Word List -->
-        <Grid Grid.Row="3" Margin="10">
+        <Grid Grid.Row="4" Margin="10">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -87,8 +94,7 @@
         </Grid>
 
         <!-- Hidden controls for code compatibility -->
-        <ListBox x:Name="WordlistListBox" Visibility="Collapsed"/>
-        <TextBox x:Name="WordInput" Visibility="Collapsed"/>
+        <ListBox x:Name="WordlistListBox" Visibility="Collapsed" SelectionChanged="WordlistListBox_SelectionChanged"/>
 
         <!-- Footer Buttons -->
         <!-- 保存按钮已删除，改为自动保存机制 -->

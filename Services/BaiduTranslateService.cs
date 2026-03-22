@@ -144,6 +144,13 @@ namespace English_Listen_WinUI.Services
             LoadConfig();
         }
 
+        public void SetCustomApiKey(string appId, string apiKey)
+        {
+            _appId = appId;
+            _apiKey = apiKey;
+            System.Diagnostics.Debug.WriteLine($"已设置自定义API: AppId={_appId}");
+        }
+
         private void LoadCache()
         {
             var jsonSettings = new JsonSerializerSettings
@@ -208,6 +215,14 @@ namespace English_Listen_WinUI.Services
         {
             CheckDate();
             return DAILY_LIMIT - _dailyLimitCache[_currentDate];
+        }
+
+        public void ResetDailyLimit(int newLimit)
+        {
+            CheckDate();
+            _dailyLimitCache[_currentDate] = 0;
+            SaveCache();
+            System.Diagnostics.Debug.WriteLine($"已重置当日限额为: {newLimit}");
         }
 
         private void CheckDate()
