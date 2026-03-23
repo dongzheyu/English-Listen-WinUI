@@ -10,6 +10,7 @@ using Windows.Foundation;
 using English_Listen_WinUI.ViewModels;
 using English_Listen_WinUI.Services;
 using Colors = Microsoft.UI.Colors;
+using WinRT.Interop;
 
 namespace English_Listen_WinUI.Views
 {
@@ -204,6 +205,10 @@ namespace English_Listen_WinUI.Views
                 SuggestedFileName = $"test_history_{DateTime.Now:yyyyMMdd}"
             };
             picker.FileTypeChoices.Add("CSV", new[] { ".csv" });
+
+            // Set XamlRoot for WinUI3 compatibility
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
 
             var file = await picker.PickSaveFileAsync();
             if (file != null)

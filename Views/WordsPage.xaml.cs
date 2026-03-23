@@ -9,9 +9,12 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Windows.Storage;
+using Windows.Storage.Pickers;
 using Windows.System;
 using English_Listen_WinUI.ViewModels;
 using English_Listen_WinUI.Services;
+using WinRT.Interop;
 
 namespace English_Listen_WinUI.Views
 {
@@ -960,93 +963,104 @@ namespace English_Listen_WinUI.Views
         {
             if (_viewModel == null) return;
             
-            // 加载词库文件列表
-            await _viewModel.LoadWordListFilesAsync();
-            
-            if (_viewModel.WordListFiles.Count == 0)
+            try
+            {
+                // 打开文件选择器
+                var picker = new FileOpenPicker
+                {
+                    ViewMode = PickerViewMode.List,
+                    SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+                    FileTypeFilter = { ".txt" }
+                };
+                
+                // 设置XamlRoot for WinUI3 compatibility
+                var hwnd = WindowNative.GetWindowHandle(App.MainWindow);
+                InitializeWithWindow.Initialize(picker, hwnd);
+                
+                // 允许选择多个文件
+                var files = await picker.PickMultipleFilesAsync();
+                
+                if (files.Count > 0)
+                {
+                    // 获取词库目录路径
+                    var wordlistDir = _viewModel.Settings.GetWordlistDirectory();
+                    
+                    // 确保词库目录存在
+                    if (!Directory.Exists(wordlistDir))
+                    {
+                        Directory.CreateDirectory(wordlistDir);
+                    }
+                    
+                    var importedCount = 0;
+                    
+                    foreach (var file in files)
+                    {
+                        try
+                        {
+                            // 构建目标文件路径
+                            var targetPath = Path.Combine(wordlistDir, file.Name);
+                            
+                            // 检查文件是否已存在
+                            if (File.Exists(targetPath))
+                            {
+                                // 询问是否覆盖
+                                var overwriteDialog = new ContentDialog
+                                {
+                                    Title = "文件已存在",
+                                    Content = $"词库文件 '{file.Name}' 已存在，是否覆盖？",
+                                    PrimaryButtonText = "覆盖",
+                                    CloseButtonText = "跳过",
+                                    XamlRoot = this.XamlRoot
+                                };
+                                
+                                var overwriteResult = await overwriteDialog.ShowAsync();
+                                if (overwriteResult != ContentDialogResult.Primary)
+                                {
+                                    continue;
+                                }
+                            }
+                            
+                            // 复制文件到词库目录
+                            using (var sourceStream = await file.OpenReadAsync())
+                            using (var targetStream = File.OpenWrite(targetPath))
+                            {
+                                await sourceStream.AsStreamForRead().CopyToAsync(targetStream);
+                            }
+                            importedCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"复制文件失败: {file.Name} - {ex.Message}");
+                        }
+                    }
+                    
+                    if (importedCount > 0)
+                    {
+                        // 重新加载词库文件列表
+                        await _viewModel.LoadWordListFilesAsync();
+                        PopulateWordList();
+                        
+                        var successDialog = new ContentDialog
+                        {
+                            Title = "成功",
+                            Content = $"成功导入 {importedCount} 个词库文件",
+                            CloseButtonText = "确定",
+                            XamlRoot = this.XamlRoot
+                        };
+                        await successDialog.ShowAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
             {
                 var errorDialog = new ContentDialog
                 {
-                    Title = "提示",
-                    Content = "默认词库目录中没有词库文件",
+                    Title = "错误",
+                    Content = $"导入失败: {ex.Message}",
                     CloseButtonText = "确定",
                     XamlRoot = this.XamlRoot
                 };
                 await errorDialog.ShowAsync();
-                return;
-            }
-            
-            // 显示词库选择对话框
-            var dialog = new ContentDialog
-            {
-                Title = "导入词库",
-                PrimaryButtonText = "导入",
-                CloseButtonText = "取消",
-                XamlRoot = this.XamlRoot
-            };
-
-            var stackPanel = new StackPanel();
-            stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
-            
-            var fileComboBox = new ComboBox
-            {
-                Header = "选择要导入的词库文件",
-                ItemsSource = _viewModel.WordListFiles,
-                SelectedIndex = 0,
-                Width = 300
-            };
-            stackPanel.Children.Add(fileComboBox);
-            
-            dialog.Content = stackPanel;
-            
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
-            {
-                var selectedFileName = fileComboBox.SelectedItem?.ToString();
-                if (string.IsNullOrEmpty(selectedFileName)) return;
-                
-                try
-                {
-                    // 加载选中的词库文件
-                    await _viewModel.LoadWordsAsync(selectedFileName);
-                    
-                    // 从ViewModel获取词库内容（已经包含了从文件加载的内容）
-                    _wordList = _viewModel.CurrentWords
-                        .Where(w => !string.IsNullOrEmpty(w))
-                        .Select(w => new WordItem { Word = w, Translation = "" })
-                        .ToList();
-                    
-                    UpdateWordsListBox();
-                    _originalWordsText = _viewModel.WordsText;
-                    
-                    // 重新加载临时文件以确保数据一致性
-                    var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
-                    if (System.IO.File.Exists(tempPath))
-                    {
-                        var tempContent = await System.IO.File.ReadAllTextAsync(tempPath);
-                        _originalWordsText = tempContent;
-                    }
-                    
-                    var successDialog = new ContentDialog
-                    {
-                        Title = "成功",
-                        Content = $"成功导入词库 '{selectedFileName}'，共 {_wordList.Count} 个单词",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await successDialog.ShowAsync();
-                }
-                catch (Exception ex)
-                {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = $"导入失败: {ex.Message}",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
-                }
             }
         }
 

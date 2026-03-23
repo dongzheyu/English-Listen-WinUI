@@ -68,11 +68,19 @@
                               SelectionChanged="UsersListView_SelectionChanged">
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="{Binding Nickname}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
-                                    <TextBlock Text="{Binding Username}" 
-                                               Foreground="{ThemeResource TextFillColorSecondary}" 
-                                               Style="{StaticResource CaptionTextBlockStyle}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Nickname}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                        <TextBlock Text="{Binding Username}" 
+                                                   Foreground="{ThemeResource TextFillColorSecondary}" 
+                                                   Style="{StaticResource CaptionTextBlockStyle}"/>
+                                    </StackPanel>
+                                    <Button Content="删除" Click="DeleteUserButton_Click" 
+                                            Tag="{Binding}" 
+                                            Style="{StaticResource DefaultButtonStyle}" 
+                                            HorizontalAlignment="Right" 
+                                            Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}" 
+                                            Foreground="White"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -80,20 +88,6 @@
                 </StackPanel>
             </Border>
             
-            <!-- Create New User Dialog -->
-            <ContentDialog x:Name="CreateUserDialog"
-                           Title="创建新用户"
-                           PrimaryButtonText="创建"
-                           SecondaryButtonText="取消"
-                           PrimaryButtonClick="CreateUserDialog_PrimaryButtonClick"
-                           SecondaryButtonClick="CreateUserDialog_SecondaryButtonClick">
-                <StackPanel Spacing="15">
-                    <TextBox x:Name="NewUsernameBox" Header="用户名" PlaceholderText="请输入新用户名"/>
-                    <TextBox x:Name="NewNicknameBox" Header="昵称" PlaceholderText="请输入昵称 (可选)"/>
-                    <PasswordBox x:Name="NewPasswordBox" Header="密码" PlaceholderText="请输入密码"/>
-                    <PasswordBox x:Name="ConfirmPasswordBox" Header="确认密码" PlaceholderText="请再次输入密码"/>
-                </StackPanel>
-            </ContentDialog>
         </StackPanel>
     </ScrollViewer>
 </Page>
