@@ -68,132 +68,165 @@ namespace English_Listen_WinUI.Views
 
         private async void LoginButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectedUser = UsernameBox.SelectedItem as UserData;
-            if (selectedUser == null)
+            try
             {
-                await ShowMessage("请选择用户");
-                return;
-            }
-            
-            var username = selectedUser.Username;
-            var password = PasswordBox.Password;
-
-            if (string.IsNullOrEmpty(password))
-            {
-                await ShowMessage("请输入密码");
-                return;
-            }
-
-            // Find the user
-            var user = _viewModel.Users.FirstOrDefault(u => u.Username == username);
-            if (user != null)
-            {
-                // Verify password
-                if (VerifyPassword(password, user.PasswordHash))
+                var selectedUser = UsernameBox.SelectedItem as UserData;
+                if (selectedUser == null)
                 {
-                    _viewModel.Settings.Settings.CurrentUser = username;
-                    await _viewModel.Settings.SaveSettingsAsync();
-                    UpdateUserStatus();
-                    await ShowMessage("登录成功!");
+                    await ShowMessage("请选择用户");
+                    return;
+                }
+                
+                var username = selectedUser.Username;
+                var password = PasswordBox.Password;
+
+                if (string.IsNullOrEmpty(password))
+                {
+                    await ShowMessage("请输入密码");
+                    return;
+                }
+
+                // Find the user
+                var user = _viewModel.Users.FirstOrDefault(u => u.Username == username);
+                if (user != null)
+                {
+                    // Verify password
+                    if (VerifyPassword(password, user.PasswordHash))
+                    {
+                        _viewModel.Settings.Settings.CurrentUser = username;
+                        await _viewModel.Settings.SaveSettingsAsync();
+                        UpdateUserStatus();
+                        await ShowMessage("登录成功!");
+                    }
+                    else
+                    {
+                        await ShowMessage("密码错误");
+                    }
                 }
                 else
                 {
-                    await ShowMessage("密码错误");
+                    await ShowMessage("用户不存在");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                await ShowMessage("用户不存在");
+                System.Diagnostics.Debug.WriteLine($"LoginButton_Click error: {ex.Message}");
+                await ShowMessage("登录过程中发生错误");
             }
         }
 
         private async void LogoutButton_Click(object sender, RoutedEventArgs e)
         {
-            _viewModel.Settings.Settings.CurrentUser = null;
-            await _viewModel.Settings.SaveSettingsAsync();
-            UpdateUserStatus();
-            await ShowMessage("已退出登录");
+            try
+            {
+                _viewModel.Settings.Settings.CurrentUser = null;
+                await _viewModel.Settings.SaveSettingsAsync();
+                UpdateUserStatus();
+                await ShowMessage("已退出登录");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LogoutButton_Click error: {ex.Message}");
+                await ShowMessage("退出登录过程中发生错误");
+            }
         }
 
         private async void CreateUserButton_Click(object sender, RoutedEventArgs e)
         {
-            // 创建动态对话框
-            var dialog = new ContentDialog
+            try
             {
-                Title = "创建新用户",
-                PrimaryButtonText = "创建",
-                SecondaryButtonText = "取消",
-                XamlRoot = this.XamlRoot
-            };
-
-            // 创建对话框内容
-            var stackPanel = new StackPanel { Spacing = 15 };
-            var newUsernameBox = new TextBox { Header = "用户名", PlaceholderText = "请输入新用户名" };
-            var newNicknameBox = new TextBox { Header = "昵称", PlaceholderText = "请输入昵称 (可选)" };
-            var newPasswordBox = new PasswordBox { Header = "密码", PlaceholderText = "请输入密码" };
-            var confirmPasswordBox = new PasswordBox { Header = "确认密码", PlaceholderText = "请再次输入密码" };
-
-            stackPanel.Children.Add(newUsernameBox);
-            stackPanel.Children.Add(newNicknameBox);
-            stackPanel.Children.Add(newPasswordBox);
-            stackPanel.Children.Add(confirmPasswordBox);
-            dialog.Content = stackPanel;
-
-            // 处理主按钮点击
-            dialog.PrimaryButtonClick += async (s, args) =>
-            {
-                var username = newUsernameBox.Text.Trim();
-                var nickname = newNicknameBox.Text.Trim();
-                var password = newPasswordBox.Password;
-                var confirmPassword = confirmPasswordBox.Password;
-
-                if (string.IsNullOrEmpty(username))
+                // 创建动态对话框
+                var dialog = new ContentDialog
                 {
-                    ShowMessageNoAwait("请输入用户名");
-                    args.Cancel = true; // Cancel the dialog closing
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(password))
-                {
-                    ShowMessageNoAwait("请输入密码");
-                    args.Cancel = true; // Cancel the dialog closing
-                    return;
-                }
-
-                if (password != confirmPassword)
-                {
-                    ShowMessageNoAwait("两次输入的密码不一致");
-                    args.Cancel = true; // Cancel the dialog closing
-                    return;
-                }
-
-                if (_viewModel.Users.Any(u => u.Username == username))
-                {
-                    ShowMessageNoAwait("用户名已存在");
-                    args.Cancel = true; // Cancel the dialog closing
-                    return;
-                }
-
-                var newUser = new UserData
-                {
-                    Username = username,
-                    Nickname = string.IsNullOrEmpty(nickname) ? username : nickname,
-                    PasswordHash = password, // Store password directly for now (not secure)
-                    CreatedTime = DateTime.Now,
-                    LastLoginTime = DateTime.Now,
-                    IsActive = true
+                    Title = "创建新用户",
+                    PrimaryButtonText = "创建",
+                    SecondaryButtonText = "取消",
+                    XamlRoot = this.XamlRoot
                 };
 
-                _viewModel.Users.Add(newUser);
-                await _viewModel.Settings.SaveUsersAsync(_viewModel.Users.ToList());
+                // 创建对话框内容
+                var stackPanel = new StackPanel { Spacing = 15 };
+                var newUsernameBox = new TextBox { Header = "用户名", PlaceholderText = "请输入新用户名" };
+                var newNicknameBox = new TextBox { Header = "昵称", PlaceholderText = "请输入昵称 (可选)" };
+                var newPasswordBox = new PasswordBox { Header = "密码", PlaceholderText = "请输入密码" };
+                var confirmPasswordBox = new PasswordBox { Header = "确认密码", PlaceholderText = "请再次输入密码" };
 
-                // 显示成功消息
-                ShowMessageNoAwait("用户创建成功!");
-            };
+                stackPanel.Children.Add(newUsernameBox);
+                stackPanel.Children.Add(newNicknameBox);
+                stackPanel.Children.Add(newPasswordBox);
+                stackPanel.Children.Add(confirmPasswordBox);
+                dialog.Content = stackPanel;
 
-            // 显示对话框
-            await dialog.ShowAsync();
+                // 处理主按钮点击
+                dialog.PrimaryButtonClick += async (s, args) =>
+                {
+                    try
+                    {
+                        var username = newUsernameBox.Text.Trim();
+                        var nickname = newNicknameBox.Text.Trim();
+                        var password = newPasswordBox.Password;
+                        var confirmPassword = confirmPasswordBox.Password;
+
+                        if (string.IsNullOrEmpty(username))
+                        {
+                            ShowMessageNoAwait("请输入用户名");
+                            args.Cancel = true; // Cancel the dialog closing
+                            return;
+                        }
+
+                        if (string.IsNullOrEmpty(password))
+                        {
+                            ShowMessageNoAwait("请输入密码");
+                            args.Cancel = true; // Cancel the dialog closing
+                            return;
+                        }
+
+                        if (password != confirmPassword)
+                        {
+                            ShowMessageNoAwait("两次输入的密码不一致");
+                            args.Cancel = true; // Cancel the dialog closing
+                            return;
+                        }
+
+                        if (_viewModel.Users.Any(u => u.Username == username))
+                        {
+                            ShowMessageNoAwait("用户名已存在");
+                            args.Cancel = true; // Cancel the dialog closing
+                            return;
+                        }
+
+                        var newUser = new UserData
+                        {
+                            Username = username,
+                            Nickname = string.IsNullOrEmpty(nickname) ? username : nickname,
+                            PasswordHash = password, // Store password directly for now (not secure)
+                            CreatedTime = DateTime.Now,
+                            LastLoginTime = DateTime.Now,
+                            IsActive = true
+                        };
+
+                        _viewModel.Users.Add(newUser);
+                        await _viewModel.Settings.SaveUsersAsync(_viewModel.Users.ToList());
+
+                        // 显示成功消息
+                        ShowMessageNoAwait("用户创建成功!");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"CreateUserButton_Click dialog error: {ex.Message}");
+                        ShowMessageNoAwait("创建用户过程中发生错误");
+                        args.Cancel = true;
+                    }
+                };
+
+                // 显示对话框
+                await dialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"CreateUserButton_Click error: {ex.Message}");
+                await ShowMessage("创建用户对话框过程中发生错误");
+            }
         }
 
         private void UsernameBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -220,71 +253,94 @@ namespace English_Listen_WinUI.Views
 
         private async void DeleteUserButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.Tag is UserData userToDelete)
+            try
             {
-                // 显示确认对话框
-                var confirmDialog = new ContentDialog
+                if (sender is Button button && button.Tag is UserData userToDelete)
                 {
-                    Title = "确认删除",
-                    Content = $"确定要删除用户 '{userToDelete.Nickname}' 吗？此操作不可恢复。",
-                    PrimaryButtonText = "确定",
-                    CloseButtonText = "取消",
-                    XamlRoot = this.XamlRoot
-                };
-
-                var confirmResult = await confirmDialog.ShowAsync();
-                if (confirmResult == ContentDialogResult.Primary)
-                {
-                    // 显示密码输入对话框
-                    var passwordDialog = new ContentDialog
+                    // 显示确认对话框
+                    var confirmDialog = new ContentDialog
                     {
-                        Title = "验证密码",
-                        PrimaryButtonText = "确认",
+                        Title = "确认删除",
+                        Content = $"确定要删除用户 '{userToDelete.Nickname}' 吗？此操作不可恢复。",
+                        PrimaryButtonText = "确定",
                         CloseButtonText = "取消",
                         XamlRoot = this.XamlRoot
                     };
 
-                    var stackPanel = new StackPanel { Spacing = 15 };
-                    stackPanel.Children.Add(new TextBlock { Text = $"请输入用户 '{userToDelete.Nickname}' 的密码以确认删除" });
-                    var passwordBox = new PasswordBox { PlaceholderText = "请输入密码" };
-                    stackPanel.Children.Add(passwordBox);
-                    passwordDialog.Content = stackPanel;
-
-                    var passwordResult = await passwordDialog.ShowAsync();
-                    if (passwordResult == ContentDialogResult.Primary)
+                    var confirmResult = await confirmDialog.ShowAsync();
+                    if (confirmResult == ContentDialogResult.Primary)
                     {
-                        var password = passwordBox.Password;
-                        if (string.IsNullOrEmpty(password))
+                        // 显示密码输入对话框
+                        var passwordDialog = new ContentDialog
                         {
-                            await ShowMessage("请输入密码");
-                            return;
-                        }
+                            Title = "验证密码",
+                            PrimaryButtonText = "确认",
+                            CloseButtonText = "取消",
+                            XamlRoot = this.XamlRoot
+                        };
 
-                        // 验证密码
-                        if (VerifyPassword(password, userToDelete.PasswordHash))
+                        var stackPanel = new StackPanel { Spacing = 15 };
+                        stackPanel.Children.Add(new TextBlock { Text = $"请输入用户 '{userToDelete.Nickname}' 的密码以确认删除" });
+                        var passwordBox = new PasswordBox { PlaceholderText = "请输入密码" };
+                        stackPanel.Children.Add(passwordBox);
+                        passwordDialog.Content = stackPanel;
+
+                        var passwordResult = await passwordDialog.ShowAsync();
+                        if (passwordResult == ContentDialogResult.Primary)
                         {
-                            // 检查是否是当前登录用户
-                            var currentUser = _viewModel.Settings.Settings.CurrentUser;
-                            if (currentUser == userToDelete.Username)
+                            try
                             {
-                                // 先退出登录
-                                _viewModel.Settings.Settings.CurrentUser = null;
-                                await _viewModel.Settings.SaveSettingsAsync();
-                                UpdateUserStatus();
+                                var password = passwordBox.Password;
+                                if (string.IsNullOrEmpty(password))
+                                {
+                                    await ShowMessage("请输入密码");
+                                    return;
+                                }
+
+                                // 验证密码
+                                if (VerifyPassword(password, userToDelete.PasswordHash))
+                                {
+                                    // 检查是否是当前登录用户
+                                    var currentUser = _viewModel.Settings.Settings.CurrentUser;
+                                    if (currentUser == userToDelete.Username)
+                                    {
+                                        // 先退出登录
+                                        _viewModel.Settings.Settings.CurrentUser = null;
+                                        await _viewModel.Settings.SaveSettingsAsync();
+                                        UpdateUserStatus();
+                                    }
+
+                                    // 删除用户
+                                    var deleteResult = await _viewModel.Settings.DeleteUserAsync(userToDelete.Username);
+                                    if (deleteResult)
+                                    {
+                                        // 从内存中移除用户
+                                        _viewModel.Users.Remove(userToDelete);
+                                        await ShowMessage("用户删除成功!");
+                                    }
+                                    else
+                                    {
+                                        await ShowMessage("用户删除失败，请重试");
+                                    }
+                                }
+                                else
+                                {
+                                    await ShowMessage("密码错误，删除失败");
+                                }
                             }
-
-                            // 删除用户
-                            _viewModel.Users.Remove(userToDelete);
-                            await _viewModel.Settings.SaveUsersAsync(_viewModel.Users.ToList());
-
-                            // 直接显示成功消息，不使用延迟
-                        }
-                        else
-                        {
-                            // 直接显示错误消息，不使用延迟
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"DeleteUserButton_Click password dialog error: {ex.Message}");
+                                await ShowMessage("删除用户过程中发生错误");
+                            }
                         }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"DeleteUserButton_Click error: {ex.Message}");
+                await ShowMessage("删除用户过程中发生错误");
             }
         }
 

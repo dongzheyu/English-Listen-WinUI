@@ -15,7 +15,7 @@ using English_Listen_WinUI.Models;
 
 namespace English_Listen_WinUI.Views
 {
-    public sealed partial class DictationTestPage : Page
+    public sealed partial class DictationTestPage : Page, IDisposable
     {
         private List<WordTranslationPair> wordList = new List<WordTranslationPair>();
         private int currentIndex;
@@ -34,6 +34,7 @@ namespace English_Listen_WinUI.Views
         private string currentFileName = string.Empty;
         private HashSet<int> correctIndices = new HashSet<int>();
         private BaiduTranslateService _translateService;
+        private TranslationLibraryService _translationLibraryService;
         private SpeechSynthesizer? chineseSynthesizer;
 
         public class WordTranslationPair
@@ -45,22 +46,49 @@ namespace English_Listen_WinUI.Views
         public DictationTestPage()
         {
             this.InitializeComponent();
-            synthesizer = new SpeechSynthesizer();
-            synthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
-            synthesizer.SetOutputToDefaultAudioDevice();
-            chineseSynthesizer = new SpeechSynthesizer();
-            chineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
-            chineseSynthesizer.SetOutputToDefaultAudioDevice();
+            try
+            {
+                synthesizer = new SpeechSynthesizer();
+                synthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+                try
+                {
+                    synthesizer.SetOutputToDefaultAudioDevice();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"英文 Synthesizer SetOutputToDefaultAudioDevice 失败: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"英文 Synthesizer 初始化失败: {ex.Message}");
+                synthesizer = null;
+            }
+
+            try
+            {
+                chineseSynthesizer = new SpeechSynthesizer();
+                chineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+                try
+                {
+                    chineseSynthesizer.SetOutputToDefaultAudioDevice();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"中文 Synthesizer SetOutputToDefaultAudioDevice 失败: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"中文 Synthesizer 初始化失败: {ex.Message}");
+                chineseSynthesizer = null;
+            }
+
             countdownTimer = new DispatcherTimer();
             countdownTimer.Interval = TimeSpan.FromSeconds(1);
             countdownTimer.Tick += CountdownTimer_Tick;
             _translateService = new BaiduTranslateService();
-            InputTextBox.Focus(FocusState.Programmatic);
-        }
-
-        private void Synthesizer_SpeakCompleted(object? sender, SpeakCompletedEventArgs e)
-        {
-            speakTaskSource?.TrySetResult(true);
+            _translationLibraryService = new TranslationLibraryService();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -68,7 +96,10 @@ namespace English_Listen_WinUI.Views
             base.OnNavigatedTo(e);
 
             var mainWindow = App.MainWindow as MainWindow;
-            mainWindow?.SetSidebarVisibility(false);
+            if (mainWindow != null)
+            {
+                mainWindow.SetSidebarVisibility(false);
+            }
 
             // 从共享的ViewModel获取设置，而不是创建新的SettingsService实例
             countdownSeconds = App.SharedViewModel?.Settings?.Settings?.ReadInterval ?? 5;
@@ -86,7 +117,7 @@ namespace English_Listen_WinUI.Views
                 currentFileName = testParams.FileName;
                 LoadWordList(currentFileName, testParams.RandomOrder);
             }
-            else if (e.Parameter.GetType().Name == "DictationTestParamsWithTranslations")
+            else if (e.Parameter != null && e.Parameter.GetType().Name == "DictationTestParamsWithTranslations")
             {
                 var wordListProperty = e.Parameter.GetType().GetProperty("WordList");
                 var randomOrderProperty = e.Parameter.GetType().GetProperty("RandomOrder");
@@ -129,7 +160,20 @@ namespace English_Listen_WinUI.Views
                 ShowErrorDialog("未指定词库文件。");
                 return;
             }
+
+            // 在UI加载完成后设置焦点
+            if (InputTextBox != null)
+            {
+                InputTextBox.Focus(FocusState.Programmatic);
+            }
         }
+
+        private void Synthesizer_SpeakCompleted(object? sender, SpeakCompletedEventArgs e)
+        {
+            speakTaskSource?.TrySetResult(true);
+        }
+
+
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
@@ -138,9 +182,8 @@ namespace English_Listen_WinUI.Views
             var mainWindow = App.MainWindow as MainWindow;
             mainWindow?.SetSidebarVisibility(true);
 
-            countdownTimer?.Stop();
-            synthesizer?.SpeakAsyncCancelAll();
-            chineseSynthesizer?.SpeakAsyncCancelAll();
+            // 清理资源
+            Dispose();
         }
 
         private void LoadWordList(string filePath, bool randomOrder)
@@ -236,7 +279,7 @@ namespace English_Listen_WinUI.Views
             
             if (_isPaperMode)
             {
-                ScoreText.Text = "正确: N/A";
+                ScoreText.Text = string.Empty;
                 InputTextBox.Visibility = Visibility.Collapsed;
                 SubmitButton.Visibility = Visibility.Collapsed;
             }
@@ -250,7 +293,7 @@ namespace English_Listen_WinUI.Views
             
             CountdownText.Text = string.Empty;
             SpeakingStatusText.Text = string.Empty;
-            TranslationText.Text = string.Empty;
+            // 保留翻译显示，实现实时翻译
         }
 
         private async Task PlayCurrentWordAndStartCountdown()
@@ -262,6 +305,33 @@ namespace English_Listen_WinUI.Views
             var wordPair = wordList[currentIndex];
             string word = wordPair.Word;
             string translation = wordPair.Translation;
+            
+            // 实时检查并显示翻译
+            if (string.IsNullOrEmpty(translation) && _readTranslation)
+            {
+                // 自动翻译
+                try
+                {
+                    translation = await _translateService.TranslateAsync(word, "en", "zh");
+                    if (!string.IsNullOrEmpty(translation))
+                    {
+                        wordPair.Translation = translation;
+                        TranslationText.Text = $"翻译: {translation}";
+                        // 保存翻译到翻译库
+                        _translationLibraryService.SaveTranslation(word, translation);
+                        _translationLibraryService.SaveToFile();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"翻译错误：{ex.Message}");
+                }
+            }
+            else if (!string.IsNullOrEmpty(translation))
+            {
+                // 如果已有翻译，立即显示
+                TranslationText.Text = $"翻译: {translation}";
+            }
             
             SpeakingStatusText.Text = "正在朗读...";
             isSpeaking = true;
@@ -287,8 +357,6 @@ namespace English_Listen_WinUI.Views
                 speakTaskSource = null;
                 SpeakingStatusText.Text = string.Empty;
             }
-
-            TranslationText.Text = !string.IsNullOrEmpty(translation) ? $"翻译: {translation}" : "";
 
             if (isTestActive && currentIndex < totalWords)
             {
@@ -512,7 +580,18 @@ namespace English_Listen_WinUI.Views
 
             if (_isPaperMode)
             {
-                await ShowPaperModeResultDialogAsync();
+                // 显示提示框
+                var dialog = new ContentDialog
+                {
+                    Title = "听写完成",
+                    Content = "请核对您的答案，然后点击继续查看标准答案。",
+                    PrimaryButtonText = "继续",
+                    XamlRoot = this.XamlRoot
+                };
+
+                await dialog.ShowAsync();
+                // 导航到AnswersPage显示答案
+                Frame?.Navigate(typeof(AnswersPage), wordList);
             }
             else
             {
@@ -678,11 +757,6 @@ namespace English_Listen_WinUI.Views
             _ = ShowErrorDialogAsync(message);
         }
 
-        private void ShowEmptyListDialog()
-        {
-            _ = ShowEmptyListDialogAsync();
-        }
-
         private void SubmitButton_Click(object sender, RoutedEventArgs e)
         {
             Submit();
@@ -705,7 +779,15 @@ namespace English_Listen_WinUI.Views
 
         private async void EndButton_Click(object sender, RoutedEventArgs e)
         {
-            await EndTestAsync();
+            try
+            {
+                await EndTestAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EndButton_Click error: {ex.Message}");
+                _ = ShowErrorDialogAsync("结束测试过程中发生错误");
+            }
         }
 
         private void CountdownSetter_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -885,6 +967,28 @@ namespace English_Listen_WinUI.Views
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"设置中文语音失败: {ex.Message}");
+            }
+        }
+
+        public void Dispose()
+        {
+            // 停止定时器
+            countdownTimer?.Stop();
+            countdownTimer = null;
+            
+            // 释放SpeechSynthesizer资源
+            if (synthesizer != null)
+            {
+                synthesizer.SpeakCompleted -= Synthesizer_SpeakCompleted;
+                synthesizer.Dispose();
+                synthesizer = null;
+            }
+            
+            if (chineseSynthesizer != null)
+            {
+                chineseSynthesizer.SpeakCompleted -= Synthesizer_SpeakCompleted;
+                chineseSynthesizer.Dispose();
+                chineseSynthesizer = null;
             }
         }
     }

@@ -36,7 +36,14 @@ namespace English_Listen_WinUI.Services
             var cacheDir = Path.Combine(appDataPath, "cache");
             if (!Directory.Exists(cacheDir))
             {
-                Directory.CreateDirectory(cacheDir);
+                try
+                {
+                    Directory.CreateDirectory(cacheDir);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"创建缓存目录失败: {ex.Message}");
+                }
             }
 
             _translationCachePath = Path.Combine(cacheDir, "translation_cache.json");
@@ -46,8 +53,20 @@ namespace English_Listen_WinUI.Services
             _translationCache = new Dictionary<string, string>();
             _dailyLimitCache = new Dictionary<string, int> { { _currentDate, 0 } };
 
-            LoadConfig();
+            try
+            {
+                LoadConfig();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"加载配置失败: {ex.Message}");
+            }
             LoadCache();
+        }
+
+        public void Dispose()
+        {
+            _httpClient?.Dispose();
         }
 
         private void LoadConfig()

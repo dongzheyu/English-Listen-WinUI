@@ -154,7 +154,7 @@ namespace English_Listen_WinUI.Views
             _wordList = _viewModel.WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(w => w.Trim())
                 .Where(w => !string.IsNullOrEmpty(w))
-                .Select(w => new WordItem { Word = w, Translation = "" })
+                .Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" })
                 .ToList();
             UpdateWordsListBox();
             _originalWordsText = _viewModel.WordsText;
@@ -220,7 +220,7 @@ namespace English_Listen_WinUI.Views
                 }
                 
                 // 显示到列表
-                _wordList = allWords.Select(w => new WordItem { Word = w, Translation = "" }).ToList();
+                _wordList = allWords.Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" }).ToList();
                 UpdateWordsListBox();
                 _originalWordsText = string.Join("\n", allWords);
                 
@@ -1283,6 +1283,167 @@ namespace English_Listen_WinUI.Views
                     await errorDialog.ShowAsync();
                 }
             }
+        }
+
+        private async void AppendToWordlistButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 检查是否有选中的单词
+            var selectedWords = _wordList.Where(w => w.IsSelected).ToList();
+            if (selectedWords.Count == 0)
+            {
+                var errorDialog = new ContentDialog
+                {
+                    Title = "提示",
+                    Content = "请选择要追加的单词",
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                return;
+            }
+
+            // 确保词库文件列表已加载
+            if (_viewModel != null && _viewModel.WordListFiles.Count == 0)
+            {
+                try
+                {
+                    await _viewModel.LoadWordListFilesAsync();
+                }
+                catch { }
+            }
+
+            // 显示词库选择窗口
+            var dialog = new ContentDialog
+            {
+                Title = "选择词库",
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel { Margin = new Thickness(20), Spacing = 10 };
+
+            var wordlistComboBox = new ComboBox
+            {
+                Header = "选择要追加到的词库",
+                ItemsSource = _viewModel?.WordListFiles,
+                SelectedIndex = 0
+            };
+            stackPanel.Children.Add(wordlistComboBox);
+
+            dialog.Content = stackPanel;
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var selectedWordlist = wordlistComboBox.SelectedItem?.ToString();
+                if (string.IsNullOrEmpty(selectedWordlist))
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "错误",
+                        Content = "请选择要追加到的词库",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                    return;
+                }
+
+                try
+                {
+                    // 获取词库文件路径
+                    if (_viewModel?.Settings == null)
+                    {
+                        var errorDialog = new ContentDialog
+                        {
+                            Title = "错误",
+                            Content = "无法访问设置服务",
+                            CloseButtonText = "确定",
+                            XamlRoot = this.XamlRoot
+                        };
+                        await errorDialog.ShowAsync();
+                        return;
+                    }
+                    var wordlistPath = System.IO.Path.Combine(_viewModel.Settings.GetWordlistDirectory(), selectedWordlist);
+                    
+                    // 读取现有词库内容
+                    var existingWords = new List<string>();
+                    if (System.IO.File.Exists(wordlistPath))
+                    {
+                        existingWords = System.IO.File.ReadAllLines(wordlistPath)
+                            .Where(line => !string.IsNullOrWhiteSpace(line))
+                            .Select(line => line.Trim())
+                            .ToList();
+                    }
+
+                    // 添加选中的单词（去重）
+                    var wordsToAdd = selectedWords.Select(w => w.Word.Trim())
+                        .Where(word => !string.IsNullOrWhiteSpace(word) && !existingWords.Contains(word))
+                        .ToList();
+
+                    if (wordsToAdd.Count == 0)
+                    {
+                        var infoDialog = new ContentDialog
+                        {
+                            Title = "提示",
+                            Content = "所选单词已存在于词库中",
+                            CloseButtonText = "确定",
+                            XamlRoot = this.XamlRoot
+                        };
+                        await infoDialog.ShowAsync();
+                        return;
+                    }
+
+                    // 追加到词库末尾
+                    existingWords.AddRange(wordsToAdd);
+                    
+                    // 保存词库文件
+                    System.IO.File.WriteAllLines(wordlistPath, existingWords);
+
+                    var successDialog = new ContentDialog
+                    {
+                        Title = "成功",
+                        Content = $"成功追加 {wordsToAdd.Count} 个单词到词库 '{selectedWordlist}'",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await successDialog.ShowAsync();
+                }
+                catch (Exception ex)
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "错误",
+                        Content = $"追加单词失败: {ex.Message}",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                }
+            }
+        }
+
+        private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 刷新词库文件列表
+            if (_viewModel == null) return;
+            
+            try
+            {
+                await _viewModel.LoadWordListFilesAsync();
+                PopulateWordList();
+            }
+            catch { }
+            
+            // 刷新单词的翻译
+            foreach (var wordItem in _wordList)
+            {
+                wordItem.Translation = _translationLibrary.GetTranslation(wordItem.Word) ?? "";
+            }
+            
+            // 更新UI
+            UpdateWordsListBox();
         }
         
         public class DictationTestParamsWithTranslations

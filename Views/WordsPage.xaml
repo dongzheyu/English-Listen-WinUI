@@ -44,6 +44,8 @@
             <Button Content="词库管理" Click="WordlistManagementButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="批量翻译" Click="BatchTranslateButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="开始听写" Click="StartDictationButton_Click" Width="120" Height="40" Margin="10"/>
+            <Button Content="追加到词库末尾" Click="AppendToWordlistButton_Click" Width="150" Height="40" Margin="10"/>
+            <Button Content="刷新" Click="RefreshButton_Click" Width="80" Height="40" Margin="10"/>
         </StackPanel>
 
         <!-- Word Operations -->

@@ -32,13 +32,26 @@ namespace English_Listen_WinUI.Services
         public SettingsService()
         {
             EnsureDirectoryExists();
-            _ = InitializeAsync(); // Start initialization in background
+            _ = InitializeAsync().ContinueWith(t =>
+            {
+                if (t.Exception != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"初始化失败: {t.Exception.Message}");
+                }
+            }); // Start initialization in background
         }
 
         private async Task InitializeAsync()
         {
-            await LoadSettingsAsync(); // Load settings first
-            await MigrateOldDataAsync(); // Then migrate old data
+            try
+            {
+                await LoadSettingsAsync(); // Load settings first
+                await MigrateOldDataAsync(); // Then migrate old data
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"初始化失败: {ex.Message}");
+            }
         }
 
         private void EnsureDirectoryExists()
@@ -344,6 +357,40 @@ namespace English_Listen_WinUI.Services
             users.Add(newUser);
             await SaveUsersAsync(users);
             return true;
+        }
+
+        public async Task<bool> DeleteUserAsync(string username)
+        {
+            try
+            {
+                var users = await LoadUsersAsync();
+                var userToDelete = users.FirstOrDefault(u => u.Username == username);
+                
+                if (userToDelete == null)
+                {
+                    return false;
+                }
+
+                // Remove user from list
+                users.Remove(userToDelete);
+                
+                // Save updated user list
+                await SaveUsersAsync(users);
+                
+                // Delete user directory and files
+                var userDir = GetUserDataPath(username);
+                if (Directory.Exists(userDir))
+                {
+                    Directory.Delete(userDir, true);
+                }
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"删除用户失败: {ex.Message}");
+                return false;
+            }
         }
 
 
