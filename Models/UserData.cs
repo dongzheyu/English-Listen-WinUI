@@ -34,7 +34,7 @@ namespace English_Listen_WinUI.Models
 
     public class AppSettings
     {
-        public int ThemeMode { get; set; } // 0 = Light, 1 = Dark, 2 = System
+        public int ThemeMode { get; set; } = 0; // 0 = System, 1 = Light, 2 = Dark
         public int ReadInterval { get; set; } = 5;
         public int SpeechEngine { get; set; }
         public string FliteVoiceModel { get; set; } = "cmu_us_slt";

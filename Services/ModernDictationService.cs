@@ -18,6 +18,7 @@ namespace English_Listen_WinUI.Services
         private bool _isTesting;
         private System.Timers.Timer? _countdownTimer;
         private int _currentCountdown;
+        private bool _hasAudioDevice = false;
 
         public enum SpeechState
         {
@@ -39,16 +40,34 @@ namespace English_Listen_WinUI.Services
             public required string Translation { get; set; }
         }
 
+        public bool HasAudioDevice => _hasAudioDevice;
+
+        public string AudioDeviceStatus => _hasAudioDevice ? "音频设备正常" : "未检测到音频设备";
+
         public ModernDictationService()
         {
             try
             {
                 _speechService = new SpeechSynthesizer();
+                try
+                {
+                    _speechService.SetOutputToDefaultAudioDevice();
+                    _hasAudioDevice = true;
+                    System.Diagnostics.Debug.WriteLine("ModernDictationService: 音频设备初始化成功");
+                }
+                catch (Exception ex)
+                {
+                    _hasAudioDevice = false;
+                    System.Diagnostics.Debug.WriteLine($"ModernDictationService SetOutputToDefaultAudioDevice 失败: {ex.Message}");
+                    _speechService?.Dispose();
+                    _speechService = null;
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ModernDictationService SpeechSynthesizer 初始化失败: {ex.Message}");
                 _speechService = null;
+                _hasAudioDevice = false;
             }
 
             _wordList = new List<WordTranslationPair>();
@@ -66,6 +85,23 @@ namespace English_Listen_WinUI.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ModernDictationService Timer 初始化失败: {ex.Message}");
+            }
+        }
+
+        public bool CheckAudioDeviceAvailable()
+        {
+            if (_speechService == null) return false;
+
+            try
+            {
+                _speechService.SetOutputToDefaultAudioDevice();
+                _hasAudioDevice = true;
+                return true;
+            }
+            catch
+            {
+                _hasAudioDevice = false;
+                return false;
             }
         }
 
@@ -220,7 +256,17 @@ namespace English_Listen_WinUI.Services
             {
                 if (_speechService != null)
                 {
-                    await Task.Run(() => _speechService.Speak(word));
+                    await Task.Run(() =>
+                    {
+                        try
+                        {
+                            _speechService.Speak(word);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"英文朗读异常: {ex.Message}");
+                        }
+                    });
 
                     if (!string.IsNullOrEmpty(translation))
                     {
@@ -232,10 +278,23 @@ namespace English_Listen_WinUI.Services
                             {
                                 _speechService.SelectVoice(_currentChineseVoice);
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"设置中文语音失败: {ex.Message}");
+                            }
                         }
 
-                        await Task.Run(() => _speechService.Speak(translation));
+                        await Task.Run(() =>
+                        {
+                            try
+                            {
+                                _speechService.Speak(translation);
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"中文朗读异常: {ex.Message}");
+                            }
+                        });
 
                         if (!string.IsNullOrEmpty(_currentVoice))
                         {
@@ -243,7 +302,10 @@ namespace English_Listen_WinUI.Services
                             {
                                 _speechService.SelectVoice(_currentVoice);
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"恢复英文语音失败: {ex.Message}");
+                            }
                         }
                     }
                 }
@@ -309,18 +371,38 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                // 尝试获取CoreApplication.MainView，如果失败则尝试其他方法
-                var dispatcher = Windows.ApplicationModel.Core.CoreApplication.MainView?.CoreWindow?.Dispatcher;
+                // WinUI3: 使用DispatcherQueue而不是CoreDispatcher
+                var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
                 
-                if (dispatcher != null)
+                if (dispatcherQueue != null)
                 {
-                    await dispatcher.RunAsync(
-                        Windows.UI.Core.CoreDispatcherPriority.Normal,
-                        () => action());
+                    var tcs = new TaskCompletionSource();
+                    var result = dispatcherQueue.TryEnqueue(() =>
+                    {
+                        try
+                        {
+                            action();
+                            tcs.TrySetResult();
+                        }
+                        catch (Exception ex)
+                        {
+                            tcs.TrySetException(ex);
+                        }
+                    });
+                    
+                    if (result)
+                    {
+                        await tcs.Task;
+                    }
+                    else
+                    {
+                        // 如果入队失败，直接执行
+                        action();
+                    }
                 }
                 else
                 {
-                    // 如果无法获取UI调度器，直接执行操作（可能在非UI线程）
+                    // 如果无法获取UI调度器，直接执行操作
                     action();
                 }
             }

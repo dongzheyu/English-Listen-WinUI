@@ -102,10 +102,20 @@ namespace English_Listen_WinUI.Views
                     // 延迟加载Windows TTS语音，确保引擎状态已更新
                     _ = Task.Delay(100).ContinueWith(_ =>
                     {
-                        // 简单的延迟执行，避免复杂的线程调度
-                        LoadWindowsTtsVoices();
-                        UpdateVoiceModelVisibility();
-                    }, TaskScheduler.FromCurrentSynchronizationContext());
+                        // 使用DispatcherQueue在主线程执行UI更新
+                        this.DispatcherQueue?.TryEnqueue(() =>
+                        {
+                            try
+                            {
+                                LoadWindowsTtsVoices();
+                                UpdateVoiceModelVisibility();
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"加载语音设置延迟执行错误: {ex.Message}");
+                            }
+                        });
+                    });
                 }
 
                 // 语音模型设置（SAPI only）
@@ -765,31 +775,66 @@ namespace English_Listen_WinUI.Views
                     // 删除用户配置文件
                     if (System.IO.Directory.Exists(userDataPath))
                     {
-                        System.IO.Directory.Delete(userDataPath, true);
+                        try
+                        {
+                            System.IO.Directory.Delete(userDataPath, true);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"删除用户目录失败: {ex.Message}");
+                        }
                     }
                     
                     // 删除设置配置文件
                     var settingsPath = System.IO.Path.Combine(configPath, "settings.json");
                     if (System.IO.File.Exists(settingsPath))
                     {
-                        System.IO.File.Delete(settingsPath);
+                        try
+                        {
+                            System.IO.File.Delete(settingsPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"删除设置文件失败: {ex.Message}");
+                        }
                     }
                     
                     // 删除词库分组配置文件
                     var wordlistGroupsPath = System.IO.Path.Combine(configPath, "wordlist_groups.ini");
                     if (System.IO.File.Exists(wordlistGroupsPath))
                     {
-                        System.IO.File.Delete(wordlistGroupsPath);
+                        try
+                        {
+                            System.IO.File.Delete(wordlistGroupsPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"删除词库分组文件失败: {ex.Message}");
+                        }
                     }
                     
                     // 删除所有词库文件 - 直接删除wordlist文件夹然后重新创建
                     var wordlistPath = System.IO.Path.Combine(appDataPath, "wordlist");
                     if (System.IO.Directory.Exists(wordlistPath))
                     {
-                        System.IO.Directory.Delete(wordlistPath, true);
+                        try
+                        {
+                            System.IO.Directory.Delete(wordlistPath, true);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"删除词库目录失败: {ex.Message}");
+                        }
                     }
                     // 重新创建wordlist文件夹
-                    System.IO.Directory.CreateDirectory(wordlistPath);
+                    try
+                    {
+                        System.IO.Directory.CreateDirectory(wordlistPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"创建词库目录失败: {ex.Message}");
+                    }
                     
                     // 显示成功消息
                     var successDialog = new ContentDialog
@@ -802,12 +847,20 @@ namespace English_Listen_WinUI.Views
                     await successDialog.ShowAsync();
                     
                     // 自动重启程序
-                    var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
-                    var mainModule = currentProcess.MainModule;
-                    if (mainModule != null && !string.IsNullOrEmpty(mainModule.FileName))
+                    try
                     {
-                        System.Diagnostics.Process.Start(mainModule.FileName);
-                        Application.Current.Exit();
+                        var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+                        var mainModule = currentProcess.MainModule;
+                        if (mainModule != null && !string.IsNullOrEmpty(mainModule.FileName))
+                        {
+                            System.Diagnostics.Process.Start(mainModule.FileName);
+                            Application.Current.Exit();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"重启程序失败: {ex.Message}");
+                        ShowError("重启失败", "程序已初始化，但自动重启失败，请手动重启程序");
                     }
                 }
             }

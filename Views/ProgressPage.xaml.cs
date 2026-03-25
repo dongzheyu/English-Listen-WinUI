@@ -229,21 +229,32 @@ namespace English_Listen_WinUI.Views
 
         private async void ClearButton_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new ContentDialog
+            try
             {
-                Title = "确认清空",
-                Content = "确定要清空所有学习记录吗？此操作不可恢复。",
-                PrimaryButtonText = "清空",
-                CloseButtonText = "取消"
-            };
+                var dialog = new ContentDialog
+                {
+                    Title = "确认清空",
+                    Content = "确定要清空所有学习记录吗？此操作不可恢复。",
+                    PrimaryButtonText = "清空",
+                    CloseButtonText = "取消",
+                    XamlRoot = this.XamlRoot
+                };
 
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    _viewModel.TestHistory.Clear();
+                    var currentUser = _viewModel?.Settings?.Settings?.CurrentUser;
+                    if (_viewModel?.Settings != null)
+                    {
+                        await _viewModel.Settings.SaveTestHistoryAsync(currentUser ?? "", _viewModel.TestHistory);
+                    }
+                    LoadStats();
+                }
+            }
+            catch (Exception ex)
             {
-                _viewModel.TestHistory.Clear();
-                var currentUser = _viewModel.Settings.Settings.CurrentUser;
-                await _viewModel.Settings.SaveTestHistoryAsync(currentUser ?? "", _viewModel.TestHistory);
-                LoadStats();
+                System.Diagnostics.Debug.WriteLine($"ClearButton_Click error: {ex.Message}");
             }
         }
     }

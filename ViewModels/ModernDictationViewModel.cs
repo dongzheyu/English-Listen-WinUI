@@ -73,7 +73,17 @@ namespace English_Listen_WinUI.ViewModels
             
             // Load available voices
             LoadAvailableVoices();
+            
+            // 检查音频设备
+            if (!_dictationService.HasAudioDevice)
+            {
+                System.Diagnostics.Debug.WriteLine("ModernDictationViewModel: 警告 - 未检测到音频设备");
+            }
         }
+
+        public bool HasAudioDevice => _dictationService.HasAudioDevice;
+
+        public string AudioDeviceStatus => _dictationService.AudioDeviceStatus;
         
         #region Properties
         
@@ -451,7 +461,14 @@ namespace English_Listen_WinUI.ViewModels
         
         public void Dispose()
         {
-            _dictationService?.Dispose();
+            try
+            {
+                _dictationService?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Dispose失败: {ex.Message}");
+            }
         }
         
         #endregion

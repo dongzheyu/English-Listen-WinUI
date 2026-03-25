@@ -11,12 +11,12 @@ namespace English_Listen_WinUI.Services
 {
     public class SettingsService
     {
-        private static readonly string AppDataPath = AppDomain.CurrentDomain.BaseDirectory;
-        private static readonly string ConfigPath = Path.Combine(AppDataPath, "config");
-        private static readonly string UserDataPath = Path.Combine(ConfigPath, "users");
+        private readonly string AppDataPath;
+        private readonly string ConfigPath;
+        private readonly string UserDataPath;
 
-        private static readonly string SettingsFilePath = Path.Combine(ConfigPath, "settings.json");
-        private static readonly string WordlistGroupsFilePath = Path.Combine(ConfigPath, "wordlist_groups.ini");
+        private readonly string SettingsFilePath;
+        private readonly string WordlistGroupsFilePath;
 
 
         private AppSettings _settings = new();
@@ -31,6 +31,20 @@ namespace English_Listen_WinUI.Services
 
         public SettingsService()
         {
+            try
+            {
+                AppDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+            }
+            catch
+            {
+                AppDataPath = AppContext.BaseDirectory;
+            }
+
+            ConfigPath = Path.Combine(AppDataPath, "config");
+            UserDataPath = Path.Combine(ConfigPath, "users");
+            SettingsFilePath = Path.Combine(ConfigPath, "settings.json");
+            WordlistGroupsFilePath = Path.Combine(ConfigPath, "wordlist_groups.ini");
+
             EnsureDirectoryExists();
             _ = InitializeAsync().ContinueWith(t =>
             {
@@ -38,7 +52,7 @@ namespace English_Listen_WinUI.Services
                 {
                     System.Diagnostics.Debug.WriteLine($"初始化失败: {t.Exception.Message}");
                 }
-            }); // Start initialization in background
+            });
         }
 
         private async Task InitializeAsync()
@@ -379,9 +393,17 @@ namespace English_Listen_WinUI.Services
                 
                 // Delete user directory and files
                 var userDir = GetUserDataPath(username);
-                if (Directory.Exists(userDir))
+                if (System.IO.Directory.Exists(userDir))
                 {
-                    Directory.Delete(userDir, true);
+                    try
+                    {
+                        System.IO.Directory.Delete(userDir, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"删除用户目录失败: {ex.Message}");
+                        return false;
+                    }
                 }
                 
                 return true;

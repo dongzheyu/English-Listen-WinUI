@@ -15,6 +15,8 @@ namespace English_Listen_WinUI.Services
         private bool _isSpeaking;
         private bool _isPaused;
         private SpeechSynthesizer? _synthesizer;
+        private bool _hasAudioDevice = false;
+        private readonly object _synthesizerLock = new object();
 
         public bool IsSpeaking
         {
@@ -30,6 +32,10 @@ namespace English_Listen_WinUI.Services
 
         public bool IsWindowsTtsAvailable => _synthesizer != null;
 
+        public bool HasAudioDevice => _hasAudioDevice;
+
+        public string AudioDeviceStatus => _hasAudioDevice ? "音频设备正常" : "未检测到音频设备";
+
         public SpeechService()
         {
             try
@@ -38,16 +44,42 @@ namespace English_Listen_WinUI.Services
                 try
                 {
                     _synthesizer.SetOutputToDefaultAudioDevice();
+                    _hasAudioDevice = true;
+                    Debug.WriteLine("SpeechService: 音频设备初始化成功");
                 }
                 catch (Exception ex)
                 {
+                    _hasAudioDevice = false;
                     Debug.WriteLine($"SpeechService SetOutputToDefaultAudioDevice 失败: {ex.Message}");
+                    _synthesizer?.Dispose();
+                    _synthesizer = null;
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"SpeechService 初始化失败: {ex.Message}");
                 _synthesizer = null;
+                _hasAudioDevice = false;
+            }
+        }
+
+        public bool CheckAudioDeviceAvailable()
+        {
+            lock (_synthesizerLock)
+            {
+                if (_synthesizer == null) return false;
+
+                try
+                {
+                    _synthesizer.SetOutputToDefaultAudioDevice();
+                    _hasAudioDevice = true;
+                    return true;
+                }
+                catch
+                {
+                    _hasAudioDevice = false;
+                    return false;
+                }
             }
         }
 
@@ -71,20 +103,23 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                var installedVoices = _synthesizer.GetInstalledVoices();
-                foreach (var voice in installedVoices)
+                lock (_synthesizerLock)
                 {
-                    if (voice != null && voice.Enabled)
+                    var installedVoices = _synthesizer.GetInstalledVoices();
+                    foreach (var voice in installedVoices)
                     {
-                        var info = voice.VoiceInfo;
-                        voices.Add(new Models.VoiceInfo
+                        if (voice != null && voice.Enabled)
                         {
-                            Name = info.Name,
-                            DisplayName = info.Name,
-                            Culture = info.Culture.Name,
-                            Gender = Models.VoiceGender.Female,
-                            Engine = "SAPI"
-                        });
+                            var info = voice.VoiceInfo;
+                            voices.Add(new Models.VoiceInfo
+                            {
+                                Name = info.Name,
+                                DisplayName = info.Name,
+                                Culture = info.Culture.Name,
+                                Gender = Models.VoiceGender.Female,
+                                Engine = "SAPI"
+                            });
+                        }
                     }
                 }
             }
@@ -101,9 +136,12 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                _synthesizer.SelectVoice(voiceName);
-                Debug.WriteLine($"英文语音已设置为: {voiceName}");
-                return true;
+                lock (_synthesizerLock)
+                {
+                    _synthesizer.SelectVoice(voiceName);
+                    Debug.WriteLine($"英文语音已设置为: {voiceName}");
+                    return true;
+                }
             }
             catch (Exception ex)
             {
@@ -118,9 +156,12 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                _synthesizer.SelectVoice(voiceName);
-                Debug.WriteLine($"中文语音已设置为: {voiceName}");
-                return true;
+                lock (_synthesizerLock)
+                {
+                    _synthesizer.SelectVoice(voiceName);
+                    Debug.WriteLine($"中文语音已设置为: {voiceName}");
+                    return true;
+                }
             }
             catch (Exception ex)
             {
@@ -155,17 +196,33 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                try
+                if (!string.IsNullOrEmpty(voiceName))
                 {
-                    _synthesizer.SelectVoice(voiceName);
-                }
-                catch
-                {
-                    Debug.WriteLine($"无法设置语音 {voiceName}，使用默认语音");
+                    try
+                    {
+                        _synthesizer.SelectVoice(voiceName);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"无法设置语音 {voiceName}，使用默认语音: {ex.Message}");
+                    }
                 }
 
                 IsSpeaking = true;
-                await Task.Run(() => _synthesizer.Speak(text));
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        lock (_synthesizer)
+                        {
+                            _synthesizer.Speak(text);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"语音播放失败: {ex.Message}");
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -181,7 +238,10 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                _synthesizer?.SpeakAsyncCancelAll();
+                lock (_synthesizerLock)
+                {
+                    _synthesizer?.SpeakAsyncCancelAll();
+                }
             }
             catch { }
             IsSpeaking = false;

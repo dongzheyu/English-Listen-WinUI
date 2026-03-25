@@ -30,12 +30,15 @@ namespace English_Listen_WinUI.Views
         private bool isSpeaking = false;
         private bool _readTranslation = false;
         private bool _isPaperMode = false;
+        private bool _isPlaying = false;
         private Random random = new Random();
         private string currentFileName = string.Empty;
         private HashSet<int> correctIndices = new HashSet<int>();
         private BaiduTranslateService _translateService;
         private TranslationLibraryService _translationLibraryService;
         private SpeechSynthesizer? chineseSynthesizer;
+        private readonly object _synthesisLock = new object();
+        private readonly object _disposalLock = new object();
 
         public class WordTranslationPair
         {
@@ -43,9 +46,25 @@ namespace English_Listen_WinUI.Views
             public required string Translation { get; set; }
         }
 
+        private bool _hasAudioDevice = false;
+
         public DictationTestPage()
         {
             this.InitializeComponent();
+            InitializeAudioDevices();
+
+            countdownTimer = new DispatcherTimer();
+            countdownTimer.Interval = TimeSpan.FromSeconds(1);
+            countdownTimer.Tick += CountdownTimer_Tick;
+            _translateService = new BaiduTranslateService();
+            _translationLibraryService = new TranslationLibraryService();
+        }
+
+        private void InitializeAudioDevices()
+        {
+            bool englishAudioOk = false;
+            bool chineseAudioOk = false;
+
             try
             {
                 synthesizer = new SpeechSynthesizer();
@@ -53,16 +72,22 @@ namespace English_Listen_WinUI.Views
                 try
                 {
                     synthesizer.SetOutputToDefaultAudioDevice();
+                    englishAudioOk = true;
+                    System.Diagnostics.Debug.WriteLine("英文 Synthesizer: 音频设备初始化成功");
                 }
                 catch (Exception ex)
                 {
+                    englishAudioOk = false;
                     System.Diagnostics.Debug.WriteLine($"英文 Synthesizer SetOutputToDefaultAudioDevice 失败: {ex.Message}");
+                    synthesizer?.Dispose();
+                    synthesizer = null;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"英文 Synthesizer 初始化失败: {ex.Message}");
                 synthesizer = null;
+                englishAudioOk = false;
             }
 
             try
@@ -72,99 +97,139 @@ namespace English_Listen_WinUI.Views
                 try
                 {
                     chineseSynthesizer.SetOutputToDefaultAudioDevice();
+                    chineseAudioOk = true;
+                    System.Diagnostics.Debug.WriteLine("中文 Synthesizer: 音频设备初始化成功");
                 }
                 catch (Exception ex)
                 {
+                    chineseAudioOk = false;
                     System.Diagnostics.Debug.WriteLine($"中文 Synthesizer SetOutputToDefaultAudioDevice 失败: {ex.Message}");
+                    chineseSynthesizer?.Dispose();
+                    chineseSynthesizer = null;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"中文 Synthesizer 初始化失败: {ex.Message}");
                 chineseSynthesizer = null;
+                chineseAudioOk = false;
             }
 
-            countdownTimer = new DispatcherTimer();
-            countdownTimer.Interval = TimeSpan.FromSeconds(1);
-            countdownTimer.Tick += CountdownTimer_Tick;
-            _translateService = new BaiduTranslateService();
-            _translationLibraryService = new TranslationLibraryService();
+            _hasAudioDevice = englishAudioOk || chineseAudioOk;
         }
 
-        protected override void OnNavigatedTo(NavigationEventArgs e)
+        private async Task ShowNoAudioDeviceWarningAsync()
+        {
+            try
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "音频设备未检测到",
+                    Content = "当前系统没有可用的音频输出设备。\n\n听写测试需要音频设备来播放单词朗读。\n\n请检查：\n1. 是否连接了扬声器或耳机\n2. 音频设备是否被其他程序占用\n3. 声卡驱动是否正常",
+                    CloseButtonText = "返回主菜单",
+                    XamlRoot = this.XamlRoot
+                };
+
+                await dialog.ShowAsync();
+                Frame?.GoBack();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"显示无音频设备提示失败: {ex.Message}");
+                Frame?.GoBack();
+            }
+        }
+
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
 
-            var mainWindow = App.MainWindow as MainWindow;
-            if (mainWindow != null)
+            try
             {
-                mainWindow.SetSidebarVisibility(false);
-            }
-
-            // 从共享的ViewModel获取设置，而不是创建新的SettingsService实例
-            countdownSeconds = App.SharedViewModel?.Settings?.Settings?.ReadInterval ?? 5;
-
-            // 同步设置到UI控件（OnNavigatedTo 在 UI 线程上调用，可以直接设置）
-            if (CountdownSetter != null)
-            {
-                CountdownSetter.Value = countdownSeconds;
-            }
-
-            SetVoicesFromSettings();
-
-            if (e.Parameter is DictationTestParams testParams)
-            {
-                currentFileName = testParams.FileName;
-                LoadWordList(currentFileName, testParams.RandomOrder);
-            }
-            else if (e.Parameter != null && e.Parameter.GetType().Name == "DictationTestParamsWithTranslations")
-            {
-                var wordListProperty = e.Parameter.GetType().GetProperty("WordList");
-                var randomOrderProperty = e.Parameter.GetType().GetProperty("RandomOrder");
-                var readTranslationProperty = e.Parameter.GetType().GetProperty("ReadTranslation");
-                var isPaperModeProperty = e.Parameter.GetType().GetProperty("IsPaperMode");
-                
-                if (wordListProperty != null && randomOrderProperty != null)
+                // 检查音频设备是否可用
+                if (!_hasAudioDevice)
                 {
-                    var wordListValue = wordListProperty.GetValue(e.Parameter) as List<WordTranslationPair>;
-                    var randomOrderValue = (bool)(randomOrderProperty.GetValue(e.Parameter) ?? false);
-                    var readTranslationValue = (bool)(readTranslationProperty?.GetValue(e.Parameter) ?? false);
-                    var isPaperModeValue = (bool)(isPaperModeProperty?.GetValue(e.Parameter) ?? false);
+                    System.Diagnostics.Debug.WriteLine("DictationTestPage: 未检测到音频设备，显示警告");
+                    await ShowNoAudioDeviceWarningAsync();
+                    return;
+                }
+
+                var mainWindow = App.MainWindow as MainWindow;
+                if (mainWindow != null)
+                {
+                    mainWindow.SetSidebarVisibility(false);
+                }
+
+                // 从共享的ViewModel获取设置，而不是创建新的SettingsService实例
+                countdownSeconds = App.SharedViewModel?.Settings?.Settings?.ReadInterval ?? 5;
+
+                // 同步设置到UI控件（OnNavigatedTo 在 UI 线程上调用，可以直接设置）
+                if (CountdownSetter != null)
+                {
+                    CountdownSetter.Value = countdownSeconds;
+                }
+
+                SetVoicesFromSettings();
+
+                if (e.Parameter is DictationTestParams testParams)
+                {
+                    currentFileName = testParams.FileName;
+                    LoadWordList(currentFileName, testParams.RandomOrder);
+                }
+                else if (e.Parameter != null && e.Parameter.GetType().Name == "DictationTestParamsWithTranslations")
+                {
+                    var wordListProperty = e.Parameter.GetType().GetProperty("WordList");
+                    var randomOrderProperty = e.Parameter.GetType().GetProperty("RandomOrder");
+                    var readTranslationProperty = e.Parameter.GetType().GetProperty("ReadTranslation");
+                    var isPaperModeProperty = e.Parameter.GetType().GetProperty("IsPaperMode");
                     
-                    if (wordListValue != null)
+                    if (wordListProperty != null && randomOrderProperty != null)
                     {
-                        wordList = wordListValue;
-                        if (randomOrderValue)
+                        var wordListValue = wordListProperty.GetValue(e.Parameter) as List<WordTranslationPair>;
+                        var randomOrderValue = (bool)(randomOrderProperty.GetValue(e.Parameter) ?? false);
+                        var readTranslationValue = (bool)(readTranslationProperty?.GetValue(e.Parameter) ?? false);
+                        var isPaperModeValue = (bool)(isPaperModeProperty?.GetValue(e.Parameter) ?? false);
+                        
+                        if (wordListValue != null)
                         {
-                            ShuffleWordList();
+                            wordList = wordListValue;
+                            if (randomOrderValue)
+                            {
+                                ShuffleWordList();
+                            }
+                            totalWords = wordList.Count;
+                            currentIndex = 0;
+                            correctCount = 0;
+                            correctIndices.Clear();
+                            isTestActive = true;
+                            _readTranslation = readTranslationValue;
+                            _isPaperMode = isPaperModeValue;
+                            UpdateUI();
+                            _ = PlayCurrentWordAndStartCountdown();
                         }
-                        totalWords = wordList.Count;
-                        currentIndex = 0;
-                        correctCount = 0;
-                        correctIndices.Clear();
-                        isTestActive = true;
-                        _readTranslation = readTranslationValue;
-                        _isPaperMode = isPaperModeValue;
-                        UpdateUI();
-                        _ = PlayCurrentWordAndStartCountdown();
                     }
                 }
-            }
-            else if (e.Parameter is string fileName)
-            {
-                currentFileName = fileName;
-                LoadWordList(currentFileName, false);
-            }
-            else
-            {
-                ShowErrorDialog("未指定词库文件。");
-                return;
-            }
+                else if (e.Parameter is string fileName)
+                {
+                    currentFileName = fileName;
+                    LoadWordList(currentFileName, false);
+                }
+                else
+                {
+                    ShowErrorDialog("未指定词库文件。");
+                    return;
+                }
 
-            // 在UI加载完成后设置焦点
-            if (InputTextBox != null)
+                // 在UI加载完成后设置焦点
+                if (InputTextBox != null)
+                {
+                    _ = InputTextBox.Focus(FocusState.Programmatic);
+                }
+            }
+            catch (Exception ex)
             {
-                InputTextBox.Focus(FocusState.Programmatic);
+                System.Diagnostics.Debug.WriteLine($"OnNavigatedTo error: {ex.Message}");
+                ShowErrorDialog($"页面加载失败: {ex.Message}");
             }
         }
 
@@ -275,30 +340,51 @@ namespace English_Listen_WinUI.Views
 
         private void UpdateUI()
         {
-            ProgressText.Text = $"第 {currentIndex + 1} / {totalWords} 个";
-            
-            if (_isPaperMode)
+            try
             {
-                ScoreText.Text = string.Empty;
-                InputTextBox.Visibility = Visibility.Collapsed;
-                SubmitButton.Visibility = Visibility.Collapsed;
+                if (ProgressText != null)
+                    ProgressText.Text = $"第 {currentIndex + 1} / {totalWords} 个";
+                
+                if (_isPaperMode)
+                {
+                    if (ScoreText != null)
+                        ScoreText.Text = string.Empty;
+                    if (InputTextBox != null)
+                        InputTextBox.Visibility = Visibility.Collapsed;
+                    if (SubmitButton != null)
+                        SubmitButton.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    if (ScoreText != null)
+                        ScoreText.Text = $"正确: {correctCount} / {totalWords}";
+                    if (InputTextBox != null)
+                    {
+                        InputTextBox.Visibility = Visibility.Visible;
+                        InputTextBox.Text = string.Empty;
+                    }
+                    if (SubmitButton != null)
+                        SubmitButton.Visibility = Visibility.Visible;
+                }
+                
+                if (CountdownText != null)
+                    CountdownText.Text = string.Empty;
+                if (SpeakingStatusText != null)
+                    SpeakingStatusText.Text = string.Empty;
             }
-            else
+            catch (Exception ex)
             {
-                ScoreText.Text = $"正确: {correctCount} / {totalWords}";
-                InputTextBox.Visibility = Visibility.Visible;
-                SubmitButton.Visibility = Visibility.Visible;
-                InputTextBox.Text = string.Empty;
+                System.Diagnostics.Debug.WriteLine($"UpdateUI error: {ex.Message}");
             }
-            
-            CountdownText.Text = string.Empty;
-            SpeakingStatusText.Text = string.Empty;
-            // 保留翻译显示，实现实时翻译
         }
 
         private async Task PlayCurrentWordAndStartCountdown()
         {
-            if (!isTestActive || currentIndex >= totalWords) return;
+            lock (_disposalLock)
+            {
+                if (!isTestActive || currentIndex >= totalWords || _isPlaying) return;
+                _isPlaying = true;
+            }
 
             countdownTimer?.Stop();
 
@@ -306,121 +392,239 @@ namespace English_Listen_WinUI.Views
             string word = wordPair.Word;
             string translation = wordPair.Translation;
             
-            // 实时检查并显示翻译
-            if (string.IsNullOrEmpty(translation) && _readTranslation)
+            try
             {
-                // 自动翻译
+                // 实时检查并显示翻译
+                if (string.IsNullOrEmpty(translation) && _readTranslation)
+                {
+                    // 自动翻译
+                    try
+                    {
+                        translation = await _translateService.TranslateAsync(word, "en", "zh");
+                        if (!string.IsNullOrEmpty(translation))
+                        {
+                            wordPair.Translation = translation;
+                            TranslationText.Text = $"翻译: {translation}";
+                            // 保存翻译到翻译库
+                            _translationLibraryService.SaveTranslation(word, translation);
+                            _translationLibraryService.SaveToFile();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"翻译错误：{ex.Message}");
+                    }
+                }
+                else if (!string.IsNullOrEmpty(translation))
+                {
+                    // 如果已有翻译，立即显示
+                    TranslationText.Text = $"翻译: {translation}";
+                }
+                
+                SpeakingStatusText.Text = "正在朗读...";
+                isSpeaking = true;
+                
                 try
                 {
-                    translation = await _translateService.TranslateAsync(word, "en", "zh");
-                    if (!string.IsNullOrEmpty(translation))
+                    // 第一步：英文朗读 - 使用设置的英文语音模型
+                    await SpeakEnglishWordAsync(word);
+                    
+                    // 第二步：中文朗读 - 使用设置的中文语音模型
+                    if (_readTranslation && !string.IsNullOrEmpty(translation))
                     {
-                        wordPair.Translation = translation;
-                        TranslationText.Text = $"翻译: {translation}";
-                        // 保存翻译到翻译库
-                        _translationLibraryService.SaveTranslation(word, translation);
-                        _translationLibraryService.SaveToFile();
+                        await SpeakChineseTranslationAsync(translation);
                     }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"翻译错误：{ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"语音播放错误：{ex.Message}");
                 }
-            }
-            else if (!string.IsNullOrEmpty(translation))
-            {
-                // 如果已有翻译，立即显示
-                TranslationText.Text = $"翻译: {translation}";
-            }
-            
-            SpeakingStatusText.Text = "正在朗读...";
-            isSpeaking = true;
-            
-            try
-            {
-                // 第一步：英文朗读 - 使用设置的英文语音模型
-                await SpeakEnglishWordAsync(word);
-                
-                // 第二步：中文朗读 - 使用设置的中文语音模型
-                if (_readTranslation && !string.IsNullOrEmpty(translation))
+                finally
                 {
-                    await SpeakChineseTranslationAsync(translation);
+                    isSpeaking = false;
+                    speakTaskSource = null;
+                    SpeakingStatusText.Text = string.Empty;
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"语音播放错误：{ex.Message}");
+
+                lock (_disposalLock)
+                {
+                    if (isTestActive && currentIndex < totalWords)
+                    {
+                        StartCountdown();
+                    }
+                }
             }
             finally
             {
-                isSpeaking = false;
-                speakTaskSource = null;
-                SpeakingStatusText.Text = string.Empty;
-            }
-
-            if (isTestActive && currentIndex < totalWords)
-            {
-                StartCountdown();
+                lock (_disposalLock)
+                {
+                    _isPlaying = false;
+                }
             }
         }
 
         private async Task SpeakEnglishWordAsync(string word)
         {
-            if (synthesizer == null) return;
-
-            // 1. 彻底取消所有正在进行的朗读（包括中文实例，防止干扰）
-            chineseSynthesizer?.SpeakAsyncCancelAll();
-            synthesizer.SpeakAsyncCancelAll();
-
-            // 2. 强制重新应用英文语音设置
-            var englishVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsEnglishVoiceName;
-            if (!string.IsNullOrEmpty(englishVoiceName))
+            SpeechSynthesizer? localSynthesizer = null;
+            
+            lock (_disposalLock)
             {
-                SetEnglishVoice(englishVoiceName);
+                if (!isTestActive) return;
+                localSynthesizer = synthesizer;
             }
+            
+            if (localSynthesizer == null) return;
 
-            // 3. 稍微等待一小会（约50ms），让 SAPI 引擎完成内部切换
-            await Task.Delay(50);
-
-            speakTaskSource = new TaskCompletionSource<bool>();
-            synthesizer.SpeakAsync(word);
-
-            // 增加超时保护
-            var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(8000));
-            if (completedTask != speakTaskSource.Task)
+            try
             {
-                synthesizer.SpeakAsyncCancelAll();
-                System.Diagnostics.Debug.WriteLine("英文语音播放超时");
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        chineseSynthesizer?.SpeakAsyncCancelAll();
+                        localSynthesizer.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                }
+
+                var englishVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsEnglishVoiceName;
+                if (!string.IsNullOrEmpty(englishVoiceName))
+                {
+                    try
+                    {
+                        SetEnglishVoice(englishVoiceName);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"设置英文语音失败: {ex.Message}");
+                    }
+                }
+
+                await Task.Delay(50);
+
+                lock (_disposalLock)
+                {
+                    if (!isTestActive) return;
+                    speakTaskSource = new TaskCompletionSource<bool>();
+                }
+                
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        localSynthesizer.SpeakAsync(word);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"SpeakAsync失败: {ex.Message}");
+                        speakTaskSource?.TrySetResult(false);
+                    }
+                }
+
+                var completedTask = await Task.WhenAny(speakTaskSource!.Task, Task.Delay(8000));
+                if (completedTask != speakTaskSource.Task)
+                {
+                    lock (_synthesisLock)
+                    {
+                        try
+                        {
+                            localSynthesizer.SpeakAsyncCancelAll();
+                        }
+                        catch { }
+                    }
+                    System.Diagnostics.Debug.WriteLine("英文语音播放超时");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"英文语音播放异常: {ex.Message}");
             }
         }
 
         private async Task SpeakChineseTranslationAsync(string translation)
         {
-            if (chineseSynthesizer == null)
+            SpeechSynthesizer? localChineseSynthesizer = null;
+            
+            lock (_disposalLock)
             {
-                chineseSynthesizer = new SpeechSynthesizer();
-                chineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
-                chineseSynthesizer.SetOutputToDefaultAudioDevice();
+                if (!isTestActive) return;
+                localChineseSynthesizer = chineseSynthesizer;
             }
             
-            // 在朗读前设置中文语音模型
-            var chineseVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsChineseVoiceName;
-            if (!string.IsNullOrEmpty(chineseVoiceName))
+            if (localChineseSynthesizer == null)
             {
-                SetChineseVoice(chineseVoiceName);
+                try
+                {
+                    lock (_disposalLock)
+                    {
+                        if (!isTestActive) return;
+                        localChineseSynthesizer = new SpeechSynthesizer();
+                        localChineseSynthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+                        localChineseSynthesizer.SetOutputToDefaultAudioDevice();
+                        chineseSynthesizer = localChineseSynthesizer;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"中文Synthesizer初始化失败: {ex.Message}");
+                    return;
+                }
             }
             
-            await Task.Delay(300);
-            
-            speakTaskSource = new TaskCompletionSource<bool>();
-            chineseSynthesizer.SpeakAsyncCancelAll();
-            chineseSynthesizer.SpeakAsync(translation);
-            
-            var completedTask = await Task.WhenAny(speakTaskSource.Task, Task.Delay(10000));
-            if (completedTask != speakTaskSource.Task)
+            try
             {
-                chineseSynthesizer.SpeakAsyncCancelAll();
-                System.Diagnostics.Debug.WriteLine("中文语音播放超时");
+                var chineseVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsChineseVoiceName;
+                if (!string.IsNullOrEmpty(chineseVoiceName))
+                {
+                    try
+                    {
+                        SetChineseVoice(chineseVoiceName);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"设置中文语音失败: {ex.Message}");
+                    }
+                }
+                
+                await Task.Delay(300);
+                
+                lock (_disposalLock)
+                {
+                    if (!isTestActive) return;
+                    speakTaskSource = new TaskCompletionSource<bool>();
+                }
+                
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        localChineseSynthesizer.SpeakAsyncCancelAll();
+                        localChineseSynthesizer.SpeakAsync(translation);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"中文SpeakAsync失败: {ex.Message}");
+                        speakTaskSource?.TrySetResult(false);
+                    }
+                }
+                
+                var completedTask = await Task.WhenAny(speakTaskSource!.Task, Task.Delay(10000));
+                if (completedTask != speakTaskSource.Task)
+                {
+                    lock (_synthesisLock)
+                    {
+                        try
+                        {
+                            localChineseSynthesizer.SpeakAsyncCancelAll();
+                        }
+                        catch { }
+                    }
+                    System.Diagnostics.Debug.WriteLine("中文语音播放超时");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"中文语音播放异常: {ex.Message}");
             }
         }
 
@@ -445,16 +649,32 @@ namespace English_Listen_WinUI.Views
 
         private async void Submit()
         {
-            if (!isTestActive || currentIndex >= totalWords) return;
+            lock (_disposalLock)
+            {
+                if (!isTestActive || currentIndex >= totalWords) return;
+            }
+            
             countdownTimer?.Stop();
             
             if (isSpeaking)
             {
-                synthesizer?.SpeakAsyncCancelAll();
-                chineseSynthesizer?.SpeakAsyncCancelAll();
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        synthesizer?.SpeakAsyncCancelAll();
+                        chineseSynthesizer?.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                }
                 isSpeaking = false;
                 speakTaskSource = null;
                 SpeakingStatusText.Text = string.Empty;
+            }
+
+            lock (_disposalLock)
+            {
+                _isPlaying = false;
             }
 
             string input = InputTextBox.Text?.Trim() ?? "";
@@ -472,7 +692,10 @@ namespace English_Listen_WinUI.Views
 
         private void AutoSubmit()
         {
-            if (!isTestActive || currentIndex >= totalWords) return;
+            lock (_disposalLock)
+            {
+                if (!isTestActive || currentIndex >= totalWords) return;
+            }
 
             string input = InputTextBox.Text?.Trim() ?? "";
             string correct = wordList[currentIndex].Word.Trim();
@@ -483,6 +706,11 @@ namespace English_Listen_WinUI.Views
                 correctCount++;
                 correctIndices.Add(currentIndex);
                 ScoreText.Text = $"正确: {correctCount} / {totalWords}";
+            }
+
+            lock (_disposalLock)
+            {
+                _isPlaying = false;
             }
 
             MoveToNextWord();
@@ -504,16 +732,32 @@ namespace English_Listen_WinUI.Views
 
         private void Skip()
         {
-            if (!isTestActive || currentIndex >= totalWords) return;
+            lock (_disposalLock)
+            {
+                if (!isTestActive || currentIndex >= totalWords) return;
+            }
+            
             countdownTimer?.Stop();
             
             if (isSpeaking)
             {
-                synthesizer?.SpeakAsyncCancelAll();
-                chineseSynthesizer?.SpeakAsyncCancelAll();
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        synthesizer?.SpeakAsyncCancelAll();
+                        chineseSynthesizer?.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                }
                 isSpeaking = false;
                 speakTaskSource = null;
                 SpeakingStatusText.Text = string.Empty;
+            }
+
+            lock (_disposalLock)
+            {
+                _isPlaying = false;
             }
             
             MoveToNextWord();
@@ -521,16 +765,32 @@ namespace English_Listen_WinUI.Views
 
         private void Replay()
         {
-            if (!isTestActive || currentIndex >= totalWords) return;
+            lock (_disposalLock)
+            {
+                if (!isTestActive || currentIndex >= totalWords) return;
+            }
+            
             countdownTimer?.Stop();
             
             if (isSpeaking)
             {
-                synthesizer?.SpeakAsyncCancelAll();
-                chineseSynthesizer?.SpeakAsyncCancelAll();
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        synthesizer?.SpeakAsyncCancelAll();
+                        chineseSynthesizer?.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                }
                 isSpeaking = false;
                 speakTaskSource = null;
                 SpeakingStatusText.Text = string.Empty;
+            }
+
+            lock (_disposalLock)
+            {
+                _isPlaying = false;
             }
             
             _ = PlayCurrentWordAndStartCountdown();
@@ -538,18 +798,33 @@ namespace English_Listen_WinUI.Views
 
         private void Previous()
         {
-            if (!isTestActive) return;
-            if (currentIndex <= 0) return;
+            lock (_disposalLock)
+            {
+                if (!isTestActive) return;
+                if (currentIndex <= 0) return;
+            }
 
             countdownTimer?.Stop();
             
             if (isSpeaking)
             {
-                synthesizer?.SpeakAsyncCancelAll();
-                chineseSynthesizer?.SpeakAsyncCancelAll();
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        synthesizer?.SpeakAsyncCancelAll();
+                        chineseSynthesizer?.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                }
                 isSpeaking = false;
                 speakTaskSource = null;
                 SpeakingStatusText.Text = string.Empty;
+            }
+
+            lock (_disposalLock)
+            {
+                _isPlaying = false;
             }
             
             currentIndex--;
@@ -564,7 +839,14 @@ namespace English_Listen_WinUI.Views
 
             if (isSpeaking)
             {
-                synthesizer?.SpeakAsyncCancelAll();
+                lock (_synthesisLock)
+                {
+                    try
+                    {
+                        synthesizer?.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                }
             }
 
             if (speakTaskSource != null)
@@ -580,7 +862,6 @@ namespace English_Listen_WinUI.Views
 
             if (_isPaperMode)
             {
-                // 显示提示框
                 var dialog = new ContentDialog
                 {
                     Title = "听写完成",
@@ -590,7 +871,6 @@ namespace English_Listen_WinUI.Views
                 };
 
                 await dialog.ShowAsync();
-                // 导航到AnswersPage显示答案
                 Frame?.Navigate(typeof(AnswersPage), wordList);
             }
             else
@@ -866,38 +1146,41 @@ namespace English_Listen_WinUI.Views
 
         private void SetEnglishVoice(string voiceName)
         {
+            SpeechSynthesizer? localSynthesizer = null;
+            
+            lock (_disposalLock)
+            {
+                localSynthesizer = synthesizer;
+            }
+            
+            if (localSynthesizer == null) return;
+
             try
             {
-                if (synthesizer == null) return;
+                var installedVoices = localSynthesizer.GetInstalledVoices();
 
-                // 获取所有已启用的语音
-                var installedVoices = synthesizer.GetInstalledVoices();
-
-                // 打印所有可用语音用于调试
                 System.Diagnostics.Debug.WriteLine("=== synthesizer 可用语音列表 ===");
                 foreach (var v in installedVoices)
                 {
                     System.Diagnostics.Debug.WriteLine($"可用语音: {v.VoiceInfo.Name} | 语言: {v.VoiceInfo.Culture}");
                 }
 
-                // 1. 尝试匹配用户设置的特定名称
                 var targetVoice = installedVoices.FirstOrDefault(v =>
                     v.Enabled && v.VoiceInfo.Name == voiceName);
 
                 if (targetVoice != null)
                 {
-                    synthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
+                    localSynthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
                     System.Diagnostics.Debug.WriteLine($"英文语音已设置为: {voiceName}");
                 }
                 else
                 {
-                    // 2. 保底：如果设置的语音失效，强制寻找任何一个 Culture 为 "en" 的语音
                     var fallbackVoice = installedVoices.FirstOrDefault(v =>
                         v.Enabled && v.VoiceInfo.Culture.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase));
 
                     if (fallbackVoice != null)
                     {
-                        synthesizer.SelectVoice(fallbackVoice.VoiceInfo.Name);
+                        localSynthesizer.SelectVoice(fallbackVoice.VoiceInfo.Name);
                         System.Diagnostics.Debug.WriteLine($"警告：未找到指定语音 {voiceName}，已自动回退到英文语音：{fallbackVoice.VoiceInfo.Name}");
                     }
                     else
@@ -908,7 +1191,6 @@ namespace English_Listen_WinUI.Views
             }
             catch (ArgumentException ex)
             {
-                // 如果提供的语音名称找不到，会抛出 ArgumentException
                 System.Diagnostics.Debug.WriteLine($"错误：找不到名为 '{voiceName}' 的英文语音模型。请检查名称是否正确。详细信息：{ex.Message}");
             }
             catch (Exception ex)
@@ -919,38 +1201,41 @@ namespace English_Listen_WinUI.Views
 
         private void SetChineseVoice(string voiceName)
         {
+            SpeechSynthesizer? localChineseSynthesizer = null;
+            
+            lock (_disposalLock)
+            {
+                localChineseSynthesizer = chineseSynthesizer;
+            }
+            
+            if (localChineseSynthesizer == null) return;
+
             try
             {
-                if (chineseSynthesizer == null) return;
+                var installedVoices = localChineseSynthesizer.GetInstalledVoices();
 
-                // 获取所有已启用的语音
-                var installedVoices = chineseSynthesizer.GetInstalledVoices();
-
-                // 打印所有可用语音用于调试
                 System.Diagnostics.Debug.WriteLine("=== chineseSynthesizer 可用语音列表 ===");
                 foreach (var v in installedVoices)
                 {
                     System.Diagnostics.Debug.WriteLine($"可用语音: {v.VoiceInfo.Name} | 语言: {v.VoiceInfo.Culture}");
                 }
 
-                // 1. 尝试匹配用户设置的特定名称
                 var targetVoice = installedVoices.FirstOrDefault(v =>
                     v.Enabled && v.VoiceInfo.Name == voiceName);
 
                 if (targetVoice != null)
                 {
-                    chineseSynthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
+                    localChineseSynthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
                     System.Diagnostics.Debug.WriteLine($"中文语音已设置为: {voiceName}");
                 }
                 else
                 {
-                    // 2. 保底：如果设置的语音失效，强制寻找任何一个 Culture 为 "zh" 的语音
                     var fallbackVoice = installedVoices.FirstOrDefault(v =>
                         v.Enabled && v.VoiceInfo.Culture.TwoLetterISOLanguageName.Equals("zh", StringComparison.OrdinalIgnoreCase));
 
                     if (fallbackVoice != null)
                     {
-                        chineseSynthesizer.SelectVoice(fallbackVoice.VoiceInfo.Name);
+                        localChineseSynthesizer.SelectVoice(fallbackVoice.VoiceInfo.Name);
                         System.Diagnostics.Debug.WriteLine($"警告：未找到指定语音 {voiceName}，已自动回退到中文语音：{fallbackVoice.VoiceInfo.Name}");
                     }
                     else
@@ -961,7 +1246,6 @@ namespace English_Listen_WinUI.Views
             }
             catch (ArgumentException ex)
             {
-                // 如果提供的语音名称找不到，会抛出 ArgumentException
                 System.Diagnostics.Debug.WriteLine($"错误：找不到名为 '{voiceName}' 的中文语音模型。请检查名称是否正确。详细信息：{ex.Message}");
             }
             catch (Exception ex)
@@ -972,23 +1256,58 @@ namespace English_Listen_WinUI.Views
 
         public void Dispose()
         {
-            // 停止定时器
-            countdownTimer?.Stop();
-            countdownTimer = null;
-            
-            // 释放SpeechSynthesizer资源
-            if (synthesizer != null)
+            lock (_disposalLock)
             {
-                synthesizer.SpeakCompleted -= Synthesizer_SpeakCompleted;
-                synthesizer.Dispose();
-                synthesizer = null;
-            }
-            
-            if (chineseSynthesizer != null)
-            {
-                chineseSynthesizer.SpeakCompleted -= Synthesizer_SpeakCompleted;
-                chineseSynthesizer.Dispose();
-                chineseSynthesizer = null;
+                isTestActive = false;
+                
+                countdownTimer?.Stop();
+                countdownTimer = null;
+                
+                if (synthesizer != null)
+                {
+                    try
+                    {
+                        synthesizer.SpeakCompleted -= Synthesizer_SpeakCompleted;
+                    }
+                    catch { }
+                    
+                    try
+                    {
+                        synthesizer.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                    
+                    try
+                    {
+                        synthesizer.Dispose();
+                    }
+                    catch { }
+                    
+                    synthesizer = null;
+                }
+                
+                if (chineseSynthesizer != null)
+                {
+                    try
+                    {
+                        chineseSynthesizer.SpeakCompleted -= Synthesizer_SpeakCompleted;
+                    }
+                    catch { }
+                    
+                    try
+                    {
+                        chineseSynthesizer.SpeakAsyncCancelAll();
+                    }
+                    catch { }
+                    
+                    try
+                    {
+                        chineseSynthesizer.Dispose();
+                    }
+                    catch { }
+                    
+                    chineseSynthesizer = null;
+                }
             }
         }
     }

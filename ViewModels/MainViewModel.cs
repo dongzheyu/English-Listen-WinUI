@@ -366,7 +366,14 @@ namespace English_Listen_WinUI.ViewModels
 
         public void Cleanup()
         {
-            _speechService?.Dispose();
+            try
+            {
+                _speechService?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Cleanup失败: {ex.Message}");
+            }
         }
     }
 

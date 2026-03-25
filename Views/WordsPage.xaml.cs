@@ -768,16 +768,24 @@ namespace English_Listen_WinUI.Views
 
         private void DeleteSelectedButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectedItems = _wordList.Where(w => w.IsSelected).ToList();
-            foreach (var item in selectedItems)
+            try
             {
-                _wordList.Remove(item);
+                // 创建要删除的项的副本列表，避免在遍历时修改集合
+                var selectedItems = _wordList.Where(w => w.IsSelected).ToList();
+                
+                // 使用RemoveAll方法一次性删除所有选中项，避免多次集合修改
+                _wordList.RemoveAll(w => w.IsSelected);
+                
+                UpdateWordsListBox();
+                if (_autoSaveTimer != null)
+                {
+                    _autoSaveTimer.Stop();
+                    _autoSaveTimer.Start();
+                }
             }
-            UpdateWordsListBox();
-            if (_autoSaveTimer != null)
+            catch (Exception ex)
             {
-                _autoSaveTimer.Stop();
-                _autoSaveTimer.Start();
+                System.Diagnostics.Debug.WriteLine($"删除选中项错误: {ex.Message}");
             }
         }
 

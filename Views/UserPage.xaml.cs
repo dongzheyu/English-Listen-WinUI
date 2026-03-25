@@ -70,6 +70,12 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
+                if (UsernameBox == null || PasswordBox == null)
+                {
+                    await ShowMessage("控件未初始化，请重试");
+                    return;
+                }
+
                 var selectedUser = UsernameBox.SelectedItem as UserData;
                 if (selectedUser == null)
                 {
@@ -93,10 +99,17 @@ namespace English_Listen_WinUI.Views
                     // Verify password
                     if (VerifyPassword(password, user.PasswordHash))
                     {
-                        _viewModel.Settings.Settings.CurrentUser = username;
-                        await _viewModel.Settings.SaveSettingsAsync();
-                        UpdateUserStatus();
-                        await ShowMessage("登录成功!");
+                        if (_viewModel?.Settings?.Settings != null)
+                        {
+                            _viewModel.Settings.Settings.CurrentUser = username;
+                            await _viewModel.Settings.SaveSettingsAsync();
+                            UpdateUserStatus();
+                            await ShowMessage("登录成功!");
+                        }
+                        else
+                        {
+                            await ShowMessage("设置服务不可用");
+                        }
                     }
                     else
                     {
@@ -119,10 +132,17 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                _viewModel.Settings.Settings.CurrentUser = null;
-                await _viewModel.Settings.SaveSettingsAsync();
-                UpdateUserStatus();
-                await ShowMessage("已退出登录");
+                if (_viewModel?.Settings?.Settings != null)
+                {
+                    _viewModel.Settings.Settings.CurrentUser = null;
+                    await _viewModel.Settings.SaveSettingsAsync();
+                    UpdateUserStatus();
+                    await ShowMessage("已退出登录");
+                }
+                else
+                {
+                    await ShowMessage("设置服务不可用");
+                }
             }
             catch (Exception ex)
             {

@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using English_Listen_WinUI.ViewModels;
+using English_Listen_WinUI.Helpers;
 using Microsoft.Windows.AppLifecycle;
 
 namespace English_Listen_WinUI
@@ -50,6 +51,7 @@ namespace English_Listen_WinUI
                 // CRITICAL: Activate the window to bring it to foreground
                 // Activate() is the correct WinUI3 method to show and focus the window
                 _window.Activate();
+
                 System.Diagnostics.Debug.WriteLine("[STARTUP] 9. Window activated - should now be visible");
 
                 System.Diagnostics.Debug.WriteLine("[STARTUP] 10. COMPLETE - Window activation attempted");
@@ -77,8 +79,9 @@ namespace English_Listen_WinUI
                 {
                     rootElement.RequestedTheme = themeMode switch
                     {
-                        0 => ElementTheme.Light,
-                        1 => ElementTheme.Dark,
+                        0 => ElementTheme.Default,
+                        1 => ElementTheme.Light,
+                        2 => ElementTheme.Dark,
                         _ => ElementTheme.Default
                     };
                     System.Diagnostics.Debug.WriteLine($"[THEME] Applied theme mode: {themeMode}");
@@ -107,8 +110,15 @@ namespace English_Listen_WinUI
                 var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
                 if (System.IO.File.Exists(tempPath))
                 {
-                    System.IO.File.Delete(tempPath);
-                    System.Diagnostics.Debug.WriteLine("[APP] Temp file deleted");
+                    try
+                    {
+                        System.IO.File.Delete(tempPath);
+                        System.Diagnostics.Debug.WriteLine("[APP] Temp file deleted");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[APP] Failed to delete temp file: {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -122,7 +132,14 @@ namespace English_Listen_WinUI
             try
             {
                 var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
-                System.IO.File.WriteAllText(tempPath, string.Empty);
+                try
+                {
+                    System.IO.File.WriteAllText(tempPath, string.Empty);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[APP] Failed to write to temp file: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
