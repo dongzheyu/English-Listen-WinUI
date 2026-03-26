@@ -213,9 +213,12 @@ namespace English_Listen_WinUI.Services
                 {
                     try
                     {
-                        lock (_synthesizer)
+                        lock (_synthesizerLock)
                         {
-                            _synthesizer.Speak(text);
+                            if (_synthesizer != null)
+                            {
+                                _synthesizer.Speak(text);
+                            }
                         }
                     }
                     catch (Exception ex)

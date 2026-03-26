@@ -261,7 +261,16 @@ namespace English_Listen_WinUI.Views
             }
             else
             {
-                string folderPath = Path.Combine(AppContext.BaseDirectory, "wordlist");
+                string appDataPath;
+                try
+                {
+                    appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                }
+                catch
+                {
+                    appDataPath = AppContext.BaseDirectory;
+                }
+                string folderPath = Path.Combine(appDataPath, "wordlist");
                 fullPath = Path.Combine(folderPath, filePath);
             }
 

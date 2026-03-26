@@ -125,4 +125,9 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Optimize>False</Optimize>
   </PropertyGroup>
+
+  <!-- 证书签名配置 - 构建后手动签名 -->
+  <PropertyGroup>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+  </PropertyGroup>
 </Project>

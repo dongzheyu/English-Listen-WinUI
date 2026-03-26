@@ -768,7 +768,16 @@ namespace English_Listen_WinUI.Views
                 var result = await dialog.ShowAsync();
                 if (result == ContentDialogResult.Primary)
                 {
-                    var appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                    string appDataPath;
+                    try
+                    {
+                        appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                    }
+                    catch
+                    {
+                        appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                    }
+                    
                     var configPath = System.IO.Path.Combine(appDataPath, "config");
                     var userDataPath = System.IO.Path.Combine(configPath, "users");
                     
@@ -1000,7 +1009,17 @@ namespace English_Listen_WinUI.Views
                     }
                 }
                 
-                var configPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config", "redeem_codes.json");
+                string appDataPath;
+                try
+                {
+                    appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                }
+                catch
+                {
+                    appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                }
+                
+                var configPath = System.IO.Path.Combine(appDataPath, "config", "redeem_codes.json");
                 if (System.IO.File.Exists(configPath))
                 {
                     var json = System.IO.File.ReadAllText(configPath);

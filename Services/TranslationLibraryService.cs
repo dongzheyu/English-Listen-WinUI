@@ -13,7 +13,16 @@ namespace English_Listen_WinUI.Services
 
         public TranslationLibraryService()
         {
-            var appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+            string appDataPath;
+            try
+            {
+                appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+            }
+            catch
+            {
+                appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+            }
+            
             var dataDir = Path.Combine(appDataPath, "data");
             if (!Directory.Exists(dataDir))
             {

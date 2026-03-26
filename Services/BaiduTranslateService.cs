@@ -26,13 +26,23 @@ namespace English_Listen_WinUI.Services
         private string _currentDate;
         private string _appId = null!;
         private string _apiKey = null!;
+        private readonly object _cacheLock = new object();
 
         public BaiduTranslateService()
         {
             _httpClient = new HttpClient();
             _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
-            var appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+            string appDataPath;
+            try
+            {
+                appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+            }
+            catch
+            {
+                appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+            }
+            
             var cacheDir = Path.Combine(appDataPath, "cache");
             if (!Directory.Exists(cacheDir))
             {
@@ -124,7 +134,17 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config", "secret.json");
+                string appDataPath;
+                try
+                {
+                    appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                }
+                catch
+                {
+                    appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                }
+                
+                var configPath = Path.Combine(appDataPath, "config", "secret.json");
 
                 if (!File.Exists(configPath))
                 {
@@ -212,21 +232,24 @@ namespace English_Listen_WinUI.Services
 
         private void SaveCache()
         {
-            try
+            lock (_cacheLock)
             {
-                var jsonSettings = new JsonSerializerSettings
+                try
                 {
-                    Formatting = Formatting.Indented
-                };
+                    var jsonSettings = new JsonSerializerSettings
+                    {
+                        Formatting = Formatting.Indented
+                    };
 
-                var translationJson = JsonConvert.SerializeObject(_translationCache, jsonSettings);
-                File.WriteAllText(_translationCachePath, translationJson);
+                    var translationJson = JsonConvert.SerializeObject(_translationCache, jsonSettings);
+                    File.WriteAllText(_translationCachePath, translationJson);
 
-                var limitJson = JsonConvert.SerializeObject(_dailyLimitCache, jsonSettings);
-                File.WriteAllText(_limitCachePath, limitJson);
-            }
-            catch
-            {
+                    var limitJson = JsonConvert.SerializeObject(_dailyLimitCache, jsonSettings);
+                    File.WriteAllText(_limitCachePath, limitJson);
+                }
+                catch
+                {
+                }
             }
         }
 
@@ -246,12 +269,15 @@ namespace English_Listen_WinUI.Services
 
         private void CheckDate()
         {
-            var today = DateTime.Now.ToString("yyyy-MM-dd");
-            if (today != _currentDate)
+            lock (_cacheLock)
             {
-                _currentDate = today;
-                _dailyLimitCache[_currentDate] = 0;
-                SaveCache();
+                var today = DateTime.Now.ToString("yyyy-MM-dd");
+                if (today != _currentDate)
+                {
+                    _currentDate = today;
+                    _dailyLimitCache[_currentDate] = 0;
+                    SaveCache();
+                }
             }
         }
 
@@ -263,9 +289,12 @@ namespace English_Listen_WinUI.Services
 
         private void IncrementLimit()
         {
-            CheckDate();
-            _dailyLimitCache[_currentDate]++;
-            SaveCache();
+            lock (_cacheLock)
+            {
+                CheckDate();
+                _dailyLimitCache[_currentDate]++;
+                SaveCache();
+            }
         }
 
         public async Task<string> TranslateAsync(string text, string from = "auto", string to = "zh")
@@ -276,9 +305,14 @@ namespace English_Listen_WinUI.Services
             }
 
             var cacheKey = $"{from}:{to}:{text}";
-            if (_translationCache.TryGetValue(cacheKey, out var cachedResult))
+            
+            // 检查缓存
+            lock (_cacheLock)
             {
-                return cachedResult;
+                if (_translationCache.TryGetValue(cacheKey, out var cachedResult))
+                {
+                    return cachedResult;
+                }
             }
 
             try
@@ -313,9 +347,15 @@ namespace English_Listen_WinUI.Services
                 if (result.TransResult != null && result.TransResult.Length > 0)
                 {
                     var translation = result.TransResult[0].Dst;
-                    _translationCache[cacheKey] = translation;
-                    IncrementLimit();
-                    SaveCache();
+                    
+                    // 更新缓存
+                    lock (_cacheLock)
+                    {
+                        _translationCache[cacheKey] = translation;
+                        IncrementLimit();
+                        SaveCache();
+                    }
+                    
                     return translation;
                 }
 

@@ -59,6 +59,7 @@ namespace English_Listen_WinUI.Views
         private List<WordItem> _wordList = new List<WordItem>();
         private BaiduTranslateService _translateService;
         private TranslationLibraryService _translationLibrary;
+        private bool _isTranslating = false;
 
         public WordsPage()
         {
@@ -892,13 +893,13 @@ namespace English_Listen_WinUI.Views
             switch (filterType)
             {
                 case "以字母开头":
-                    filteredLines = filteredLines.Where(line => char.IsLetter(line[0]));
+                    filteredLines = filteredLines.Where(line => !string.IsNullOrEmpty(line) && char.IsLetter(line[0]));
                     break;
                 case "以数字开头":
-                    filteredLines = filteredLines.Where(line => char.IsDigit(line[0]));
+                    filteredLines = filteredLines.Where(line => !string.IsNullOrEmpty(line) && char.IsDigit(line[0]));
                     break;
                 case "包含特殊字符":
-                    filteredLines = filteredLines.Where(line => line.Any(c => !char.IsLetterOrDigit(c) && !char.IsWhiteSpace(c)));
+                    filteredLines = filteredLines.Where(line => !string.IsNullOrEmpty(line) && line.Any(c => !char.IsLetterOrDigit(c) && !char.IsWhiteSpace(c)));
                     break;
             }
             
@@ -908,63 +909,77 @@ namespace English_Listen_WinUI.Views
 
         private async void BatchTranslateButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectedItems = _wordList.Where(item => item.IsSelected).ToList();
-            if (selectedItems.Count == 0)
+            if (_isTranslating)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "请选择要翻译的单词",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
                 return;
             }
             
-            var remaining = _translateService.GetRemainingLimit();
-            if (remaining < selectedItems.Count)
+            _isTranslating = true;
+            
+            try
             {
-                var errorDialog = new ContentDialog
+                var selectedItems = _wordList.Where(item => item.IsSelected).ToList();
+                if (selectedItems.Count == 0)
                 {
-                    Title = "提示",
-                    Content = $"翻译限额不足，剩余{remaining}次，需要{selectedItems.Count}次",
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "提示",
+                        Content = "请选择要翻译的单词",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                    return;
+                }
+                
+                var remaining = _translateService.GetRemainingLimit();
+                if (remaining < selectedItems.Count)
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "提示",
+                        Content = $"翻译限额不足，剩余{remaining}次，需要{selectedItems.Count}次",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                    return;
+                }
+                
+                var translationsToSave = new List<(string Word, string Translation)>();
+                
+                foreach (var item in selectedItems)
+                {
+                    try
+                    {
+                        var translation = await _translateService.TranslateAsync(item.Word);
+                        item.Translation = translation;
+                        translationsToSave.Add((item.Word, translation));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"翻译失败: {item.Word} - {ex.Message}");
+                        item.Translation = "翻译失败";
+                    }
+                }
+                
+                _translationLibrary.SaveTranslations(translationsToSave);
+                
+                UpdateWordsListBox();
+                
+                var successDialog = new ContentDialog
+                {
+                    Title = "成功",
+                    Content = $"成功翻译 {selectedItems.Count} 个单词，已保存到翻译库",
                     CloseButtonText = "确定",
                     XamlRoot = this.XamlRoot
                 };
-                await errorDialog.ShowAsync();
-                return;
+                await successDialog.ShowAsync();
             }
-            
-            var translationsToSave = new List<(string Word, string Translation)>();
-            
-            foreach (var item in selectedItems)
+            finally
             {
-                try
-                {
-                    var translation = await _translateService.TranslateAsync(item.Word);
-                    item.Translation = translation;
-                    translationsToSave.Add((item.Word, translation));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"翻译失败: {item.Word} - {ex.Message}");
-                    item.Translation = "翻译失败";
-                }
+                _isTranslating = false;
             }
-            
-            _translationLibrary.SaveTranslations(translationsToSave);
-            
-            UpdateWordsListBox();
-            
-            var successDialog = new ContentDialog
-            {
-                Title = "成功",
-                Content = $"成功翻译 {selectedItems.Count} 个单词，已保存到翻译库",
-                CloseButtonText = "确定",
-                XamlRoot = this.XamlRoot
-            };
-            await successDialog.ShowAsync();
         }
 
         private async void ImportButton_Click(object sender, RoutedEventArgs e)
@@ -1114,7 +1129,16 @@ namespace English_Listen_WinUI.Views
                     
                     if (string.IsNullOrEmpty(wordlistDir))
                     {
-                        wordlistDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wordlist");
+                        string appDataPath;
+                        try
+                        {
+                            appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                        }
+                        catch
+                        {
+                            appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                        }
+                        wordlistDir = Path.Combine(appDataPath, "wordlist");
                     }
                     
                     var filePath = Path.Combine(wordlistDir, selectedFileName);
@@ -1250,7 +1274,16 @@ namespace English_Listen_WinUI.Views
                     if (string.IsNullOrEmpty(wordlistDir))
                     {
                         // 使用默认路径
-                        wordlistDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wordlist");
+                        string appDataPath;
+                        try
+                        {
+                            appDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                        }
+                        catch
+                        {
+                            appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                        }
+                        wordlistDir = Path.Combine(appDataPath, "wordlist");
                     }
                     
                     // 确保目录存在
