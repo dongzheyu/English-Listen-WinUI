@@ -214,7 +214,7 @@ namespace English_Listen_WinUI
 - 提供测试历史记录查看
 - 界面简洁易用
 
-版权 © 2026 JetCPP。本软件使用 MIT 许可证发布。",
+版权 © 2026 dongle。本软件使用 MIT 许可证发布。",
                     TextWrapping = TextWrapping.Wrap
                 };
                 scrollViewer.Content = textBlock;

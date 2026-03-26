@@ -108,7 +108,7 @@
                     <TextBlock Text="MIT 许可证" 
                                FontSize="14" FontWeight="SemiBold" 
                                Margin="0,0,0,5"/>
-                    <TextBlock Text="版权所有 (c) 2026 JetCPP" 
+                    <TextBlock Text="版权所有 (c) 2026 dongle" 
                                FontSize="14" 
                                Margin="0,0,0,10"/>
                     <TextBlock Text="特此授予任何获得本软件及相关文档文件（“软件”）副本的人免费许可，不受限制地处理本软件，包括但不限于使用、复制、修改、合并、发布、分发、再许可和/或销售本软件副本的权利，并允许向其提供本软件的人员进行上述操作，但须符合以下条件：" 
