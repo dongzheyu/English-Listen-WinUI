@@ -7,6 +7,8 @@ namespace English_Listen_WinUI.Services
 {
     public class TranslationLibraryService
     {
+        private const int MAX_TRANSLATIONS = 50000;
+
         private readonly string _libraryPath;
         private Dictionary<string, string> _translations;
         private bool _isDirty;
@@ -85,6 +87,13 @@ namespace English_Listen_WinUI.Services
             if (_translations.TryGetValue(trimmedWord, out var existing) && existing == trimmedTranslation)
             {
                 return;
+            }
+
+            // Evict oldest entry if at capacity
+            if (_translations.Count >= MAX_TRANSLATIONS && !_translations.ContainsKey(trimmedWord))
+            {
+                var oldestKey = _translations.Keys.First();
+                _translations.Remove(oldestKey);
             }
 
             _translations[trimmedWord] = trimmedTranslation;

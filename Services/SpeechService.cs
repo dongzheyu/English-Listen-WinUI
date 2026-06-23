@@ -170,14 +170,46 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        public Task SpeakAsync(string text, CancellationToken cancellationToken = default)
+        public async Task SpeakAsync(string text, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(text)) return Task.CompletedTask;
+            if (string.IsNullOrWhiteSpace(text)) return;
 
+            if (_synthesizer == null) return;
+
+            if (_isPaused) return;
+
+            IsSpeaking = true;
             try
             {
-                IsSpeaking = true;
-                _synthesizer?.Speak(text);
+                using (cancellationToken.Register(() =>
+                {
+                    try { _synthesizer?.SpeakAsyncCancelAll(); } catch { }
+                }))
+                {
+                    var tcs = new TaskCompletionSource<bool>();
+                    EventHandler<SpeakCompletedEventArgs>? handler = null;
+                    handler = (sender, args) =>
+                    {
+                        _synthesizer!.SpeakCompleted -= handler;
+                        tcs.TrySetResult(true);
+                    };
+                    _synthesizer.SpeakCompleted += handler;
+
+                    try
+                    {
+                        _synthesizer.SpeakAsync(text);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await tcs.Task;
+                    }
+                    finally
+                    {
+                        _synthesizer.SpeakCompleted -= handler;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("朗读被取消");
             }
             catch (Exception ex)
             {
@@ -187,7 +219,6 @@ namespace English_Listen_WinUI.Services
             {
                 IsSpeaking = false;
             }
-            return Task.CompletedTask;
         }
 
         public async Task SpeakAsync(string text, string voiceName, bool isEnglish)
@@ -209,23 +240,24 @@ namespace English_Listen_WinUI.Services
                 }
 
                 IsSpeaking = true;
-                await Task.Run(() =>
+                var tcs = new TaskCompletionSource<bool>();
+                EventHandler<SpeakCompletedEventArgs>? handler = null;
+                handler = (sender, args) =>
                 {
-                    try
-                    {
-                        lock (_synthesizerLock)
-                        {
-                            if (_synthesizer != null)
-                            {
-                                _synthesizer.Speak(text);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"语音播放失败: {ex.Message}");
-                    }
-                });
+                    _synthesizer!.SpeakCompleted -= handler;
+                    tcs.TrySetResult(true);
+                };
+                _synthesizer.SpeakCompleted += handler;
+
+                try
+                {
+                    _synthesizer.SpeakAsync(text);
+                    await tcs.Task;
+                }
+                finally
+                {
+                    _synthesizer.SpeakCompleted -= handler;
+                }
             }
             catch (Exception ex)
             {
@@ -255,6 +287,7 @@ namespace English_Listen_WinUI.Services
             if (!_isPaused && _isSpeaking)
             {
                 _isPaused = true;
+                try { _synthesizer?.SpeakAsyncCancelAll(); } catch { }
             }
         }
 

@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Speech.Synthesis;
 
 namespace English_Listen_WinUI.Services
 {
-    public class ModernDictationService
+    public class ModernDictationService : IDisposable
     {
         private SpeechSynthesizer? _speechService;
         private string _currentVoice = "";
@@ -19,6 +20,9 @@ namespace English_Listen_WinUI.Services
         private System.Timers.Timer? _countdownTimer;
         private int _currentCountdown;
         private bool _hasAudioDevice = false;
+        private readonly SemaphoreSlim _operationLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _speechLock = new SemaphoreSlim(1, 1);
+        private bool _disposed;
 
         public enum SpeechState
         {
@@ -81,6 +85,7 @@ namespace English_Listen_WinUI.Services
             {
                 _countdownTimer = new System.Timers.Timer(1000);
                 _countdownTimer.Elapsed += OnCountdownTimerElapsed;
+                _countdownTimer.AutoReset = false;
             }
             catch (Exception ex)
             {
@@ -169,73 +174,138 @@ namespace English_Listen_WinUI.Services
 
         public async Task<bool> StartTest(int dictationMode)
         {
-            if (_wordList.Count == 0)
-                return false;
-
-            _isTesting = true;
-            _isPaused = false;
-            _currentIndex = 0;
-
-            await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
-
-            await SpeakCurrentWordAsync();
-
-            return true;
-        }
-
-        public async void StopTest()
-        {
-            _isTesting = false;
-            _isPaused = false;
-            _countdownTimer?.Stop();
-            _speechService?.SpeakAsyncCancelAll();
-
-            await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
-        }
-
-        public async void PauseResume()
-        {
-            if (!_isTesting)
-                return;
-
-            _isPaused = !_isPaused;
-
-            if (_isPaused)
+            await _operationLock.WaitAsync();
+            try
             {
+                if (_wordList.Count == 0)
+                    return false;
+
+                _isTesting = true;
+                _isPaused = false;
+                _currentIndex = 0;
+
+                await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
+
+                // fire and forget with proper error handling
+                _ = SpeakCurrentWordAsyncSafe();
+                return true;
+            }
+            finally
+            {
+                _operationLock.Release();
+            }
+        }
+
+        public async Task StopTestAsync()
+        {
+            await _operationLock.WaitAsync();
+            try
+            {
+                _isTesting = false;
+                _isPaused = false;
                 _countdownTimer?.Stop();
+                _speechService?.SpeakAsyncCancelAll();
+
+                await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
             }
-            else
+            finally
             {
-                _countdownTimer?.Start();
+                _operationLock.Release();
             }
-
-            await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
         }
 
-        public async void NextWord()
+        public async Task PauseResumeAsync()
         {
-            if (!_isTesting || _currentIndex >= _wordList.Count - 1)
-                return;
+            await _operationLock.WaitAsync();
+            try
+            {
+                if (!_isTesting)
+                    return;
 
-            _currentIndex++;
-            await SpeakCurrentWordAsync();
+                _isPaused = !_isPaused;
+
+                if (_isPaused)
+                {
+                    _countdownTimer?.Stop();
+                }
+                else
+                {
+                    _countdownTimer?.Start();
+                }
+
+                await InvokeOnUIThread(() => TestStateChanged?.Invoke(_isTesting, _isPaused));
+            }
+            finally
+            {
+                _operationLock.Release();
+            }
         }
 
-        public async void PreviousWord()
+        public async Task NextWordAsync()
         {
-            if (!_isTesting || _currentIndex <= 0)
-                return;
+            await _operationLock.WaitAsync();
+            try
+            {
+                if (!_isTesting || _currentIndex >= _wordList.Count - 1)
+                    return;
 
-            _currentIndex--;
-            await SpeakCurrentWordAsync();
+                _currentIndex++;
+                _ = SpeakCurrentWordAsyncSafe();
+            }
+            finally
+            {
+                _operationLock.Release();
+            }
         }
 
-        public async void RepeatWord()
+        public async Task PreviousWordAsync()
         {
-            if (!_isTesting)
-                return;
+            await _operationLock.WaitAsync();
+            try
+            {
+                if (!_isTesting || _currentIndex <= 0)
+                    return;
 
-            await SpeakCurrentWordAsync();
+                _currentIndex--;
+                _ = SpeakCurrentWordAsyncSafe();
+            }
+            finally
+            {
+                _operationLock.Release();
+            }
+        }
+
+        public async Task RepeatWordAsync()
+        {
+            await _operationLock.WaitAsync();
+            try
+            {
+                if (!_isTesting)
+                    return;
+
+                _ = SpeakCurrentWordAsyncSafe();
+            }
+            finally
+            {
+                _operationLock.Release();
+            }
+        }
+
+        private async Task SpeakCurrentWordAsyncSafe()
+        {
+            await _speechLock.WaitAsync();
+            try
+            {
+                await SpeakCurrentWordAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SpeakCurrentWordAsyncSafe 异常: {ex.Message}");
+            }
+            finally
+            {
+                _speechLock.Release();
+            }
         }
 
         private async Task SpeakCurrentWordAsync()
@@ -329,10 +399,10 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        private async void StartCountdown()
+        private void StartCountdown()
         {
             _currentCountdown = _readInterval;
-            await InvokeOnUIThread(() => CountdownChanged?.Invoke(_currentCountdown));
+            _ = InvokeOnUIThread(() => CountdownChanged?.Invoke(_currentCountdown));
 
             if (!_isPaused)
             {
@@ -345,25 +415,37 @@ namespace English_Listen_WinUI.Services
             if (_isPaused)
                 return;
 
-            _currentCountdown--;
-
-            if (_currentCountdown <= 0)
+            await _operationLock.WaitAsync();
+            try
             {
-                _countdownTimer?.Stop();
+                _currentCountdown--;
 
-                if (_currentIndex < _wordList.Count - 1)
+                if (_currentCountdown <= 0)
                 {
-                    _currentIndex++;
-                    await SpeakCurrentWordAsync();
+                    _countdownTimer?.Stop();
+
+                    if (_currentIndex < _wordList.Count - 1)
+                    {
+                        _currentIndex++;
+                        _ = SpeakCurrentWordAsyncSafe();
+                    }
+                    else
+                    {
+                        await StopTestAsync();
+                    }
                 }
                 else
                 {
-                    StopTest();
+                    await InvokeOnUIThread(() => CountdownChanged?.Invoke(_currentCountdown));
                 }
             }
-            else
+            catch (Exception ex)
             {
-                await InvokeOnUIThread(() => CountdownChanged?.Invoke(_currentCountdown));
+                System.Diagnostics.Debug.WriteLine($"OnCountdownTimerElapsed 异常: {ex.Message}");
+            }
+            finally
+            {
+                _operationLock.Release();
             }
         }
 
@@ -371,7 +453,6 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                // WinUI3: 使用DispatcherQueue而不是CoreDispatcher
                 var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
                 
                 if (dispatcherQueue != null)
@@ -396,20 +477,17 @@ namespace English_Listen_WinUI.Services
                     }
                     else
                     {
-                        // 如果入队失败，直接执行
                         action();
                     }
                 }
                 else
                 {
-                    // 如果无法获取UI调度器，直接执行操作
                     action();
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"UI thread dispatch failed: {ex.Message}");
-                // 作为后备方案，直接执行操作
                 try
                 {
                     action();
@@ -435,9 +513,18 @@ namespace English_Listen_WinUI.Services
 
         public void Dispose()
         {
-            _countdownTimer?.Stop();
-            _countdownTimer?.Dispose();
+            if (_disposed) return;
+            _disposed = true;
+
+            if (_countdownTimer != null)
+            {
+                _countdownTimer.Stop();
+                _countdownTimer.Elapsed -= OnCountdownTimerElapsed;
+                _countdownTimer.Dispose();
+            }
             _speechService?.Dispose();
+            _operationLock?.Dispose();
+            _speechLock?.Dispose();
         }
     }
 }

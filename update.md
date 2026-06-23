@@ -1,5 +1,37 @@
 # English Listen 更新日志
 
+## 版本 1.1.0
+
+### 新功能
+- **背单词界面**: 新增独立的背单词页面，支持单词浏览和中英文朗读
+- **重读功能**: 背单词页面添加重读按钮，可反复听取单词发音
+- **在线听写改进**: 纸笔模式现在正确保存测试结果到历史记录
+
+### 功能改进
+- 翻译限额调整为每日 1000 个单词
+- 离开单词页面返回后自动保存功能恢复正常
+- 二次进入听写页面不再丢失语音合成器
+- 朗读中断功能优化，停止/跳过操作立即生效
+- 优化异步异常处理，避免静默丢失的异常
+
+### 问题修复
+- 修复了 WordsPage 缓存返回后 Timer 被销毁不重建的问题
+- 修复了 DictationTestPage 纸笔模式结果永不保存的问题
+- 修复了 DictationTestPage 二次进入后 synthesizer 为 null 的问题
+- 修复了 speakTaskSource 在异步期间被 Dispose 设为 null 导致的潜在空引用
+- 修复了 SpeechService.SpeakAsync 的 CancellationToken 被完全忽略的问题
+- 修复了 Submit 方法为 async void 导致异常静默丢失的问题
+- 修复了纸笔模式 NumberBox 绕过验证后的递归栈溢出问题
+- 修复了 ModernDictationService.Dispose 未解绑 Elapsed 事件导致的内存泄漏
+- 修复了首次启动时 ProgressPage.TestHistory 为 null 导致的崩溃
+- 修复了硬编码 UI 控件索引的问题
+- 修复了使用字符串类型名检查参数的问题
+- 修复了 WordsPage 过滤后编辑单词，重置过滤显示旧数据的问题
+- 修复了首次安装无 API 密钥时进入设置页崩溃的问题
+- 修复了 SecretStorageService 缺少 System.Security.Cryptography.ProtectedData 包引用
+- 修复了 TempFileHelper 和 BaiduTranslateService 缺失 System.Linq 引用
+- 移除了所有界面中的 emoji 字符
+
 ## 版本 2.7.0 (WinUI3版本)
 
 ### 新功能

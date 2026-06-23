@@ -64,6 +64,7 @@ namespace English_Listen_WinUI.Views
         public WordsPage()
         {
             this.InitializeComponent();
+            this.NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Enabled;
             _viewModel = App.SharedViewModel!;
             this.DataContext = _viewModel;
             Loaded += WordsPage_Loaded;
@@ -89,31 +90,81 @@ namespace English_Listen_WinUI.Views
                 catch { }
             }
             
-            var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
-            
-            if (!System.IO.File.Exists(tempPath))
+            // 如果已有单词数据，不再重新加载（NavigationCacheMode 保持状态）
+            if (_wordList.Count > 0)
             {
-                System.IO.File.WriteAllText(tempPath, "");
+                UpdateWordsListBox();
+                PopulateWordList();
+                return;
             }
             
-            var tempContent = System.IO.File.ReadAllText(tempPath);
-            _wordList = tempContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(w => w.Trim())
-                .Where(w => !string.IsNullOrEmpty(w))
-                .Select(w => new WordItem 
-                { 
-                    Word = w, 
-                    Translation = _translationLibrary.GetTranslation(w) ?? "" 
-                })
-                .ToList();
-            
-            UpdateWordsListBox();
-            _originalWordsText = tempContent;
-            
-            _viewModel.WordsText = tempContent;
-            _viewModel.CurrentWordListName = "临时词库";
+            ShowLoading("正在加载词库...");
+            try
+            {
+                var tempWords = await TempFileHelper.ReadWordsAsync();
+                var loadedText = string.Join("\n", tempWords);
+                
+                var wordItems = tempWords
+                    .Select(w => new WordItem 
+                    { 
+                        Word = w, 
+                        Translation = _translationLibrary.GetTranslation(w) ?? "" 
+                    })
+                    .ToList();
+                
+                _wordList = wordItems;
+                _originalWordsText = loadedText;
+                UpdateWordsListBox();
+                _viewModel.WordsText = loadedText;
+                _viewModel.CurrentWordListName = "临时词库";
+            }
+            finally
+            {
+                HideLoading();
+            }
             
             PopulateWordList();
+        }
+
+        protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+            // 重建 auto-save timer（OnNavigatedFrom 销毁了它）
+            if (_autoSaveTimer == null)
+            {
+                _autoSaveTimer = new DispatcherTimer();
+                _autoSaveTimer.Interval = TimeSpan.FromMilliseconds(500);
+                _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+            }
+        }
+
+        protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            // Stop and cleanup timer to prevent leaked event handlers
+            if (_autoSaveTimer != null)
+            {
+                _autoSaveTimer.Stop();
+                _autoSaveTimer.Tick -= AutoSaveTimer_Tick;
+                _autoSaveTimer = null;
+            }
+            // Save current word state before leaving
+            SaveCurrentState();
+        }
+
+        private async void SaveCurrentState()
+        {
+            if (_wordList.Count == 0) return;
+            try
+            {
+                var words = _wordList.Select(w => w.Word).Where(w => !string.IsNullOrEmpty(w)).ToList();
+                await TempFileHelper.WriteWordsAsync(words);
+                _viewModel.WordsText = string.Join(Environment.NewLine, words);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"保存状态失败: {ex.Message}");
+            }
         }
 
         private void PopulateWordList()
@@ -150,15 +201,31 @@ namespace English_Listen_WinUI.Views
         private async void LoadWordlistButton_Click(object sender, RoutedEventArgs e)
         {
             if (_viewModel == null || string.IsNullOrEmpty(_selectedFileName)) return;
-            
-            await _viewModel.LoadWordsAsync(_selectedFileName);
-            _wordList = _viewModel.WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(w => w.Trim())
-                .Where(w => !string.IsNullOrEmpty(w))
-                .Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" })
-                .ToList();
-            UpdateWordsListBox();
-            _originalWordsText = _viewModel.WordsText;
+
+            ShowLoading("正在加载词库...");
+            try
+            {
+                await _viewModel.LoadWordsAsync(_selectedFileName);
+                var wordsText = _viewModel.WordsText;
+                
+                var wordItems = await Task.Run(() =>
+                {
+                    return wordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(w => w.Trim())
+                        .Where(w => !string.IsNullOrEmpty(w))
+                        .Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" })
+                        .ToList();
+                });
+                
+                _wordList = wordItems;
+                UpdateWordsListBox();
+                _originalWordsText = wordsText;
+                MainWindow.ShowNotification($"已加载 {_wordList.Count} 个单词");
+            }
+            finally
+            {
+                HideLoading();
+            }
         }
 
         private async void LoadGroupButton_Click(object sender, RoutedEventArgs e)
@@ -167,14 +234,7 @@ namespace English_Listen_WinUI.Views
             
             if (groups.Count == 0)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "没有可加载的分组",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification("没有可加载的分组");
                 return;
             }
             
@@ -186,6 +246,7 @@ namespace English_Listen_WinUI.Views
                 XamlRoot = this.XamlRoot
             };
 
+            var scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 400 };
             var stackPanel = new StackPanel();
             stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
             
@@ -197,7 +258,72 @@ namespace English_Listen_WinUI.Views
             };
             stackPanel.Children.Add(groupComboBox);
             
-            dialog.Content = stackPanel;
+            // 词库文件多选列表
+            var wordlistListView = new ListView
+            {
+                Header = "选择要加载的词库文件",
+                SelectionMode = ListViewSelectionMode.Multiple,
+                Height = 200,
+                Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 0)
+            };
+            stackPanel.Children.Add(wordlistListView);
+            
+            // 全选和反选按钮
+            var selectButtonsPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Microsoft.UI.Xaml.Thickness(0, 5, 0, 0), Spacing = 10 };
+            
+            var selectAllButton = new Button { Content = "全选", Width = 80, Height = 30 };
+            selectAllButton.Click += (s, args) =>
+            {
+                wordlistListView.SelectAll();
+            };
+            selectButtonsPanel.Children.Add(selectAllButton);
+            
+            var invertSelectButton = new Button { Content = "反选", Width = 80, Height = 30 };
+            invertSelectButton.Click += (s, args) =>
+            {
+                var itemsToDeselect = wordlistListView.SelectedItems.Cast<object>().ToList();
+                wordlistListView.SelectAll();
+                foreach (var item in itemsToDeselect)
+                {
+                    wordlistListView.SelectedItems.Remove(item);
+                }
+            };
+            selectButtonsPanel.Children.Add(invertSelectButton);
+            
+            stackPanel.Children.Add(selectButtonsPanel);
+            
+            // 切换分组时，更新词库文件列表并默认全选
+            void UpdateWordlistForGroup(string? groupName)
+            {
+                wordlistListView.SelectedItems.Clear();
+                var group = groups.FirstOrDefault(g => g.Name == groupName);
+                if (group != null && group.WordListNames.Count > 0)
+                {
+                    wordlistListView.ItemsSource = group.WordListNames;
+                    foreach (var fileName in group.WordListNames)
+                    {
+                        wordlistListView.SelectedItems.Add(fileName);
+                    }
+                }
+                else
+                {
+                    wordlistListView.ItemsSource = null;
+                }
+            }
+            
+            groupComboBox.SelectionChanged += (s, args) =>
+            {
+                UpdateWordlistForGroup(groupComboBox.SelectedItem?.ToString());
+            };
+            
+            // 初始加载第一个分组的词库文件
+            if (groups.Count > 0)
+            {
+                UpdateWordlistForGroup(groups[0].Name);
+            }
+            
+            scrollViewer.Content = stackPanel;
+            dialog.Content = scrollViewer;
             
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
@@ -208,35 +334,52 @@ namespace English_Listen_WinUI.Views
                 var selectedGroup = groups.FirstOrDefault(g => g.Name == selectedGroupName);
                 if (selectedGroup == null) return;
                 
-                // 加载分组中的所有词库文件
-                var allWords = new List<string>();
-                foreach (var fileName in selectedGroup.WordListNames)
+                // 获取选中的词库文件
+                var selectedFileNames = wordlistListView.SelectedItems.Cast<string>().ToList();
+                if (selectedFileNames.Count == 0)
                 {
-                    var filePath = System.IO.Path.Combine(_viewModel.Settings.GetWordlistDirectory(), fileName);
-                    if (System.IO.File.Exists(filePath))
-                    {
-                        var words = await _viewModel.Settings.LoadWordsFromFileAsync(filePath);
-                        allWords.AddRange(words);
-                    }
+                    MainWindow.ShowNotification("请至少选择一个词库文件");
+                    return;
                 }
                 
-                // 显示到列表
-                _wordList = allWords.Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" }).ToList();
-                UpdateWordsListBox();
-                _originalWordsText = string.Join("\n", allWords);
-                
-                // 更新ViewModel - WordsText setter will automatically update CurrentWords
-                _viewModel.WordsText = _originalWordsText;
-                _viewModel.CurrentWordListName = $"分组: {selectedGroupName}";
-                
-                var successDialog = new ContentDialog
+                // 加载选中的词库文件
+                ShowLoading("正在加载词库...");
+                try
                 {
-                    Title = "成功",
-                    Content = $"分组 '{selectedGroupName}' 加载成功，包含 {allWords.Count} 个单词",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await successDialog.ShowAsync();
+                    var vm = _viewModel;
+                    var wordDir = vm.Settings.GetWordlistDirectory();
+                    var (groupWordItems, groupOriginalText) = await Task.Run(() =>
+                    {
+                        var allWords = new List<string>();
+                        foreach (var fileName in selectedFileNames)
+                        {
+                            var filePath = System.IO.Path.Combine(wordDir, fileName);
+                            if (System.IO.File.Exists(filePath))
+                            {
+                                var lines = System.IO.File.ReadAllLines(filePath);
+                                allWords.AddRange(lines
+                                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                                    .Select(line => line.Trim()));
+                            }
+                        }
+                        var wordItems = allWords
+                            .Where(w => !string.IsNullOrEmpty(w))
+                            .Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" })
+                            .ToList();
+                        return (wordItems, string.Join("\n", allWords));
+                    });
+                    
+                    _wordList = groupWordItems;
+                    _originalWordsText = groupOriginalText;
+                    UpdateWordsListBox();
+                    _viewModel.WordsText = groupOriginalText;
+                    _viewModel.CurrentWordListName = $"分组: {selectedGroupName}";
+                    MainWindow.ShowNotification($"已加载分组 '{selectedGroupName}'，共 {_wordList.Count} 个单词");
+                }
+                finally
+                {
+                    HideLoading();
+                }
             }
         }
 
@@ -263,14 +406,7 @@ namespace English_Listen_WinUI.Views
             {
                 if (string.IsNullOrWhiteSpace(nameBox.Text))
                 {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = "分组名称不能为空",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                    MainWindow.ShowNotification("分组名称不能为空");
                     return;
                 }
                 
@@ -285,14 +421,7 @@ namespace English_Listen_WinUI.Views
                 groups.Add(newGroup);
                 await _viewModel.Settings.SaveWordlistGroupsAsync(groups);
                 
-                var successDialog = new ContentDialog
-                {
-                    Title = "成功",
-                    Content = $"分组 '{nameBox.Text}' 创建成功",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await successDialog.ShowAsync();
+                MainWindow.ShowNotification($"分组 '{nameBox.Text}' 创建成功");
             }
         }
 
@@ -302,14 +431,7 @@ namespace English_Listen_WinUI.Views
             
             if (groups.Count == 0)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "没有可编辑的分组",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification("没有可编辑的分组");
                 return;
             }
             
@@ -321,6 +443,7 @@ namespace English_Listen_WinUI.Views
                 XamlRoot = this.XamlRoot
             };
 
+            var scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 400 };
             var stackPanel = new StackPanel();
             stackPanel.Margin = new Microsoft.UI.Xaml.Thickness(20);
             
@@ -343,7 +466,66 @@ namespace English_Listen_WinUI.Views
             fileListView.ItemsSource = _viewModel.WordListFiles;
             stackPanel.Children.Add(fileListView);
             
-            dialog.Content = stackPanel;
+            // 全选和反选按钮
+            var selectButtonsPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 0), Spacing = 10 };
+            
+            var selectAllButton = new Button { Content = "全选", Width = 80, Height = 30 };
+            selectAllButton.Click += (s, args) =>
+            {
+                fileListView.SelectAll();
+            };
+            selectButtonsPanel.Children.Add(selectAllButton);
+            
+            var invertSelectButton = new Button { Content = "反选", Width = 80, Height = 30 };
+            invertSelectButton.Click += (s, args) =>
+            {
+                var itemsToDeselect = fileListView.SelectedItems.Cast<object>().ToList();
+                fileListView.SelectAll();
+                foreach (var item in itemsToDeselect)
+                {
+                    fileListView.SelectedItems.Remove(item);
+                }
+            };
+            selectButtonsPanel.Children.Add(invertSelectButton);
+            
+            stackPanel.Children.Add(selectButtonsPanel);
+            scrollViewer.Content = stackPanel;
+            
+            // 切换分组时，预选该分组已包含的词库文件
+            groupComboBox.SelectionChanged += (s, args) =>
+            {
+                fileListView.SelectedItems.Clear();
+                var selectedGroupName = groupComboBox.SelectedItem?.ToString();
+                if (!string.IsNullOrEmpty(selectedGroupName))
+                {
+                    var selectedGroup = groups.FirstOrDefault(g => g.Name == selectedGroupName);
+                    if (selectedGroup != null)
+                    {
+                        foreach (var fileName in _viewModel.WordListFiles)
+                        {
+                            if (selectedGroup.WordListNames.Contains(fileName))
+                            {
+                                fileListView.SelectedItems.Add(fileName);
+                            }
+                        }
+                    }
+                }
+            };
+            
+            // 初始预选第一个分组的词库文件
+            if (groups.Count > 0)
+            {
+                var firstGroup = groups[0];
+                foreach (var fileName in _viewModel.WordListFiles)
+                {
+                    if (firstGroup.WordListNames.Contains(fileName))
+                    {
+                        fileListView.SelectedItems.Add(fileName);
+                    }
+                }
+            }
+            
+            dialog.Content = scrollViewer;
             
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
@@ -367,14 +549,7 @@ namespace English_Listen_WinUI.Views
                 // 保存分组
                 await _viewModel.Settings.SaveWordlistGroupsAsync(groups);
                 
-                var successDialog = new ContentDialog
-                {
-                    Title = "成功",
-                    Content = $"分组 '{selectedGroupName}' 编辑成功",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await successDialog.ShowAsync();
+                MainWindow.ShowNotification($"分组 '{selectedGroupName}' 编辑成功");
             }
         }
 
@@ -384,14 +559,7 @@ namespace English_Listen_WinUI.Views
             
             if (groups.Count == 0)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "没有可删除的分组",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification("没有可删除的分组");
                 return;
             }
             
@@ -439,14 +607,7 @@ namespace English_Listen_WinUI.Views
                     groups.RemoveAll(g => g.Name == selectedGroupName);
                     await _viewModel.Settings.SaveWordlistGroupsAsync(groups);
                     
-                    var successDialog = new ContentDialog
-                    {
-                        Title = "成功",
-                        Content = $"分组 '{selectedGroupName}' 删除成功",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await successDialog.ShowAsync();
+                    MainWindow.ShowNotification($"分组 '{selectedGroupName}' 删除成功");
                 }
             }
         }
@@ -473,47 +634,103 @@ namespace English_Listen_WinUI.Views
             var stackPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0), Spacing = 10 };
             
             // 词库文件列表
-            var fileListPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-            fileListPanel.Children.Add(new TextBlock { Text = "词库文件:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+            var fileListPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+            fileListPanel.Children.Add(new TextBlock { Text = "词库文件(可多选):" });
             
-            var wordlistListBox = new ListBox 
-            { 
-                Width = 300, 
+            var wordlistListView = new ListView
+            {
+                Width = 300,
                 Height = 150,
+                SelectionMode = ListViewSelectionMode.Multiple,
                 ItemsSource = _viewModel?.WordListFiles
             };
-            wordlistListBox.SelectionChanged += (s, args) => 
+            wordlistListView.SelectionChanged += (s, args) => 
             {
-                if (wordlistListBox.SelectedItem != null)
+                if (wordlistListView.SelectedItem != null)
                 {
-                    _selectedFileName = wordlistListBox.SelectedItem?.ToString() ?? "";
+                    _selectedFileName = wordlistListView.SelectedItem?.ToString() ?? "";
                 }
             };
-            fileListPanel.Children.Add(wordlistListBox);
+            fileListPanel.Children.Add(wordlistListView);
+            
+            // 全选和反选按钮
+            var selectButtonsPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 5), Spacing = 10 };
+            
+            var selectAllButton = new Button { Content = "全选", Width = 80, Height = 30 };
+            selectAllButton.Click += (s, args) =>
+            {
+                wordlistListView.SelectAll();
+            };
+            selectButtonsPanel.Children.Add(selectAllButton);
+            
+            var invertSelectButton = new Button { Content = "反选", Width = 80, Height = 30 };
+            invertSelectButton.Click += (s, args) =>
+            {
+                var itemsToDeselect = wordlistListView.SelectedItems.Cast<object>().ToList();
+                wordlistListView.SelectAll();
+                foreach (var item in itemsToDeselect)
+                {
+                    wordlistListView.SelectedItems.Remove(item);
+                }
+            };
+            selectButtonsPanel.Children.Add(invertSelectButton);
+            
+            fileListPanel.Children.Add(selectButtonsPanel);
             stackPanel.Children.Add(fileListPanel);
             
             // 加载词库按钮
             var loadWordlistButton = new Button { Content = "加载选中的词库", Width = 150, Height = 35, Margin = new Thickness(0, 5, 0, 0) };
             loadWordlistButton.Click += async (s, args) => 
             {
-                if (wordlistListBox.SelectedItem != null)
+                var selectedItems = wordlistListView.SelectedItems.Cast<string>().ToList();
+                if (selectedItems.Count == 0)
                 {
-                    _selectedFileName = wordlistListBox.SelectedItem?.ToString() ?? "";
-                    dialog.Hide();
-                    await Task.Delay(100);
-                    
-                    // 直接加载词库
-                    if (_viewModel != null && !string.IsNullOrEmpty(_selectedFileName))
+                    MainWindow.ShowNotification("请选择要加载的词库文件");
+                    return;
+                }
+                
+                dialog.Hide();
+                await Task.Delay(100);
+                
+                // 加载选中的词库
+                ShowLoading("正在加载词库...");
+                try
+                {
+                    var wordDir = _viewModel!.Settings.GetWordlistDirectory();
+                    var result = await Task.Run(() =>
                     {
-                        await _viewModel.LoadWordsAsync(_selectedFileName);
-                        _wordList = _viewModel.WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(w => w.Trim())
-                            .Where(w => !string.IsNullOrEmpty(w))
-                            .Select(w => new WordItem { Word = w, Translation = "" })
-                            .ToList();
-                        UpdateWordsListBox();
-                        _originalWordsText = _viewModel.WordsText;
-                    }
+                        var allWords = new List<WordItem>();
+                        int fileCount = 0;
+                        foreach (var fileName in selectedItems)
+                        {
+                            var filePath = System.IO.Path.Combine(wordDir, fileName);
+                            if (System.IO.File.Exists(filePath))
+                            {
+                                var lines = System.IO.File.ReadAllLines(filePath);
+                                var wordItems = lines
+                                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                                    .Select(line => line.Trim())
+                                    .Where(w => !string.IsNullOrEmpty(w))
+                                    .Select(w => new WordItem { Word = w, Translation = _translationLibrary.GetTranslation(w) ?? "" })
+                                    .ToList();
+                                allWords.AddRange(wordItems);
+                                fileCount++;
+                            }
+                        }
+                        var originalText = string.Join(Environment.NewLine, allWords.Select(w => w.Word));
+                        return (allWords, originalText, fileCount);
+                    });
+                    
+                    _selectedFileName = selectedItems.LastOrDefault() ?? "";
+                    _wordList = result.allWords;
+                    _originalWordsText = result.originalText;
+                    UpdateWordsListBox();
+                    _viewModel!.WordsText = result.originalText;
+                    MainWindow.ShowNotification($"已加载 {result.fileCount} 个词库，共 {_wordList.Count} 个单词");
+                }
+                finally
+                {
+                    HideLoading();
                 }
             };
             stackPanel.Children.Add(loadWordlistButton);
@@ -561,9 +778,10 @@ namespace English_Listen_WinUI.Views
             };
             deleteWordlistButton.Click += async (s, args) => 
             {
-                if (wordlistListBox.SelectedItem != null)
+                var firstSelected = wordlistListView.SelectedItems.Cast<string>().FirstOrDefault();
+                if (firstSelected != null)
                 {
-                    _selectedFileName = wordlistListBox.SelectedItem?.ToString() ?? "";
+                    _selectedFileName = firstSelected;
                     dialog.Hide();
                     await Task.Delay(100);
                     DeleteWordlistButton_Click(s, args);
@@ -655,14 +873,7 @@ namespace English_Listen_WinUI.Views
             // 检查是否有选中的单词
             if (selectedWords.Count == 0)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "请先选择要听写的单词。",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification("请先选择要听写的单词。");
                 return;
             }
 
@@ -732,9 +943,16 @@ namespace English_Listen_WinUI.Views
             }
         }
 
+        // 将当前 _wordList 同步到 _originalWordsText，确保过滤/重置可看到最新数据
+        private void SyncOriginalWordsText()
+        {
+            _originalWordsText = string.Join("\n", _wordList.Select(w => w.Word));
+        }
+
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
             _wordList.Clear();
+            SyncOriginalWordsText();
             UpdateWordsListBox();
             if (_autoSaveTimer != null)
             {
@@ -749,6 +967,7 @@ namespace English_Listen_WinUI.Views
             if (!string.IsNullOrEmpty(word) && !_wordList.Any(w => w.Word == word))
             {
                 _wordList.Add(new WordItem { Word = word, Translation = "" });
+                SyncOriginalWordsText();
                 UpdateWordsListBox();
                 WordInput.Text = "";
                 if (_autoSaveTimer != null)
@@ -776,6 +995,7 @@ namespace English_Listen_WinUI.Views
                 
                 // 使用RemoveAll方法一次性删除所有选中项，避免多次集合修改
                 _wordList.RemoveAll(w => w.IsSelected);
+                SyncOriginalWordsText();
                 
                 UpdateWordsListBox();
                 if (_autoSaveTimer != null)
@@ -813,7 +1033,7 @@ namespace English_Listen_WinUI.Views
             await SaveToTempFileAsync();
             
             // 同步更新ViewModel - WordsText setter will automatically update CurrentWords
-            _viewModel.WordsText = string.Join("\n", _wordList);
+            _viewModel.WordsText = string.Join("\n", _wordList.Select(w => w.Word));
             _viewModel.CurrentWordListName = "临时词库";
         }
         
@@ -822,13 +1042,12 @@ namespace English_Listen_WinUI.Views
             try
             {
                 var words = _wordList.Select(w => w.Word).Where(w => !string.IsNullOrEmpty(w)).ToList();
-                
-                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
-                await System.IO.File.WriteAllLinesAsync(tempPath, words);
+                await TempFileHelper.WriteWordsAsync(words);
+                // 同步 _originalWordsText，确保过滤/重置可看到最新数据
+                SyncOriginalWordsText();
             }
             catch (Exception ex)
             {
-                // 如果无法创建临时文件，记录日志但不中断用户操作
                 System.Diagnostics.Debug.WriteLine($"Auto-save failed: {ex.Message}");
             }
         }
@@ -855,6 +1074,54 @@ namespace English_Listen_WinUI.Views
                 .ToList();
             _wordList = originalLines;
             UpdateWordsListBox();
+        }
+
+        private void ShowLoading(string statusText)
+        {
+            if (LoadingProgressRing != null)
+            {
+                LoadingProgressRing.IsActive = true;
+                LoadingProgressRing.Visibility = Visibility.Visible;
+            }
+            if (LoadingStatusText != null)
+            {
+                LoadingStatusText.Text = statusText;
+                LoadingStatusText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void HideLoading()
+        {
+            if (LoadingProgressRing != null)
+            {
+                LoadingProgressRing.IsActive = false;
+                LoadingProgressRing.Visibility = Visibility.Collapsed;
+            }
+            if (LoadingStatusText != null)
+            {
+                LoadingStatusText.Text = "";
+                LoadingStatusText.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async void StartMemorizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedWords = _wordList.Where(w => w.IsSelected).ToList();
+
+            if (selectedWords.Count == 0)
+            {
+                MainWindow.ShowNotification("请先选择要背诵的单词。");
+                return;
+            }
+
+            var wordListWithTranslations = selectedWords.Select(w =>
+                new DictationTestPage.WordTranslationPair
+                {
+                    Word = w.Word,
+                    Translation = w.Translation
+                }).ToList();
+
+            Frame?.Navigate(typeof(MemorizePage), wordListWithTranslations);
         }
 
         private void ApplyFilter()
@@ -918,66 +1185,83 @@ namespace English_Listen_WinUI.Views
             
             try
             {
-                var selectedItems = _wordList.Where(item => item.IsSelected).ToList();
+                var selectedItems = _wordList.Where(item => item.IsSelected).Select(item => item.Word).ToList();
                 if (selectedItems.Count == 0)
                 {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "提示",
-                        Content = "请选择要翻译的单词",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                    MainWindow.ShowNotification("请选择要翻译的单词");
                     return;
                 }
                 
-                var remaining = _translateService.GetRemainingLimit();
-                if (remaining < selectedItems.Count)
+                ShowLoading("正在翻译...");
+                
+                var totalCount = selectedItems.Count;
+                var result = await Task.Run(async () =>
                 {
-                    var errorDialog = new ContentDialog
+                    var toSave = new List<(string Word, string Translation)>();
+                    var translated = 0;
+                    var limitHit = false;
+                    var skipped = 0;
+                    
+                    foreach (var word in selectedItems)
                     {
-                        Title = "提示",
-                        Content = $"翻译限额不足，剩余{remaining}次，需要{selectedItems.Count}次",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
-                    return;
-                }
+                        try
+                        {
+                            var translation = await _translateService.TranslateAsync(word);
+                            toSave.Add((word, translation));
+                            translated++;
+                        }
+                        catch (Exception ex)
+                        {
+                            if (ex.Message.Contains("限额"))
+                            {
+                                limitHit = true;
+                                skipped = totalCount - translated;
+                                break;
+                            }
+                        }
+                        
+                        // 每翻译10个单词或最后一批时更新进度
+                        if (translated % 10 == 0 || translated + skipped == totalCount)
+                        {
+                            var progress = $"翻译: {translated}/{totalCount}";
+                            _ = DispatcherQueue.TryEnqueue(() =>
+                            {
+                                LoadingStatusText.Text = progress;
+                            });
+                        }
+                    }
+                    
+                    return (toSave, translated, limitHit, skipped);
+                });
                 
-                var translationsToSave = new List<(string Word, string Translation)>();
-                
-                foreach (var item in selectedItems)
+                // 回UI线程更新列表和翻译缓存
+                if (result.toSave.Count > 0)
                 {
-                    try
+                    _translationLibrary.SaveTranslations(result.toSave);
+                    
+                    foreach (var saved in result.toSave)
                     {
-                        var translation = await _translateService.TranslateAsync(item.Word);
-                        item.Translation = translation;
-                        translationsToSave.Add((item.Word, translation));
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"翻译失败: {item.Word} - {ex.Message}");
-                        item.Translation = "翻译失败";
+                        var item = _wordList.FirstOrDefault(w => w.Word == saved.Word);
+                        if (item != null)
+                            item.Translation = saved.Translation;
                     }
                 }
-                
-                _translationLibrary.SaveTranslations(translationsToSave);
                 
                 UpdateWordsListBox();
                 
-                var successDialog = new ContentDialog
+                if (result.limitHit)
                 {
-                    Title = "成功",
-                    Content = $"成功翻译 {selectedItems.Count} 个单词，已保存到翻译库",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await successDialog.ShowAsync();
+                    var remaining = _translateService.GetRemainingLimit();
+                    MainWindow.ShowNotification($"翻译限额已用完（今日剩余 {remaining} 个），{result.skipped} 个单词被跳过。成功翻译 {result.translated} 个");
+                }
+                else
+                {
+                    MainWindow.ShowNotification($"成功翻译 {result.translated} 个单词，已保存到翻译库");
+                }
             }
             finally
             {
+                HideLoading();
                 _isTranslating = false;
             }
         }
@@ -1063,27 +1347,13 @@ namespace English_Listen_WinUI.Views
                         await _viewModel.LoadWordListFilesAsync();
                         PopulateWordList();
                         
-                        var successDialog = new ContentDialog
-                        {
-                            Title = "成功",
-                            Content = $"成功导入 {importedCount} 个词库文件",
-                            CloseButtonText = "确定",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await successDialog.ShowAsync();
+                        MainWindow.ShowNotification($"成功导入 {importedCount} 个词库文件");
                     }
                 }
             }
             catch (Exception ex)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "错误",
-                    Content = $"导入失败: {ex.Message}",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification($"导入失败: {ex.Message}");
             }
         }
 
@@ -1092,14 +1362,7 @@ namespace English_Listen_WinUI.Views
             var selectedFileName = _selectedFileName;
             if (string.IsNullOrEmpty(selectedFileName))
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "请先选择要删除的词库文件",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification("请先选择要删除的词库文件");
                 return;
             }
             
@@ -1151,37 +1414,16 @@ namespace English_Listen_WinUI.Views
                         await _viewModel.LoadWordListFilesAsync();
                         PopulateWordList();
                         
-                        var successDialog = new ContentDialog
-                        {
-                            Title = "成功",
-                            Content = $"词库 '{selectedFileName}' 删除成功",
-                            CloseButtonText = "确定",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await successDialog.ShowAsync();
+                        MainWindow.ShowNotification($"词库 '{selectedFileName}' 删除成功");
                     }
                     else
                     {
-                        var errorDialog = new ContentDialog
-                        {
-                            Title = "错误",
-                            Content = "词库文件不存在",
-                            CloseButtonText = "确定",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await errorDialog.ShowAsync();
+                        MainWindow.ShowNotification("词库文件不存在");
                     }
                 }
                 catch (Exception ex)
                 {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = $"删除失败: {ex.Message}",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                    MainWindow.ShowNotification($"删除失败: {ex.Message}");
                 }
             }
         }
@@ -1190,14 +1432,7 @@ namespace English_Listen_WinUI.Views
         {
             if (_wordList.Count == 0)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "当前没有单词可导出",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification("当前没有单词可导出");
                 return;
             }
             
@@ -1239,14 +1474,7 @@ namespace English_Listen_WinUI.Views
                 var fileName = textBox.Text?.Trim();
                 if (string.IsNullOrEmpty(fileName))
                 {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = "文件名不能为空",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                    MainWindow.ShowNotification("文件名不能为空");
                     return;
                 }
                 
@@ -1303,25 +1531,11 @@ namespace English_Listen_WinUI.Views
                     // 重新加载词库文件列表
                     await _viewModel.LoadWordListFilesAsync();
                     
-                    var successDialog = new ContentDialog
-                    {
-                        Title = "成功",
-                        Content = $"成功导出 {_wordList.Count} 个单词到词库目录\n文件名：{fileName}",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await successDialog.ShowAsync();
+                    MainWindow.ShowNotification($"成功导出 {_wordList.Count} 个单词到词库目录\n文件名：{fileName}");
                 }
                 catch (Exception ex)
                 {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = $"导出失败: {ex.Message}",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                    MainWindow.ShowNotification($"导出失败: {ex.Message}");
                 }
             }
         }
@@ -1332,14 +1546,7 @@ namespace English_Listen_WinUI.Views
             var selectedWords = _wordList.Where(w => w.IsSelected).ToList();
             if (selectedWords.Count == 0)
             {
-                var errorDialog = new ContentDialog
-                {
-                    Title = "提示",
-                    Content = "请选择要追加的单词",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                MainWindow.ShowNotification("请选择要追加的单词");
                 return;
             }
 
@@ -1380,14 +1587,7 @@ namespace English_Listen_WinUI.Views
                 var selectedWordlist = wordlistComboBox.SelectedItem?.ToString();
                 if (string.IsNullOrEmpty(selectedWordlist))
                 {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = "请选择要追加到的词库",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                    MainWindow.ShowNotification("请选择要追加到的词库");
                     return;
                 }
 
@@ -1396,14 +1596,7 @@ namespace English_Listen_WinUI.Views
                     // 获取词库文件路径
                     if (_viewModel?.Settings == null)
                     {
-                        var errorDialog = new ContentDialog
-                        {
-                            Title = "错误",
-                            Content = "无法访问设置服务",
-                            CloseButtonText = "确定",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await errorDialog.ShowAsync();
+                        MainWindow.ShowNotification("无法访问设置服务");
                         return;
                     }
                     var wordlistPath = System.IO.Path.Combine(_viewModel.Settings.GetWordlistDirectory(), selectedWordlist);
@@ -1425,14 +1618,7 @@ namespace English_Listen_WinUI.Views
 
                     if (wordsToAdd.Count == 0)
                     {
-                        var infoDialog = new ContentDialog
-                        {
-                            Title = "提示",
-                            Content = "所选单词已存在于词库中",
-                            CloseButtonText = "确定",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await infoDialog.ShowAsync();
+                        MainWindow.ShowNotification("所选单词已存在于词库中");
                         return;
                     }
 
@@ -1442,25 +1628,11 @@ namespace English_Listen_WinUI.Views
                     // 保存词库文件
                     System.IO.File.WriteAllLines(wordlistPath, existingWords);
 
-                    var successDialog = new ContentDialog
-                    {
-                        Title = "成功",
-                        Content = $"成功追加 {wordsToAdd.Count} 个单词到词库 '{selectedWordlist}'",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await successDialog.ShowAsync();
+                    MainWindow.ShowNotification($"成功追加 {wordsToAdd.Count} 个单词到词库 '{selectedWordlist}'");
                 }
                 catch (Exception ex)
                 {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = $"追加单词失败: {ex.Message}",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                    MainWindow.ShowNotification($"追加单词失败: {ex.Message}");
                 }
             }
         }

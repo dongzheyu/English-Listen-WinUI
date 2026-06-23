@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using System;
 using English_Listen_WinUI.ViewModels;
 using English_Listen_WinUI.Helpers;
+using English_Listen_WinUI.Services;
 using Microsoft.Windows.AppLifecycle;
 
 namespace English_Listen_WinUI
@@ -103,23 +104,12 @@ namespace English_Listen_WinUI
             CleanupTempFiles();
         }
 
-        private void CleanupTempFiles()
+        private async void CleanupTempFiles()
         {
             try
             {
-                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
-                if (System.IO.File.Exists(tempPath))
-                {
-                    try
-                    {
-                        System.IO.File.Delete(tempPath);
-                        System.Diagnostics.Debug.WriteLine("[APP] Temp file deleted");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[APP] Failed to delete temp file: {ex.Message}");
-                    }
-                }
+                await TempFileHelper.DeleteAsync();
+                System.Diagnostics.Debug.WriteLine("[APP] Temp file deleted");
             }
             catch (Exception ex)
             {
@@ -127,19 +117,11 @@ namespace English_Listen_WinUI
             }
         }
 
-        private void ClearTemporaryFile()
+        private async void ClearTemporaryFile()
         {
             try
             {
-                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
-                try
-                {
-                    System.IO.File.WriteAllText(tempPath, string.Empty);
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[APP] Failed to write to temp file: {ex.Message}");
-                }
+                await TempFileHelper.ClearAsync();
             }
             catch (Exception ex)
             {

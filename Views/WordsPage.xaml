@@ -44,6 +44,7 @@
             <Button Content="词库管理" Click="WordlistManagementButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="批量翻译" Click="BatchTranslateButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="开始听写" Click="StartDictationButton_Click" Width="120" Height="40" Margin="10"/>
+            <Button Content="开始背单词" Click="StartMemorizeButton_Click" Width="120" Height="40" Margin="10"/>
             <Button Content="追加到词库末尾" Click="AppendToWordlistButton_Click" Width="150" Height="40" Margin="10"/>
             <Button Content="刷新" Click="RefreshButton_Click" Width="80" Height="40" Margin="10"/>
         </StackPanel>
@@ -70,29 +71,32 @@
                           Click="SelectAllCheckBox_Click"
                           Margin="10,0"/>
                 <TextBlock x:Name="WordCountTextBlock" Text="单词数量: 0" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666666"/>
+                <ProgressRing x:Name="LoadingProgressRing" IsActive="False" Visibility="Collapsed" Width="20" Height="20" Margin="10,0,0,0" Foreground="{ThemeResource SystemAccentColor}"/>
+                <TextBlock x:Name="LoadingStatusText" Text="" VerticalAlignment="Center" Margin="5,0,0,0" Foreground="#666666" FontSize="12"/>
             </StackPanel>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="10">
-                <ListBox x:Name="WordsListBox" 
-                         SelectionMode="Single" 
-                         MinHeight="300" 
-                         FontSize="14">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Width="600">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="5" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="WordTextBlock" Grid.Column="1" Text="{Binding Word}" Margin="10" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TranslationTextBlock" Grid.Column="2" Text="{Binding Translation}" Margin="10" VerticalAlignment="Center" Foreground="#666666"/>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </ScrollViewer>
+            <ListBox x:Name="WordsListBox" Grid.Row="1"
+                     SelectionMode="Single"
+                     MinHeight="300"
+                     FontSize="14"
+                     Margin="10"
+                     ScrollViewer.HorizontalScrollMode="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Width="600">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="5" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Word}" Margin="10" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Translation}" Margin="10" VerticalAlignment="Center" Foreground="#666666"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
         </Grid>
 
         <!-- Hidden controls for code compatibility -->

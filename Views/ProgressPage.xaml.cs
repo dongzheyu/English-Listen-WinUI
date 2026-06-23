@@ -36,6 +36,11 @@ namespace English_Listen_WinUI.Views
             if (_viewModel == null) return;
             
             var history = _viewModel.TestHistory;
+            if (history == null)
+            {
+                TotalTestsText.Text = "0";
+                return;
+            }
             TotalTestsText.Text = history.Count.ToString();
 
             if (history.Count > 0)

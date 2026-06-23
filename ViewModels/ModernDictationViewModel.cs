@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using English_Listen_WinUI.Models;
 using English_Listen_WinUI.Services;
+using English_Listen_WinUI;
 
 namespace English_Listen_WinUI.ViewModels
 {
@@ -47,7 +48,7 @@ namespace English_Listen_WinUI.ViewModels
         public ModernDictationViewModel()
         {
             _dictationService = new ModernDictationService();
-            _settingsService = new SettingsService();
+            _settingsService = App.SharedViewModel?.Settings ?? new SettingsService();
             
             // Wire up events
             _dictationService.WordChanged += OnWordChanged;
@@ -334,9 +335,9 @@ namespace English_Listen_WinUI.ViewModels
             await _dictationService.StartTest(0); // 0 = paper dictation mode
         }
         
-        private void StopTest()
+        private async void StopTest()
         {
-            _dictationService.StopTest();
+            await _dictationService.StopTestAsync();
             
             // Disable full-screen mode and show word list again when test stops
             IsFullScreen = false;
@@ -344,24 +345,24 @@ namespace English_Listen_WinUI.ViewModels
             IsSidebarVisible = true; // Show sidebar
         }
         
-        private void NextWord()
+        private async void NextWord()
         {
-            _dictationService.NextWord();
+            await _dictationService.NextWordAsync();
         }
         
-        private void PreviousWord()
+        private async void PreviousWord()
         {
-            _dictationService.PreviousWord();
+            await _dictationService.PreviousWordAsync();
         }
         
-        private void RepeatWord()
+        private async void RepeatWord()
         {
-            _dictationService.RepeatWord();
+            await _dictationService.RepeatWordAsync();
         }
         
-        private void PauseResume()
+        private async void PauseResume()
         {
-            _dictationService.PauseResume();
+            await _dictationService.PauseResumeAsync();
         }
         
         private void ReturnToHome()

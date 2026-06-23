@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using English_Listen_WinUI.Models;
 using English_Listen_WinUI.Services;
@@ -18,6 +19,7 @@ namespace English_Listen_WinUI.Services
         private readonly string SettingsFilePath;
         private readonly string WordlistGroupsFilePath;
 
+        private readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
 
         private AppSettings _settings = new();
         private string? _currentPassword;
@@ -97,6 +99,7 @@ namespace English_Listen_WinUI.Services
 
         public async Task LoadSettingsAsync()
         {
+            await _fileLock.WaitAsync();
             try
             {
                 if (File.Exists(SettingsFilePath))
@@ -111,23 +114,38 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                // Log error and create default settings
                 System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
                 _settings = new AppSettings();
+            }
+            finally
+            {
+                _fileLock.Release();
             }
         }
 
         public async Task SaveSettingsAsync()
         {
+            await _fileLock.WaitAsync();
             try
             {
                 var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(SettingsFilePath, json);
+                // Atomic write: write to temp then move
+                var tempPath = SettingsFilePath + ".tmp";
+                await File.WriteAllTextAsync(tempPath, json);
+                if (File.Exists(SettingsFilePath))
+                {
+                    File.Delete(SettingsFilePath);
+                }
+                File.Move(tempPath, SettingsFilePath);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
                 throw;
+            }
+            finally
+            {
+                _fileLock.Release();
             }
         }
 
@@ -177,6 +195,7 @@ namespace English_Listen_WinUI.Services
 
         public async Task SaveWordlistGroupsAsync(List<WordListGroup> groups)
         {
+            await _fileLock.WaitAsync();
             try
             {
                 var lines = new List<string>();
@@ -192,6 +211,10 @@ namespace English_Listen_WinUI.Services
                 await File.WriteAllLinesAsync(WordlistGroupsFilePath, lines);
             }
             catch { }
+            finally
+            {
+                _fileLock.Release();
+            }
         }
 
         public async Task<List<TestResult>> LoadTestHistoryAsync(string username)
@@ -212,8 +235,19 @@ namespace English_Listen_WinUI.Services
             return history;
         }
 
+        public async Task<bool> LoadTestHistoryForCurrentUserAsync(string currentUser, string targetUser, Action<List<TestResult>> onSuccess)
+        {
+            if (!VerifyOwnership(currentUser, targetUser, "查看测试历史"))
+                return false;
+
+            var history = await LoadTestHistoryAsync(targetUser);
+            onSuccess(history);
+            return true;
+        }
+
         public async Task SaveTestHistoryAsync(string username, List<TestResult> history)
         {
+            await _fileLock.WaitAsync();
             try
             {
                 if (string.IsNullOrEmpty(username)) return;
@@ -229,6 +263,19 @@ namespace English_Listen_WinUI.Services
                 await File.WriteAllTextAsync(testHistoryPath, json);
             }
             catch { }
+            finally
+            {
+                _fileLock.Release();
+            }
+        }
+
+        public async Task<bool> SaveTestHistoryForCurrentUserAsync(string currentUser, string targetUser, List<TestResult> history)
+        {
+            if (!VerifyOwnership(currentUser, targetUser, "保存测试历史"))
+                return false;
+
+            await SaveTestHistoryAsync(targetUser, history);
+            return true;
         }
 
         public async Task<List<string>> LoadWordsFromFileAsync(string filePath)
@@ -255,11 +302,16 @@ namespace English_Listen_WinUI.Services
 
         public async Task SaveWordsToFileAsync(string filePath, List<string> words)
         {
+            await _fileLock.WaitAsync();
             try
             {
                 await File.WriteAllLinesAsync(filePath, words);
             }
             catch { }
+            finally
+            {
+                _fileLock.Release();
+            }
         }
 
         public async Task<List<string>> GetWordlistFilesAsync()
@@ -330,6 +382,7 @@ namespace English_Listen_WinUI.Services
 
         public async Task SaveUsersAsync(List<UserData> users)
         {
+            await _fileLock.WaitAsync();
             try
             {
                 foreach (var user in users)
@@ -346,6 +399,10 @@ namespace English_Listen_WinUI.Services
                 }
             }
             catch { }
+            finally
+            {
+                _fileLock.Release();
+            }
         }
 
         public async Task<bool> CreateUserAsync(string username, string nickname, string password)
@@ -373,7 +430,7 @@ namespace English_Listen_WinUI.Services
             return true;
         }
 
-        public async Task<bool> DeleteUserAsync(string username)
+        private async Task<bool> DeleteUserAsync(string username)
         {
             try
             {
@@ -413,6 +470,31 @@ namespace English_Listen_WinUI.Services
                 System.Diagnostics.Debug.WriteLine($"删除用户失败: {ex.Message}");
                 return false;
             }
+        }
+
+        public async Task<bool> DeleteUserForCurrentUserAsync(string currentUser, string targetUser)
+        {
+            if (!VerifyOwnership(currentUser, targetUser, "删除用户"))
+                return false;
+
+            return await DeleteUserAsync(targetUser);
+        }
+
+        private bool VerifyOwnership(string? currentUser, string targetUser, string operation)
+        {
+            if (string.IsNullOrEmpty(currentUser))
+            {
+                System.Diagnostics.Debug.WriteLine($"[Security] {operation} 拒绝: 未登录用户");
+                return false;
+            }
+
+            if (currentUser != targetUser)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Security] {operation} 拒绝: 用户 '{currentUser}' 尝试操作 '{targetUser}' 的数据");
+                return false;
+            }
+
+            return true;
         }
 
 

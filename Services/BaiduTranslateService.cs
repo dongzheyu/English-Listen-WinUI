@@ -1,26 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using English_Listen_WinUI.ViewModels;
 
 namespace English_Listen_WinUI.Services
 {
-    public class BaiduTranslateService
+    public class BaiduTranslateService : IDisposable
     {
         private const string API_URL = "https://fanyi-api.baidu.com/api/trans/vip/translate";
-        private const int DAILY_LIMIT = 100;
-        private const string RESOURCE_NAME = "English_Listen_WinUI.Config.secret.json";
+        public const int DAILY_LIMIT = 1000;
+        private const int MAX_CACHE_ENTRIES = 10000;
+        private const int MAX_DAILY_HISTORY_DAYS = 7;
 
-        private readonly HttpClient _httpClient;
+        private static readonly HttpClient _sharedHttpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
+
         private readonly string _translationCachePath;
         private readonly string _limitCachePath;
 
+        private readonly Random _random = new();
         private Dictionary<string, string> _translationCache;
         private Dictionary<string, int> _dailyLimitCache;
         private string _currentDate;
@@ -30,9 +36,6 @@ namespace English_Listen_WinUI.Services
 
         public BaiduTranslateService()
         {
-            _httpClient = new HttpClient();
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
-
             string appDataPath;
             try
             {
@@ -42,7 +45,7 @@ namespace English_Listen_WinUI.Services
             {
                 appDataPath = AppDomain.CurrentDomain.BaseDirectory;
             }
-            
+
             var cacheDir = Path.Combine(appDataPath, "cache");
             if (!Directory.Exists(cacheDir))
             {
@@ -76,61 +79,100 @@ namespace English_Listen_WinUI.Services
 
         public void Dispose()
         {
-            _httpClient?.Dispose();
+            // _sharedHttpClient is static, do not dispose
         }
 
         private void LoadConfig()
         {
-            SecretConfig? config = null;
+            // Priority 1: DPAPI encrypted storage
+            var secret = SecretStorageService.LoadSecret();
+            if (secret != null && !string.IsNullOrEmpty(secret.AppId) && !string.IsNullOrEmpty(secret.ApiKey))
+            {
+                _appId = secret.AppId;
+                _apiKey = secret.ApiKey;
+                System.Diagnostics.Debug.WriteLine($"从加密存储加载配置: AppId={_appId}");
+                return;
+            }
 
+            // Priority 2: Legacy plaintext config file
+            var legacyConfig = LoadConfigFromFile();
+            if (legacyConfig != null)
+            {
+                SecretStorageService.SaveSecret(new BaiduSecretConfig
+                {
+                    AppId = legacyConfig.BaiduTranslate.AppId,
+                    ApiKey = legacyConfig.BaiduTranslate.ApiKey
+                });
+                _appId = legacyConfig.BaiduTranslate.AppId;
+                _apiKey = legacyConfig.BaiduTranslate.ApiKey;
+                System.Diagnostics.Debug.WriteLine($"从旧版文件迁移配置: AppId={_appId}");
+                return;
+            }
+
+            // Priority 3: Old BaiduTranslateApiKey field in settings.json (format: "appId:apiKey")
+            var settingsApiKey = LoadFromSettingsJson();
+            if (settingsApiKey != null)
+            {
+                SecretStorageService.SaveSecret(settingsApiKey);
+                _appId = settingsApiKey.AppId;
+                _apiKey = settingsApiKey.ApiKey;
+                System.Diagnostics.Debug.WriteLine($"从 settings.json 旧字段迁移配置: AppId={_appId}");
+                return;
+            }
+
+            // Priority 4: Built-in default (user's personal API key)
+            _appId = "20260316002574195";
+            _apiKey = "CV5ogmfsAmHALHF9goY5";
+            System.Diagnostics.Debug.WriteLine($"使用默认配置: AppId={_appId}");
+        }
+
+        private BaiduSecretConfig? LoadFromSettingsJson()
+        {
             try
             {
-                var assembly = Assembly.GetExecutingAssembly();
-                var resourceStream = assembly.GetManifestResourceStream(RESOURCE_NAME);
-
-                if (resourceStream == null)
+                string settingsPath;
+                try
                 {
-                    System.Diagnostics.Debug.WriteLine($"嵌入资源 {RESOURCE_NAME} 未找到，尝试从外部文件读取");
-                    config = LoadConfigFromFile();
+                    settingsPath = Path.Combine(
+                        Windows.Storage.ApplicationData.Current.LocalFolder.Path,
+                        "config", "settings.json");
                 }
-                else
+                catch
                 {
-                    System.Diagnostics.Debug.WriteLine($"从嵌入资源 {RESOURCE_NAME} 读取配置");
-                    using (var reader = new StreamReader(resourceStream))
+                    settingsPath = Path.Combine(AppContext.BaseDirectory, "config", "settings.json");
+                }
+
+                if (!File.Exists(settingsPath)) return null;
+
+                var json = File.ReadAllText(settingsPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("BaiduTranslateApiKey", out var apiKeyElement))
+                {
+                    var apiKeyStr = apiKeyElement.GetString();
+                    if (!string.IsNullOrEmpty(apiKeyStr) && apiKeyStr.Contains(':'))
                     {
-                        var json = reader.ReadToEnd();
-                        config = JsonConvert.DeserializeObject<SecretConfig>(json);
+                        var parts = apiKeyStr.Split(':', 2);
+                        var appId = parts[0].Trim();
+                        var apiKey = parts[1].Trim();
+                        if (!string.IsNullOrEmpty(appId) && !string.IsNullOrEmpty(apiKey))
+                        {
+                            return new BaiduSecretConfig { AppId = appId, ApiKey = apiKey };
+                        }
                     }
                 }
+
+                return null;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"从嵌入资源读取配置失败: {ex.Message}，尝试从外部文件读取");
-                config = LoadConfigFromFile();
+                System.Diagnostics.Debug.WriteLine($"[SecretStorage] 读取 settings.json 失败: {ex.Message}");
+                return null;
             }
-
-            if (config == null || config.BaiduTranslate == null)
-            {
-                throw new InvalidOperationException("配置文件格式错误：缺少 BaiduTranslate 配置节。");
-            }
-
-            if (string.IsNullOrEmpty(config.BaiduTranslate.AppId))
-            {
-                throw new InvalidOperationException("配置文件错误：AppId 不能为空。");
-            }
-
-            if (string.IsNullOrEmpty(config.BaiduTranslate.ApiKey))
-            {
-                throw new InvalidOperationException("配置文件错误：ApiKey 不能为空。");
-            }
-
-            _appId = config.BaiduTranslate.AppId;
-            _apiKey = config.BaiduTranslate.ApiKey;
-
-            System.Diagnostics.Debug.WriteLine($"成功加载配置: AppId={_appId}");
         }
 
-        private SecretConfig LoadConfigFromFile()
+        private SecretConfig? LoadConfigFromFile()
         {
             try
             {
@@ -143,38 +185,26 @@ namespace English_Listen_WinUI.Services
                 {
                     appDataPath = AppDomain.CurrentDomain.BaseDirectory;
                 }
-                
+
                 var configPath = Path.Combine(appDataPath, "config", "secret.json");
 
                 if (!File.Exists(configPath))
-                {
-                    throw new FileNotFoundException($"配置文件不存在: {configPath}。请在项目根目录的 config 文件夹中创建 secret.json 文件。");
-                }
+                    return null;
 
                 var json = File.ReadAllText(configPath);
                 var config = JsonConvert.DeserializeObject<SecretConfig>(json);
 
-                if (config == null || config.BaiduTranslate == null)
-                {
-                    throw new Exception("配置文件格式错误：缺少 BaiduTranslate 配置节。");
-                }
+                if (config?.BaiduTranslate == null)
+                    return null;
 
-                if (string.IsNullOrEmpty(config.BaiduTranslate.AppId))
-                {
-                    throw new Exception("配置文件错误：AppId 不能为空。");
-                }
+                if (string.IsNullOrEmpty(config.BaiduTranslate.AppId) || string.IsNullOrEmpty(config.BaiduTranslate.ApiKey))
+                    return null;
 
-                if (string.IsNullOrEmpty(config.BaiduTranslate.ApiKey))
-                {
-                    throw new Exception("配置文件错误：ApiKey 不能为空。");
-                }
-
-                System.Diagnostics.Debug.WriteLine($"从外部文件加载配置: AppId={config.BaiduTranslate.AppId}");
                 return config;
             }
-            catch (Exception ex)
+            catch
             {
-                throw new InvalidOperationException($"加载配置文件失败: {ex.Message}");
+                return null;
             }
         }
 
@@ -187,7 +217,8 @@ namespace English_Listen_WinUI.Services
         {
             _appId = appId;
             _apiKey = apiKey;
-            System.Diagnostics.Debug.WriteLine($"已设置自定义API: AppId={_appId}");
+            SecretStorageService.SaveSecret(new BaiduSecretConfig { AppId = appId, ApiKey = apiKey });
+            System.Diagnostics.Debug.WriteLine($"已设置自定义API并持久化: AppId={_appId}");
         }
 
         private void LoadCache()
@@ -204,6 +235,16 @@ namespace English_Listen_WinUI.Services
                 {
                     var json = File.ReadAllText(_translationCachePath);
                     _translationCache = JsonConvert.DeserializeObject<Dictionary<string, string>>(json, jsonSettings) ?? new Dictionary<string, string>();
+
+                    if (_translationCache.Count > MAX_CACHE_ENTRIES)
+                    {
+                        var excess = _translationCache.Count - MAX_CACHE_ENTRIES;
+                        var keysToRemove = _translationCache.Keys.Take(excess).ToList();
+                        foreach (var key in keysToRemove)
+                        {
+                            _translationCache.Remove(key);
+                        }
+                    }
                 }
                 catch
                 {
@@ -217,6 +258,13 @@ namespace English_Listen_WinUI.Services
                 {
                     var json = File.ReadAllText(_limitCachePath);
                     var cache = JsonConvert.DeserializeObject<Dictionary<string, int>>(json, jsonSettings) ?? new Dictionary<string, int>();
+
+                    var cutoffDate = DateTime.Now.AddDays(-MAX_DAILY_HISTORY_DAYS).ToString("yyyy-MM-dd");
+                    var staleKeys = cache.Keys.Where(k => string.Compare(k, cutoffDate, StringComparison.Ordinal) < 0).ToList();
+                    foreach (var key in staleKeys)
+                    {
+                        cache.Remove(key);
+                    }
 
                     if (cache.TryGetValue(_currentDate, out var count))
                     {
@@ -236,6 +284,16 @@ namespace English_Listen_WinUI.Services
             {
                 try
                 {
+                    if (_translationCache.Count > MAX_CACHE_ENTRIES)
+                    {
+                        var excess = _translationCache.Count - MAX_CACHE_ENTRIES;
+                        var keysToRemove = _translationCache.Keys.Take(excess).ToList();
+                        foreach (var key in keysToRemove)
+                        {
+                            _translationCache.Remove(key);
+                        }
+                    }
+
                     var jsonSettings = new JsonSerializerSettings
                     {
                         Formatting = Formatting.Indented
@@ -299,14 +357,18 @@ namespace English_Listen_WinUI.Services
 
         public async Task<string> TranslateAsync(string text, string from = "auto", string to = "zh")
         {
+            if (string.IsNullOrEmpty(_appId) || string.IsNullOrEmpty(_apiKey))
+            {
+                throw new InvalidOperationException("未配置百度翻译 API 密钥，请在设置页面中配置。");
+            }
+
             if (!CheckLimit())
             {
                 throw new Exception($"每日翻译限额已用完，最多只能翻译{DAILY_LIMIT}个单词");
             }
 
             var cacheKey = $"{from}:{to}:{text}";
-            
-            // 检查缓存
+
             lock (_cacheLock)
             {
                 if (_translationCache.TryGetValue(cacheKey, out var cachedResult))
@@ -317,19 +379,13 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                var salt = new Random().Next(100000, 999999).ToString();
+                var salt = _random.Next(100000, 999999).ToString();
                 var sign = GenerateSign(text, salt);
 
                 var requestUrl = $"{API_URL}?q={Uri.EscapeDataString(text)}&from={from}&to={to}&appid={_appId}&salt={salt}&sign={sign}";
 
-                System.Diagnostics.Debug.WriteLine($"翻译API请求: {requestUrl}");
-                System.Diagnostics.Debug.WriteLine($"APP_ID: {_appId}");
-                System.Diagnostics.Debug.WriteLine($"Sign: {sign}");
-
-                var response = await _httpClient.GetAsync(requestUrl);
+                var response = await _sharedHttpClient.GetAsync(requestUrl);
                 var json = await response.Content.ReadAsStringAsync();
-
-                System.Diagnostics.Debug.WriteLine($"翻译API响应: {json}");
 
                 var result = JsonConvert.DeserializeObject<BaiduTranslateResponse>(json);
 
@@ -347,15 +403,14 @@ namespace English_Listen_WinUI.Services
                 if (result.TransResult != null && result.TransResult.Length > 0)
                 {
                     var translation = result.TransResult[0].Dst;
-                    
-                    // 更新缓存
+
                     lock (_cacheLock)
                     {
                         _translationCache[cacheKey] = translation;
                         IncrementLimit();
                         SaveCache();
                     }
-                    
+
                     return translation;
                 }
 
@@ -363,7 +418,6 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"翻译异常: {ex.Message}");
                 throw new Exception($"翻译失败: {ex.Message}");
             }
         }

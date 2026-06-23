@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
+using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using English_Listen_WinUI.Services;
 using English_Listen_WinUI.Models;
@@ -56,8 +57,8 @@ namespace English_Listen_WinUI.Views
             countdownTimer = new DispatcherTimer();
             countdownTimer.Interval = TimeSpan.FromSeconds(1);
             countdownTimer.Tick += CountdownTimer_Tick;
-            _translateService = new BaiduTranslateService();
-            _translationLibraryService = new TranslationLibraryService();
+            _translateService = null!;
+            _translationLibraryService = null!;
         }
 
         private void InitializeAudioDevices()
@@ -122,15 +123,7 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                var dialog = new ContentDialog
-                {
-                    Title = "音频设备未检测到",
-                    Content = "当前系统没有可用的音频输出设备。\n\n听写测试需要音频设备来播放单词朗读。\n\n请检查：\n1. 是否连接了扬声器或耳机\n2. 音频设备是否被其他程序占用\n3. 声卡驱动是否正常",
-                    CloseButtonText = "返回主菜单",
-                    XamlRoot = this.XamlRoot
-                };
-
-                await dialog.ShowAsync();
+                MainWindow.ShowNotification("当前系统没有可用的音频输出设备。\n\n听写测试需要音频设备来播放单词朗读。\n\n请检查：\n1. 是否连接了扬声器或耳机\n2. 音频设备是否被其他程序占用\n3. 声卡驱动是否正常");
                 Frame?.GoBack();
             }
             catch (Exception ex)
@@ -146,6 +139,9 @@ namespace English_Listen_WinUI.Views
 
             try
             {
+                // 重新初始化音频设备（Dispose 销毁了 synthesizer，返回到此页时需要重建）
+                InitializeAudioDevices();
+
                 // 检查音频设备是否可用
                 if (!_hasAudioDevice)
                 {
@@ -176,38 +172,22 @@ namespace English_Listen_WinUI.Views
                     currentFileName = testParams.FileName;
                     LoadWordList(currentFileName, testParams.RandomOrder);
                 }
-                else if (e.Parameter != null && e.Parameter.GetType().Name == "DictationTestParamsWithTranslations")
+                else if (e.Parameter is WordsPage.DictationTestParamsWithTranslations testParamsWithTranslations)
                 {
-                    var wordListProperty = e.Parameter.GetType().GetProperty("WordList");
-                    var randomOrderProperty = e.Parameter.GetType().GetProperty("RandomOrder");
-                    var readTranslationProperty = e.Parameter.GetType().GetProperty("ReadTranslation");
-                    var isPaperModeProperty = e.Parameter.GetType().GetProperty("IsPaperMode");
-                    
-                    if (wordListProperty != null && randomOrderProperty != null)
+                    wordList = testParamsWithTranslations.WordList;
+                    if (testParamsWithTranslations.RandomOrder)
                     {
-                        var wordListValue = wordListProperty.GetValue(e.Parameter) as List<WordTranslationPair>;
-                        var randomOrderValue = (bool)(randomOrderProperty.GetValue(e.Parameter) ?? false);
-                        var readTranslationValue = (bool)(readTranslationProperty?.GetValue(e.Parameter) ?? false);
-                        var isPaperModeValue = (bool)(isPaperModeProperty?.GetValue(e.Parameter) ?? false);
-                        
-                        if (wordListValue != null)
-                        {
-                            wordList = wordListValue;
-                            if (randomOrderValue)
-                            {
-                                ShuffleWordList();
-                            }
-                            totalWords = wordList.Count;
-                            currentIndex = 0;
-                            correctCount = 0;
-                            correctIndices.Clear();
-                            isTestActive = true;
-                            _readTranslation = readTranslationValue;
-                            _isPaperMode = isPaperModeValue;
-                            UpdateUI();
-                            _ = PlayCurrentWordAndStartCountdown();
-                        }
+                        ShuffleWordList();
                     }
+                    totalWords = wordList.Count;
+                    currentIndex = 0;
+                    correctCount = 0;
+                    correctIndices.Clear();
+                    isTestActive = true;
+                    _readTranslation = testParamsWithTranslations.ReadTranslation;
+                    _isPaperMode = testParamsWithTranslations.IsPaperMode;
+                    UpdateUI();
+                    _ = PlayCurrentWordAndStartCountdown();
                 }
                 else if (e.Parameter is string fileName)
                 {
@@ -409,12 +389,14 @@ namespace English_Listen_WinUI.Views
                     // 自动翻译
                     try
                     {
+                        _translateService ??= new BaiduTranslateService();
                         translation = await _translateService.TranslateAsync(word, "en", "zh");
                         if (!string.IsNullOrEmpty(translation))
                         {
                             wordPair.Translation = translation;
                             TranslationText.Text = $"翻译: {translation}";
                             // 保存翻译到翻译库
+                            _translationLibraryService ??= new TranslationLibraryService();
                             _translationLibraryService.SaveTranslation(word, translation);
                             _translationLibraryService.SaveToFile();
                         }
@@ -530,8 +512,9 @@ namespace English_Listen_WinUI.Views
                     }
                 }
 
-                var completedTask = await Task.WhenAny(speakTaskSource!.Task, Task.Delay(8000));
-                if (completedTask != speakTaskSource.Task)
+                var tcs = speakTaskSource; // 捕获局部引用，防止 Dispose/Submit 并发设为 null
+                var completedTask = await Task.WhenAny(tcs!.Task, Task.Delay(8000));
+                if (completedTask != tcs.Task)
                 {
                     lock (_synthesisLock)
                     {
@@ -617,8 +600,9 @@ namespace English_Listen_WinUI.Views
                     }
                 }
                 
-                var completedTask = await Task.WhenAny(speakTaskSource!.Task, Task.Delay(10000));
-                if (completedTask != speakTaskSource.Task)
+                var tcs = speakTaskSource; // 捕获局部引用，防止 Dispose/Submit 并发设为 null
+                var completedTask = await Task.WhenAny(tcs!.Task, Task.Delay(10000));
+                if (completedTask != tcs.Task)
                 {
                     lock (_synthesisLock)
                     {
@@ -658,45 +642,52 @@ namespace English_Listen_WinUI.Views
 
         private async void Submit()
         {
-            lock (_disposalLock)
+            try
             {
-                if (!isTestActive || currentIndex >= totalWords) return;
-            }
-            
-            countdownTimer?.Stop();
-            
-            if (isSpeaking)
-            {
-                lock (_synthesisLock)
+                lock (_disposalLock)
                 {
-                    try
-                    {
-                        synthesizer?.SpeakAsyncCancelAll();
-                        chineseSynthesizer?.SpeakAsyncCancelAll();
-                    }
-                    catch { }
+                    if (!isTestActive || currentIndex >= totalWords) return;
                 }
-                isSpeaking = false;
-                speakTaskSource = null;
-                SpeakingStatusText.Text = string.Empty;
-            }
 
-            lock (_disposalLock)
+                countdownTimer?.Stop();
+
+                if (isSpeaking)
+                {
+                    lock (_synthesisLock)
+                    {
+                        try
+                        {
+                            synthesizer?.SpeakAsyncCancelAll();
+                            chineseSynthesizer?.SpeakAsyncCancelAll();
+                        }
+                        catch { }
+                    }
+                    isSpeaking = false;
+                    speakTaskSource = null;
+                    SpeakingStatusText.Text = string.Empty;
+                }
+
+                lock (_disposalLock)
+                {
+                    _isPlaying = false;
+                }
+
+                string input = InputTextBox.Text?.Trim() ?? "";
+                string correct = wordList[currentIndex].Word.Trim();
+
+                if (input.Equals(correct, StringComparison.OrdinalIgnoreCase) && !correctIndices.Contains(currentIndex))
+                {
+                    correctCount++;
+                    correctIndices.Add(currentIndex);
+                    ScoreText.Text = $"正确: {correctCount} / {totalWords}";
+                }
+
+                MoveToNextWord();
+            }
+            catch (Exception ex)
             {
-                _isPlaying = false;
+                System.Diagnostics.Debug.WriteLine($"Submit 异常: {ex.Message}");
             }
-
-            string input = InputTextBox.Text?.Trim() ?? "";
-            string correct = wordList[currentIndex].Word.Trim();
-
-            if (input.Equals(correct, StringComparison.OrdinalIgnoreCase) && !correctIndices.Contains(currentIndex))
-            {
-                correctCount++;
-                correctIndices.Add(currentIndex);
-                ScoreText.Text = $"正确: {correctCount} / {totalWords}";
-            }
-
-            MoveToNextWord();
         }
 
         private void AutoSubmit()
@@ -871,16 +862,8 @@ namespace English_Listen_WinUI.Views
 
             if (_isPaperMode)
             {
-                var dialog = new ContentDialog
-                {
-                    Title = "听写完成",
-                    Content = "请核对您的答案，然后点击继续查看标准答案。",
-                    PrimaryButtonText = "继续",
-                    XamlRoot = this.XamlRoot
-                };
-
-                await dialog.ShowAsync();
-                Frame?.Navigate(typeof(AnswersPage), wordList);
+                // 纸笔模式：调用对话框让用户输入正确数并保存结果
+                await ShowPaperModeResultDialogAsync();
             }
             else
             {
@@ -890,80 +873,77 @@ namespace English_Listen_WinUI.Views
 
         private async Task ShowPaperModeResultDialogAsync()
         {
-            var inputDialog = new ContentDialog
+            int userCorrectCount = 0;
+
+            while (true)
             {
-                Title = "测试完成",
-                Content = new StackPanel
+                var inputDialog = new ContentDialog
                 {
-                    Margin = new Thickness(0, 10, 0, 0),
-                    Children = 
+                    Title = "测试完成",
+                    Content = new StackPanel
                     {
-                        new TextBlock { Text = "请输入您答对的单词数量：" },
-                        new NumberBox 
-                        { 
-                            Width = 200, 
-                            Minimum = 0, 
-                            Maximum = totalWords,
-                            Value = 0,
-                            Margin = new Thickness(0, 10, 0, 0)
+                        Margin = new Thickness(0, 10, 0, 0),
+                        Children = 
+                        {
+                            new TextBlock { Text = "请输入您答对的单词数量：" },
+                            new NumberBox 
+                            { 
+                                Width = 200, 
+                                Minimum = 0, 
+                                Maximum = totalWords,
+                                Value = 0,
+                                Margin = new Thickness(0, 10, 0, 0)
+                            }
                         }
-                    }
-                },
-                PrimaryButtonText = "确定",
-                CloseButtonText = "返回主菜单",
-                XamlRoot = this.XamlRoot
-            };
-
-            var result = await inputDialog.ShowAsync();
-
-            if (result == ContentDialogResult.Primary)
-            {
-                var numberBox = inputDialog.Content as StackPanel;
-                var inputBox = numberBox?.Children[1] as NumberBox;
-                var userCorrectCount = (int)(inputBox?.Value ?? 0);
-
-                if (userCorrectCount > totalWords)
-                {
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "错误",
-                        Content = "正确数不能超过总单词数",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
-                    await ShowPaperModeResultDialogAsync();
-                    return;
-                }
-
-                double accuracy = totalWords > 0 ? (double)userCorrectCount / totalWords * 100 : 0;
-
-                await SaveTestResultAsync(userCorrectCount, accuracy);
-
-                var accuracyDialog = new ContentDialog
-                {
-                    Title = "测试结果",
-                    Content = $"正确率：{accuracy:F1}% ({userCorrectCount}/{totalWords})",
-                    PrimaryButtonText = "再测一次",
+                    },
+                    PrimaryButtonText = "确定",
                     CloseButtonText = "返回主菜单",
                     XamlRoot = this.XamlRoot
                 };
 
-                var accuracyResult = await accuracyDialog.ShowAsync();
+                var result = await inputDialog.ShowAsync();
 
-                if (accuracyResult == ContentDialogResult.Primary)
+                if (result != ContentDialogResult.Primary)
                 {
-                    currentIndex = 0;
-                    correctCount = 0;
-                    correctIndices.Clear();
-                    UpdateUI();
-                    isTestActive = true;
-                    _ = PlayCurrentWordAndStartCountdown();
+                    return;
                 }
-                else
+
+                var stackPanel = inputDialog.Content as StackPanel;
+                var inputBox = FindChild<NumberBox>(stackPanel);
+                userCorrectCount = (int)(inputBox?.Value ?? 0);
+
+                if (userCorrectCount > totalWords)
                 {
-                    Frame?.GoBack();
+                    MainWindow.ShowNotification("正确数不能超过总单词数");
+                    continue;
                 }
+
+                break;
+            }
+
+            double accuracy = totalWords > 0 ? (double)userCorrectCount / totalWords * 100 : 0;
+
+            await SaveTestResultAsync(userCorrectCount, accuracy);
+
+            var accuracyDialog = new ContentDialog
+            {
+                Title = "测试结果",
+                Content = $"正确率：{accuracy:F1}% ({userCorrectCount}/{totalWords})",
+                PrimaryButtonText = "再测一次",
+                CloseButtonText = "返回主菜单",
+                XamlRoot = this.XamlRoot
+            };
+
+            var accuracyResult = await accuracyDialog.ShowAsync();
+
+            if (accuracyResult == ContentDialogResult.Primary)
+            {
+                currentIndex = 0;
+                correctCount = 0;
+                correctIndices.Clear();
+                UpdateUI();
+                isTestActive = true;
+                _ = PlayCurrentWordAndStartCountdown();
             }
             else
             {
@@ -1005,39 +985,31 @@ namespace English_Listen_WinUI.Views
 
         private async Task ShowPleaseWaitDialogAsync()
         {
-            var dialog = new ContentDialog
+            MainWindow.ShowNotification("请先等待朗读结束");
+        }
+
+        private static T? FindChild<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent == null) return null;
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
             {
-                Title = "提示",
-                Content = "请先等待朗读结束",
-                CloseButtonText = "确定",
-                XamlRoot = this.XamlRoot
-            };
-            await dialog.ShowAsync();
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild) return typedChild;
+                var result = FindChild<T>(child);
+                if (result != null) return result;
+            }
+            return null;
         }
 
         private async Task ShowErrorDialogAsync(string message)
         {
-            var dialog = new ContentDialog
-            {
-                Title = "错误",
-                Content = message,
-                CloseButtonText = "确定",
-                XamlRoot = this.XamlRoot
-            };
-            await dialog.ShowAsync();
+            MainWindow.ShowNotification(message);
             Frame?.GoBack();
         }
 
         private async Task ShowEmptyListDialogAsync()
         {
-            var dialog = new ContentDialog
-            {
-                Title = "提示",
-                Content = "词库为空，请先添加单词。",
-                CloseButtonText = "确定",
-                XamlRoot = this.XamlRoot
-            };
-            await dialog.ShowAsync();
+            MainWindow.ShowNotification("词库为空，请先添加单词。");
             Frame?.GoBack();
         }
 
@@ -1107,7 +1079,7 @@ namespace English_Listen_WinUI.Views
                 await settingsService.LoadSettingsAsync();
 
                 var currentUser = settingsService.Settings.CurrentUser;
-                if (string.IsNullOrEmpty(currentUser)) return;
+                if (string.IsNullOrEmpty(currentUser)) currentUser = "未登录";
 
                 var testHistory = await settingsService.LoadTestHistoryAsync(currentUser);
 
@@ -1317,6 +1289,9 @@ namespace English_Listen_WinUI.Views
                     
                     chineseSynthesizer = null;
                 }
+
+                try { (_translateService as IDisposable)?.Dispose(); } catch { }
+                try { (_translationLibraryService as IDisposable)?.Dispose(); } catch { }
             }
         }
     }
@@ -1333,3 +1308,4 @@ namespace English_Listen_WinUI.Views
         }
     }
 }
+

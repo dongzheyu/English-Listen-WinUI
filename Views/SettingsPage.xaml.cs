@@ -22,13 +22,19 @@ namespace English_Listen_WinUI.Views
         {
             this.InitializeComponent();
             this.Loaded += SettingsPage_Loaded;
-            _translateService = new BaiduTranslateService();
+            // 延迟初始化，避免构造函数中抛出异常导致页面无法加载
+            _translateService = null!;
         }
 
         private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
+                // 延迟初始化翻译服务，避免构造函数异常导致页面崩溃
+                if (_translateService == null)
+                {
+                    _translateService = new BaiduTranslateService();
+                }
                 _viewModel = App.SharedViewModel ?? throw new InvalidOperationException("SharedViewModel is null");
                 if (_viewModel?.Settings?.Settings == null)
                 {
@@ -137,12 +143,12 @@ namespace English_Listen_WinUI.Views
                     
                     if (availableEngines.ContainsKey("WindowsTTS"))
                     {
-                        EngineStatusText.Text = $"✅ Windows 11语音合成可用 - {recommended}";
+                        EngineStatusText.Text = $"Windows 11语音合成可用 - {recommended}";
                         EngineStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
                     }
                     else
                     {
-                        EngineStatusText.Text = "ℹ️ 使用SAPI语音引擎";
+                        EngineStatusText.Text = "使用SAPI语音引擎";
                         EngineStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
                     }
                 }
@@ -484,8 +490,8 @@ namespace English_Listen_WinUI.Views
             {
                 if (TranslationLimitText != null)
                 {
-                    var remaining = _translateService.GetRemainingLimit();
-                    TranslationLimitText.Text = $"{remaining}/100";
+                    var remaining = _translateService?.GetRemainingLimit() ?? 0;
+                    TranslationLimitText.Text = $"{remaining}/{BaiduTranslateService.DAILY_LIMIT}";
                 }
             }
             catch (Exception ex)
@@ -553,17 +559,17 @@ namespace English_Listen_WinUI.Views
                     return;
                 }
 
-                // 更新设置
-                _viewModel.Settings.Settings.BaiduTranslateApiKey = $"{appId}:{secretKey}";
+                // Clear old plaintext field
+                _viewModel.Settings.Settings.BaiduTranslateApiKey = null;
                 await _viewModel.Settings.SaveSettingsAsync();
 
-                // 设置自定义API
+                // SetCustomApiKey now persists to DPAPI via SecretStorageService
                 _translateService.SetCustomApiKey(appId, secretKey);
 
                 // 更新限额显示
                 UpdateTranslationLimit();
 
-                ShowInfo("成功", "自定义API配置已保存");
+                ShowInfo("成功", "自定义API配置已加密保存");
             }
             catch (Exception ex)
             {
@@ -588,168 +594,6 @@ namespace English_Listen_WinUI.Views
 
 
 
-
-
-        // 下载并安装更新
-        private async Task DownloadAndInstallUpdateAsync(Services.UpdateInfo updateInfo)
-        {
-            try
-            {
-                var updateService = new Services.UpdateService();
-                
-                // 显示进度对话框
-                var progressDialog = new ContentDialog
-                {
-                    Title = "下载更新",
-                    Content = "正在下载更新文件，请稍候...",
-                    CloseButtonText = "取消",
-                    XamlRoot = this.XamlRoot
-                };
-
-                var progressBar = new Microsoft.UI.Xaml.Controls.ProgressBar
-                {
-                    Minimum = 0,
-                    Maximum = 100,
-                    Value = 0,
-                    Width = 300,
-                    Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 0)
-                };
-
-                var progressText = new TextBlock
-                {
-                    Text = "准备下载...",
-                    HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
-                    Margin = new Microsoft.UI.Xaml.Thickness(0, 5, 0, 0)
-                };
-
-                var stackPanel = new StackPanel();
-                stackPanel.Children.Add(new TextBlock { Text = $"新版本: {updateInfo.NewVersion}", TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap });
-                stackPanel.Children.Add(progressBar);
-                stackPanel.Children.Add(progressText);
-
-                progressDialog.Content = stackPanel;
-
-                // 创建进度报告器
-                var progress = new Progress<int>(value =>
-                {
-                    progressBar.Value = value;
-                    progressText.Text = $"下载进度: {value}%";
-                });
-
-                // 显示对话框并开始下载
-                var dialogTask = progressDialog.ShowAsync();
-                var downloadTask = updateService.DownloadUpdateAsync(updateInfo.DownloadUrl, progress);
-
-                // 等待下载完成
-                var downloadedFile = await downloadTask;
-                
-                // 关闭进度对话框
-                progressDialog.Hide();
-
-                if (!string.IsNullOrEmpty(downloadedFile))
-                {
-                    // 下载完成，启动安装程序
-                    await LaunchInstallerAsync(downloadedFile, updateInfo);
-                }
-                else
-                {
-                    // 下载失败
-                    var errorDialog = new ContentDialog
-                    {
-                        Title = "下载失败",
-                        Content = "下载更新文件失败，请检查网络连接后重试。",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"下载更新异常: {ex.Message}");
-                
-                var errorDialog = new ContentDialog
-                {
-                    Title = "下载失败",
-                    Content = $"下载更新时发生错误: {ex.Message}",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
-            }
-        }
-
-        // 启动安装程序
-        private async Task LaunchInstallerAsync(string installerPath, Services.UpdateInfo updateInfo)
-        {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine($"启动安装程序: {installerPath}");
-
-                if (!System.IO.File.Exists(installerPath))
-                {
-                    System.Diagnostics.Debug.WriteLine("安装程序不存在");
-                    return;
-                }
-
-                // 显示安装确认对话框
-                var confirmDialog = new ContentDialog
-                {
-                    Title = "下载完成",
-                    Content = $"更新文件已下载完成（版本 {updateInfo.NewVersion}），即将启动安装程序。\n\n安装程序启动后，当前应用将自动关闭。",
-                    PrimaryButtonText = "立即安装",
-                    CloseButtonText = "稍后安装",
-                    XamlRoot = this.XamlRoot
-                };
-
-                var result = await confirmDialog.ShowAsync();
-                if (result == ContentDialogResult.Primary)
-                {
-                    // 启动安装程序
-                    var process = new System.Diagnostics.Process
-                    {
-                        StartInfo = new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = installerPath,
-                            UseShellExecute = true,
-                            CreateNoWindow = false
-                        }
-                    };
-
-                    process.Start();
-                    
-                    // 关闭当前应用
-                    Environment.Exit(0);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"启动安装程序异常: {ex.Message}");
-                
-                var errorDialog = new ContentDialog
-                {
-                    Title = "启动安装程序失败",
-                    Content = $"无法启动安装程序: {ex.Message}\n\n请手动运行下载的安装程序。",
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-                await errorDialog.ShowAsync();
-            }
-        }
-
-        // 获取当前版本号
-        private string GetCurrentVersion()
-        {
-            try
-            {
-                var updateService = new Services.UpdateService();
-                return updateService.GetCurrentVersion();
-            }
-            catch
-            {
-                return "1.0.0"; // 默认版本号
-            }
-        }
 
         // 初始化程序
         private async void InitializeButton_Click(object sender, RoutedEventArgs e)
@@ -846,14 +690,7 @@ namespace English_Listen_WinUI.Views
                     }
                     
                     // 显示成功消息
-                    var successDialog = new ContentDialog
-                    {
-                        Title = "初始化完成",
-                        Content = "程序已成功初始化！\n\n所有数据已清除，程序将自动重启。",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await successDialog.ShowAsync();
+                    MainWindow.ShowNotification("程序已成功初始化！\n\n所有数据已清除，程序将自动重启。");
                     
                     // 自动重启程序
                     try
@@ -903,7 +740,7 @@ namespace English_Listen_WinUI.Views
             stackPanel.Children.Add(textBox);
             
             // 显示当前剩余限额
-            var remainingLimit = _translateService.GetRemainingLimit();
+            var remainingLimit = _translateService?.GetRemainingLimit() ?? 0;
             var limitTextBlock = new TextBlock
             {
                 Text = $"当前剩余翻译限额：{remainingLimit} 个单词",
@@ -944,22 +781,15 @@ namespace English_Listen_WinUI.Views
                         int newLimit = redeemCode.Unlimited ? 1000000 : redeemCode.Limit;
                         
                         // 重置当日限额
-                        _translateService.ResetDailyLimit(newLimit);
+                        _translateService?.ResetDailyLimit(newLimit);
                         
                         // 重新获取剩余限额
-                        remainingLimit = _translateService.GetRemainingLimit();
+                        remainingLimit = _translateService?.GetRemainingLimit() ?? 0;
                         
                         // 更新UI显示
                         UpdateTranslationLimit();
                         
-                        var successDialog = new ContentDialog
-                        {
-                            Title = "成功",
-                            Content = $"兑换成功！\n已重置翻译限额为 {newLimit} 个单词\n当前剩余限额：{remainingLimit} 个单词",
-                            CloseButtonText = "确定",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await successDialog.ShowAsync();
+                        MainWindow.ShowNotification($"兑换成功！\n已重置翻译限额为 {newLimit} 个单词\n当前剩余限额：{remainingLimit} 个单词");
                     }
                     else
                     {
@@ -1051,19 +881,10 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                var dialog = new ContentDialog
-                {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-
-                _ = dialog.ShowAsync();
+                MainWindow.ShowNotification($"{title}: {message}");
             }
             catch
             {
-                // 如果对话框也失败，就记录到调试输出
                 System.Diagnostics.Debug.WriteLine($"{title}: {message}");
             }
         }
@@ -1072,19 +893,10 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                var dialog = new ContentDialog
-                {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
-
-                _ = dialog.ShowAsync();
+                MainWindow.ShowNotification($"{title}: {message}");
             }
             catch
             {
-                // 如果对话框也失败，就记录到调试输出
                 System.Diagnostics.Debug.WriteLine($"{title}: {message}");
             }
         }

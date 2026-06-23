@@ -2,9 +2,11 @@ using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 using English_Listen_WinUI.ViewModels;
 using English_Listen_WinUI.Views;
+using Microsoft.UI.Dispatching;
 
 namespace English_Listen_WinUI
 {
@@ -12,6 +14,9 @@ namespace English_Listen_WinUI
     {
         private readonly MainViewModel? _viewModel;
         private bool _isNavigating = false;
+        private static DispatcherTimer? _notificationTimer;
+        private static MainWindow? _currentInstance;
+        private static Storyboard? _currentToastAnimation;
 
         public MainWindow()
         {
@@ -24,6 +29,12 @@ namespace English_Listen_WinUI
 
                 _viewModel = App.SharedViewModel ?? throw new InvalidOperationException("SharedViewModel is null");
                 System.Diagnostics.Debug.WriteLine("[MainWindow] ViewModel assigned");
+
+                _currentInstance = this;
+
+                _notificationTimer = new DispatcherTimer();
+                _notificationTimer.Interval = TimeSpan.FromSeconds(5);
+                _notificationTimer.Tick += (s, e) => HideNotification();
 
                 // Set up navigation
                 MainNavigationView.SelectionChanged += NavigationView_SelectionChanged;
@@ -125,6 +136,7 @@ namespace English_Listen_WinUI
             {
                 "HomePage" => typeof(HomePage),
                 "WordsPage" => typeof(WordsPage),
+                "MemorizePage" => typeof(MemorizePage),
                 "UserPage" => typeof(UserPage),
                 "ProgressPage" => typeof(ProgressPage),
                 "HelpPage" => typeof(HelpPage),
@@ -383,6 +395,76 @@ namespace English_Listen_WinUI
                 // 更新返回按钮状态
                 UpdateBackButtonState();
             }
+        }
+
+        public static void ShowNotification(string message, string? title = null)
+        {
+            _currentInstance?.DispatcherQueue.TryEnqueue(() =>
+            {
+                _currentInstance?.ShowNotificationInternal(message, title);
+            });
+        }
+
+        private void ShowNotificationInternal(string message, string? title)
+        {
+            _notificationTimer?.Stop();
+            _currentToastAnimation?.Stop();
+
+            ToastTitle.Text = title ?? "";
+            ToastTitle.Visibility = string.IsNullOrEmpty(title) ? Visibility.Collapsed : Visibility.Visible;
+            ToastMessage.Text = message;
+
+            // Reset initial state for animation
+            ToastBorder.Opacity = 0;
+            ToastTranslate.X = 100;
+            ToastBorder.Visibility = Visibility.Visible;
+
+            // Slide-in + fade-in animation
+            var storyboard = new Storyboard();
+
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = new Duration(TimeSpan.FromMilliseconds(300)),
+                EnableDependentAnimation = true
+            };
+            Storyboard.SetTarget(fadeIn, ToastBorder);
+            Storyboard.SetTargetProperty(fadeIn, "Opacity");
+            storyboard.Children.Add(fadeIn);
+
+            var slideIn = new DoubleAnimation
+            {
+                From = 100,
+                To = 0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(350)),
+                EnableDependentAnimation = true,
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(slideIn, ToastTranslate);
+            Storyboard.SetTargetProperty(slideIn, "X");
+            storyboard.Children.Add(slideIn);
+
+            _currentToastAnimation = storyboard;
+            storyboard.Begin();
+
+            _notificationTimer!.Interval = TimeSpan.FromSeconds(5);
+            _notificationTimer!.Start();
+        }
+
+        private static void HideNotification()
+        {
+            _currentInstance?.DispatcherQueue.TryEnqueue(() =>
+            {
+                _currentInstance?.HideNotificationInternal();
+            });
+        }
+
+        private void HideNotificationInternal()
+        {
+            _notificationTimer?.Stop();
+            _currentToastAnimation?.Stop();
+            ToastBorder.Visibility = Visibility.Collapsed;
         }
     }
 }

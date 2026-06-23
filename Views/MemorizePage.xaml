@@ -1,0 +1,67 @@
+<Page
+    x:Class="English_Listen_WinUI.Views.MemorizePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="600" d:DesignWidth="800">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部区域 -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+            <TextBlock x:Name="TitleText" Text="背单词" FontSize="24" FontWeight="Bold"
+                       VerticalAlignment="Center" Margin="0,0,30,0"/>
+            <TextBlock x:Name="ProgressText" Text="第 0 / 0 个"
+                       VerticalAlignment="Center" FontSize="16"/>
+        </StackPanel>
+
+        <!-- 中间区域 -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="30">
+            <!-- 单词显示 -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="12" Padding="40,30"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    MinWidth="400">
+                <StackPanel HorizontalAlignment="Center" Spacing="15">
+                    <TextBlock x:Name="WordText" Text=""
+                               FontSize="36" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               TextWrapping="WrapWholeWords"/>
+                    <TextBlock x:Name="PhoneticText" Text=""
+                               FontSize="18"
+                               Foreground="#888888"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="TranslationText" Text=""
+                               FontSize="22"
+                               Foreground="{ThemeResource SystemAccentColor}"
+                               HorizontalAlignment="Center"
+                               TextWrapping="WrapWholeWords"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- 底部按钮区域 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0" Spacing="15">
+            <Button x:Name="PreviousButton" Content="上一个"
+                    Width="100" Height="40"
+                    Click="PreviousButton_Click"/>
+            <Button x:Name="ReplayButton" Content="重读"
+                    Width="100" Height="40"
+                    Click="ReplayButton_Click"/>
+            <Button x:Name="NextButton" Content="下一个"
+                    Width="100" Height="40"
+                    Click="NextButton_Click"/>
+            <Button x:Name="EndButton" Content="结束"
+                    Width="100" Height="40"
+                    Click="EndButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Page>

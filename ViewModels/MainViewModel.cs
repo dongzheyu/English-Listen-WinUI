@@ -173,8 +173,8 @@ namespace English_Listen_WinUI.ViewModels
 
                 NavigateCommand = new RelayCommand<string>(Navigate);
                 ToggleThemeCommand = new RelayCommand(ToggleTheme);
-                SaveWordsCommand = new RelayCommand(async () => await SaveWordsAsync());
-                LoadWordsCommand = new RelayCommand<string>(async (file) => await LoadWordsAsync(file));
+                SaveWordsCommand = new RelayCommand(async () => { try { await SaveWordsAsync(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SaveWordsAsync 异常: {ex.Message}"); } });
+                LoadWordsCommand = new RelayCommand<string>(async (file) => { try { await LoadWordsAsync(file); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadWordsAsync 异常: {ex.Message}"); } });
 
                 System.Diagnostics.Debug.WriteLine("[MainViewModel] Commands initialized");
 
@@ -256,6 +256,21 @@ namespace English_Listen_WinUI.ViewModels
         private void LoadVoices()
         {
             AvailableVoices.Clear();
+            try
+            {
+                var voices = _speechService.GetWindowsTtsVoices();
+                foreach (var voice in voices)
+                {
+                    if (!string.IsNullOrEmpty(voice.Name))
+                    {
+                        AvailableVoices.Add(voice.Name);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"加载语音列表失败: {ex.Message}");
+            }
         }
 
         public async Task SaveWordsAsync()
@@ -278,10 +293,8 @@ namespace English_Listen_WinUI.ViewModels
 
             CurrentWords = words;
 
-            await System.IO.File.WriteAllLinesAsync(TempWordListPath, words);
+            await TempFileHelper.WriteWordsAsync(words);
         }
-
-        private static readonly string TempWordListPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "english_listen_temp.txt");
 
         public async Task LoadWordsAsync(string? fileName)
         {
@@ -296,7 +309,7 @@ namespace English_Listen_WinUI.ViewModels
             CurrentWords = words;
             WordsText = string.Join(Environment.NewLine, words);
 
-            await System.IO.File.WriteAllLinesAsync(TempWordListPath, words);
+            await TempFileHelper.WriteWordsAsync(words);
 
             OnPropertyChanged(nameof(CanStartTest));
             if (SaveWordsCommand is RelayCommand rc)
@@ -307,12 +320,7 @@ namespace English_Listen_WinUI.ViewModels
 
         public async Task LoadWordsFromTempFileAsync()
         {
-            if (!System.IO.File.Exists(TempWordListPath))
-            {
-                await System.IO.File.WriteAllTextAsync(TempWordListPath, "");
-            }
-
-            var words = await _settingsService.LoadWordsFromFileAsync(TempWordListPath);
+            var words = await TempFileHelper.ReadWordsAsync();
             CurrentWords = words;
             WordsText = string.Join(Environment.NewLine, words);
 

@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using English_Listen_WinUI.ViewModels;
 using English_Listen_WinUI.Models;
+using English_Listen_WinUI.Services;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -97,7 +98,7 @@ namespace English_Listen_WinUI.Views
                 if (user != null)
                 {
                     // Verify password
-                    if (VerifyPassword(password, user.PasswordHash))
+                    if (PasswordService.VerifyPassword(password, user.PasswordHash))
                     {
                         if (_viewModel?.Settings?.Settings != null)
                         {
@@ -219,7 +220,7 @@ namespace English_Listen_WinUI.Views
                         {
                             Username = username,
                             Nickname = string.IsNullOrEmpty(nickname) ? username : nickname,
-                            PasswordHash = password, // Store password directly for now (not secure)
+                            PasswordHash = PasswordService.HashPassword(password),
                             CreatedTime = DateTime.Now,
                             LastLoginTime = DateTime.Now,
                             IsActive = true
@@ -318,7 +319,7 @@ namespace English_Listen_WinUI.Views
                                 }
 
                                 // 验证密码
-                                if (VerifyPassword(password, userToDelete.PasswordHash))
+                                if (PasswordService.VerifyPassword(password, userToDelete.PasswordHash))
                                 {
                                     // 检查是否是当前登录用户
                                     var currentUser = _viewModel.Settings.Settings.CurrentUser;
@@ -330,8 +331,8 @@ namespace English_Listen_WinUI.Views
                                         UpdateUserStatus();
                                     }
 
-                                    // 删除用户
-                                    var deleteResult = await _viewModel.Settings.DeleteUserAsync(userToDelete.Username);
+                                    // 删除用户（带归属校验）
+                                    var deleteResult = await _viewModel.Settings.DeleteUserForCurrentUserAsync(currentUser ?? "", userToDelete.Username);
                                     if (deleteResult)
                                     {
                                         // 从内存中移除用户
@@ -366,41 +367,13 @@ namespace English_Listen_WinUI.Views
 
         private void ShowMessageNoAwait(string message)
         {
-            var dialog = new ContentDialog
-            {
-                Title = "提示",
-                Content = message,
-                CloseButtonText = "确定",
-                XamlRoot = this.XamlRoot
-            };
-            _ = dialog.ShowAsync();
+            MainWindow.ShowNotification(message);
         }
 
         private async Task ShowMessage(string message)
         {
-            var dialog = new ContentDialog
-            {
-                Title = "提示",
-                Content = message,
-                CloseButtonText = "确定",
-                XamlRoot = this.XamlRoot
-            };
-            await dialog.ShowAsync();
+            MainWindow.ShowNotification(message);
         }
 
-        private bool VerifyPassword(string password, string passwordHash)
-        {
-            // For existing users with empty password hash, allow any password
-            // This is a temporary solution for backward compatibility
-            if (string.IsNullOrEmpty(passwordHash))
-            {
-                return true;
-            }
-
-            // In a real app, you would verify the password hash
-            // For now, we'll just check if the password matches the stored hash
-            // This is not secure and should be replaced with proper hashing
-            return password == passwordHash;
-        }
     }
 }

@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using Windows.UI.Notifications;
 using Windows.Data.Xml.Dom;
 
@@ -7,7 +6,7 @@ namespace English_Listen_WinUI.Services
 {
     public class NotificationService
     {
-        public static async Task ShowToastAsync(string title, string message)
+        public static void ShowToast(string title, string message)
         {
             try
             {
@@ -33,21 +32,21 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        public static async Task ShowTestCompletedNotification(int correctCount, int totalCount)
+        public static void ShowTestCompletedNotification(int correctCount, int totalCount)
         {
             var accuracy = (double)correctCount / totalCount * 100;
-            await ShowToastAsync("测试完成", 
+            ShowToast("测试完成", 
                 $"正确率: {accuracy:F1}% ({correctCount}/{totalCount})");
         }
 
-        public static async Task ShowUpdateAvailableNotification(string version)
+        public static void ShowUpdateAvailableNotification(string version)
         {
-            await ShowToastAsync("更新可用", $"新版本 {version} 已发布！");
+            ShowToast("更新可用", $"新版本 {version} 已发布！");
         }
 
-        public static async Task ShowErrorNotification(string errorMessage)
+        public static void ShowErrorNotification(string errorMessage)
         {
-            await ShowToastAsync("错误", errorMessage);
+            ShowToast("错误", errorMessage);
         }
     }
 }
