@@ -43,33 +43,23 @@ namespace English_Listen_WinUI.Models
         public List<TestResult> TestHistory { get; set; } = new();
         public int TotalStudyTime { get; set; }
         public int CompletedTests { get; set; }
-
-        public bool IsDarkTheme { get; set; }
-        public int ReadInterval { get; set; } = 5;
-        public int SpeechEngine { get; set; }
-        public bool IsRandomOrder { get; set; }
     }
 
     public class AppSettings
     {
         public int ThemeMode { get; set; } = 0; // 0 = System, 1 = Light, 2 = Dark
         public int ReadInterval { get; set; } = 5;
-        public int SpeechEngine { get; set; }
-        public string FliteVoiceModel { get; set; } = "cmu_us_slt";
         public bool IsRandomOrder { get; set; } = true;
         public string WordlistDirPath { get; set; } = "./wordlist";
         public string? CurrentUser { get; set; }
-        public string SpeechEngineType { get; set; } = "Auto"; // "Auto", "Flite", "WindowsTTS"
+        public string SpeechEngineType { get; set; } = "SAPI"; // "SAPI", "WinRT", "Natural"
         public string? WindowsTtsEnglishVoiceName { get; set; }
         public string? WindowsTtsChineseVoiceName { get; set; }
-        public int WindowsTtsVolume { get; set; } = 100; // 0-100
-        public int WindowsTtsRate { get; set; } = 0; // -10 to 10
+        public int WindowsTtsVolume { get; set; } = 100;
+        public int WindowsTtsRate { get; set; } = 0;
         public string? BaiduTranslateApiMode { get; set; } = "default";
         public string? BaiduTranslateApiKey { get; set; }
 
-        /// <summary>
-        /// 学习计划配置
-        /// </summary>
         public StudyPlanSettings StudyPlan { get; set; } = new();
     }
 }

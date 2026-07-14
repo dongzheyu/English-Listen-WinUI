@@ -28,6 +28,9 @@ namespace English_Listen_WinUI
                 this.InitializeComponent();
                 Debug.WriteLine("[MainWindow] InitializeComponent completed");
 
+                // ponytail: set title bar icon via AppWindow
+                SetWindowIcon();
+
                 _viewModel = App.SharedViewModel ?? throw new InvalidOperationException("SharedViewModel is null");
                 Debug.WriteLine("[MainWindow] ViewModel assigned");
 
@@ -456,6 +459,20 @@ namespace English_Listen_WinUI
             _isToastHovered = false;
             _notificationTimer!.Interval = TimeSpan.FromSeconds(5);
             _notificationTimer!.Start();
+        }
+
+        private void SetWindowIcon()
+        {
+            try
+            {
+                string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.ico");
+                if (File.Exists(iconPath))
+                    this.AppWindow.SetIcon(iconPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SetWindowIcon failed: {ex.Message}");
+            }
         }
     }
 }

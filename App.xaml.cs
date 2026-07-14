@@ -1,74 +1,77 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using System;
-using English_Listen_WinUI.ViewModels;
-using English_Listen_WinUI.Helpers;
+using System.Diagnostics;
+using System.IO;
 using English_Listen_WinUI.Services;
-using Microsoft.Windows.AppLifecycle;
+using English_Listen_WinUI.ViewModels;
+using Microsoft.UI.Xaml;
 
 namespace English_Listen_WinUI
 {
     public partial class App : Application
     {
         private Window? _window;
-        public static MainViewModel? SharedViewModel { get; private set; }
-        public static Window? MainWindow => ((App)Current)._window;
 
         public App()
         {
             InitializeComponent();
         }
 
+        public static MainViewModel? SharedViewModel { get; private set; }
+        public static Window? MainWindow => ((App)Current)._window;
+
         protected override async void OnLaunched(LaunchActivatedEventArgs args)
         {
-            System.Diagnostics.Debug.WriteLine("[STARTUP] 1. OnLaunched called");
+            Debug.WriteLine("[STARTUP] 1. OnLaunched called");
 
             try
             {
                 // Set environment variable for single file publishing
-                Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 2. Environment variable set");
+                Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY",
+                    AppContext.BaseDirectory);
+                Debug.WriteLine("[STARTUP] 2. Environment variable set");
 
                 // Reset temporary file on startup
                 ClearTemporaryFile();
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 3. Temporary file cleared");
+                Debug.WriteLine("[STARTUP] 3. Temporary file cleared");
 
                 SharedViewModel = new MainViewModel();
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 4. ViewModel created");
+                Debug.WriteLine("[STARTUP] 4. ViewModel created");
 
                 await SharedViewModel.InitializeAsync();
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 5. ViewModel initialized");
+                Debug.WriteLine("[STARTUP] 5. ViewModel initialized");
 
                 // Create window
                 _window = new MainWindow();
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 6. Window created");
+                Debug.WriteLine("[STARTUP] 6. Window created");
 
                 _window.Closed += OnWindowClosed;
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 7. Closed handler attached");
+                Debug.WriteLine("[STARTUP] 7. Closed handler attached");
 
                 ApplyTheme(SharedViewModel.ThemeMode);
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 8. Theme applied");
+                Debug.WriteLine("[STARTUP] 8. Theme applied");
 
                 // CRITICAL: Activate the window to bring it to foreground
                 // Activate() is the correct WinUI3 method to show and focus the window
                 _window.Activate();
 
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 9. Window activated - should now be visible");
+                Debug.WriteLine("[STARTUP] 9. Window activated - should now be visible");
 
-                System.Diagnostics.Debug.WriteLine("[STARTUP] 10. COMPLETE - Window activation attempted");
+                Debug.WriteLine("[STARTUP] 10. COMPLETE - Window activation attempted");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[STARTUP] FATAL ERROR: {ex}");
-                System.Diagnostics.Debug.WriteLine($"[STARTUP] Stack trace: {ex.StackTrace}");
+                Debug.WriteLine($"[STARTUP] FATAL ERROR: {ex}");
+                Debug.WriteLine($"[STARTUP] Stack trace: {ex.StackTrace}");
 
                 // Write to a log file as last resort
                 try
                 {
-                    var logPath = System.IO.Path.Combine(AppContext.BaseDirectory, "startup_error.log");
-                    System.IO.File.WriteAllText(logPath, $"[{DateTime.Now}] FATAL ERROR:\n{ex}\n\nStack:\n{ex.StackTrace}");
+                    var logPath = Path.Combine(AppContext.BaseDirectory, "startup_error.log");
+                    File.WriteAllText(logPath, $"[{DateTime.Now}] FATAL ERROR:\n{ex}\n\nStack:\n{ex.StackTrace}");
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }
 
@@ -85,22 +88,22 @@ namespace English_Listen_WinUI
                         2 => ElementTheme.Dark,
                         _ => ElementTheme.Default
                     };
-                    System.Diagnostics.Debug.WriteLine($"[THEME] Applied theme mode: {themeMode}");
+                    Debug.WriteLine($"[THEME] Applied theme mode: {themeMode}");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"[THEME] Could not apply theme - MainWindow or Content is null");
+                    Debug.WriteLine($"[THEME] Could not apply theme - MainWindow or Content is null");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[THEME] Failed to apply theme: {ex.Message}");
+                Debug.WriteLine($"[THEME] Failed to apply theme: {ex.Message}");
             }
         }
 
         private void OnWindowClosed(object sender, WindowEventArgs args)
         {
-            System.Diagnostics.Debug.WriteLine("[APP] Window closed - cleaning up");
+            Debug.WriteLine("[APP] Window closed - cleaning up");
             CleanupTempFiles();
         }
 
@@ -108,12 +111,12 @@ namespace English_Listen_WinUI
         {
             try
             {
-                await TempFileHelper.DeleteAsync();
-                System.Diagnostics.Debug.WriteLine("[APP] Temp file deleted");
+                await TempFileHelper.ClearAsync();
+                Debug.WriteLine("[APP] Temp file deleted");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[APP] Failed to cleanup temp files: {ex.Message}");
+                Debug.WriteLine($"[APP] Failed to cleanup temp files: {ex.Message}");
             }
         }
 
@@ -125,7 +128,7 @@ namespace English_Listen_WinUI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[APP] Failed to clear temporary file: {ex.Message}");
+                Debug.WriteLine($"[APP] Failed to clear temporary file: {ex.Message}");
             }
         }
     }

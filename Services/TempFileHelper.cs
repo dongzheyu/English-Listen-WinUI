@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -32,7 +33,7 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"TempFileHelper.ReadWordsAsync failed: {ex.Message}");
+                Debug.WriteLine($"TempFileHelper.ReadWordsAsync failed: {ex.Message}");
                 return new List<string>();
             }
             finally
@@ -53,11 +54,12 @@ namespace English_Listen_WinUI.Services
                 {
                     File.Delete(TempFilePath);
                 }
+
                 File.Move(tempPath, TempFilePath);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"TempFileHelper.WriteWordsAsync failed: {ex.Message}");
+                Debug.WriteLine($"TempFileHelper.WriteWordsAsync failed: {ex.Message}");
             }
             finally
             {
@@ -72,27 +74,12 @@ namespace English_Listen_WinUI.Services
             {
                 if (File.Exists(TempFilePath))
                 {
-                    File.WriteAllText(TempFilePath, string.Empty);
-                }
-            }
-            catch { }
-            finally
-            {
-                _lock.Release();
-            }
-        }
-
-        public static async Task DeleteAsync()
-        {
-            await _lock.WaitAsync();
-            try
-            {
-                if (File.Exists(TempFilePath))
-                {
                     File.Delete(TempFilePath);
                 }
             }
-            catch { }
+            catch
+            {
+            }
             finally
             {
                 _lock.Release();

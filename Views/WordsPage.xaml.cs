@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -25,7 +23,7 @@ using Path = System.IO.Path;
 
 namespace English_Listen_WinUI.Views
 {
-    public class WordItem : INotifyPropertyChanged
+    public class WordItem : ViewModelBase
     {
         private bool _isSelected = false;
         private string _translation = string.Empty;
@@ -33,39 +31,20 @@ namespace English_Listen_WinUI.Views
 
         public string Word
         {
-            get { return _word; }
-            set
-            {
-                _word = value;
-                OnPropertyChanged();
-            }
+            get => _word;
+            set => SetProperty(ref _word, value);
         }
 
         public string Translation
         {
-            get { return _translation; }
-            set
-            {
-                _translation = value;
-                OnPropertyChanged();
-            }
+            get => _translation;
+            set => SetProperty(ref _translation, value);
         }
 
         public bool IsSelected
         {
-            get { return _isSelected; }
-            set
-            {
-                _isSelected = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            get => _isSelected;
+            set => SetProperty(ref _isSelected, value);
         }
     }
 

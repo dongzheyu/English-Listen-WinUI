@@ -93,19 +93,6 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        public Dictionary<string, string> GetAvailableEngines()
-        {
-            return new Dictionary<string, string>
-            {
-                { "SAPI", "Windows SAPI 语音引擎" }
-            };
-        }
-
-        public string GetRecommendedEngine()
-        {
-            return "SAPI";
-        }
-
         public VoiceInfo[] GetWindowsTtsVoices()
         {
             var voices = new List<VoiceInfo>();
@@ -133,7 +120,6 @@ namespace English_Listen_WinUI.Services
                                 DisplayName = name,
                                 Culture = info.Culture.Name,
                                 Gender = VoiceGender.Female,
-                                Engine = "SAPI",
                                 IsNatural = isNatural
                             });
                         }

@@ -17,45 +17,63 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="be0c16d3-9dcb-42e8-b3f0-c7e177d82a49" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.English-Listen-WinUI/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.English-Listen-WinUI/.idea/encodings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.English-Listen-WinUI/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.English-Listen-WinUI/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/App.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/App.xaml.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Converters/FullScreenPaddingConverter.cs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/English-Listen-WinUI.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/English-Listen-WinUI.csproj" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Final_Security_Check_Report.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Fix_Status_Report.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/HEARTBEAT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/IDENTITY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/MainWindow.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/MainWindow.xaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Helpers/OsVersionHelper.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Helpers/PhoneticHelper.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Helpers/SpellCheckHelper.cs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/MainWindow.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MainWindow.xaml.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Models/StudyPlan.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Models/StudyPlan.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Models/UserData.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Models/UserData.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Models/VoiceInfo.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Models/VoiceInfo.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Models/Word.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Models/Word.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/CMakeLists.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/DictationBackend.cpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/DictationBackend.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/DictationEngine.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/EnglishListenNative.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/NativeDictationExports.cpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/NativeDictationExports.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/NativeDictationWrapper.cpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/NativeDictationWrapper.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/QT6DictationBackend.cpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/QT6DictationBackend.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/TestBackend.cpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/.ninja_deps" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/.ninja_log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeCache.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CMakeCCompiler.cmake" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CMakeCXXCompiler.cmake" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CMakeDetermineCompilerABI_C.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CMakeDetermineCompilerABI_CXX.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CMakeRCCompiler.cmake" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CMakeSystem.cmake" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CompilerIdC/CMakeCCompilerId.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CompilerIdC/a.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CompilerIdCXX/CMakeCXXCompilerId.cpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/4.2.3/CompilerIdCXX/a.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/CMakeConfigureLog.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/InstallScripts.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/TargetDirectories.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/cmake.check_cache" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/CMakeFiles/rules.ninja" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/EnglishListenNative.dll" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/TestBackend.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/build.ninja" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/cmake_install.cmake" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/NativeBackend/build/libEnglishListenNative.dll.a" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Package.appxmanifest" beforeDir="false" afterPath="$PROJECT_DIR$/Package.appxmanifest" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SOUL.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Services/ModernDictationService.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Services/ModernDictationService.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Services/PasswordService.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Services/PasswordService.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Services/SecretStorageService.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Services/SecretStorageService.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Services/BaiduTranslateService.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Services/BaiduTranslateService.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Services/NotificationService.cs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Services/SpeechService.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Services/SpeechService.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/TOOLS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ViewModels/MainViewModel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/ViewModels/MainViewModel.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/AboutPage.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/Views/AboutPage.xaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/AboutPage.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Views/AboutPage.xaml.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/DictationTestPage.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Views/DictationTestPage.xaml.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/HelpPage.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/Views/HelpPage.xaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/HomePage.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/Views/HomePage.xaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/HomePage.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Views/HomePage.xaml.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/MemorizePage.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/Views/MemorizePage.xaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Services/TempFileHelper.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Services/TempFileHelper.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Views/MemorizePage.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Views/MemorizePage.xaml.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/ProgressPage.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/Views/ProgressPage.xaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/ProgressPage.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Views/ProgressPage.xaml.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/SettingsPage.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/Views/SettingsPage.xaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Views/SettingsPage.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Views/SettingsPage.xaml.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Views/WordsPage.xaml" beforeDir="false" afterPath="$PROJECT_DIR$/Views/WordsPage.xaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Views/WordsPage.xaml.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Views/WordsPage.xaml.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/todo.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/update.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/update.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/比赛演讲稿.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/flite.exe" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -102,6 +120,7 @@
   &quot;keyToString&quot;: {
     &quot;.NET 启动设置配置文件.English-Listen-WinUI.executor&quot;: &quot;Run&quot;,
     &quot;.NET 启动设置配置文件.English-Listen-WinUI: MsixPackage.executor&quot;: &quot;Run&quot;,
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;CidrDebugProfileConversion&quot;: &quot;true&quot;,
     &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
@@ -200,10 +219,29 @@
   </component>
   <component name="UnityCheckinConfiguration" checkUnsavedScenes="true" />
   <component name="UnityProjectConfiguration" hasMinimizedUI="false" />
+  <component name="UpdateCopyrightCheckinHandler">
+    <option name="UPDATE_COPYRIGHT" value="true" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="VcsManagerConfiguration">
+    <option name="CHECK_NEW_TODO" value="false" />
     <option name="CLEAR_INITIAL_COMMIT_MESSAGE" value="true" />
     <MESSAGE value="update1.2" />
-    <option name="LAST_COMMIT_MESSAGE" value="update1.2" />
+    <MESSAGE value="update" />
+    <option name="LAST_COMMIT_MESSAGE" value="update" />
+    <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
+    <option name="REFORMAT_BEFORE_PROJECT_COMMIT" value="true" />
+    <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

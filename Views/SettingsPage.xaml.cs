@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.Media.Core;
@@ -17,7 +18,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
-using Newtonsoft.Json;
 
 namespace English_Listen_WinUI.Views
 {
@@ -891,7 +891,7 @@ namespace English_Listen_WinUI.Views
                         using (var reader = new StreamReader(stream))
                         {
                             var json = reader.ReadToEnd();
-                            return JsonConvert.DeserializeObject<RedeemCodesConfig>(json);
+                            return JsonSerializer.Deserialize<RedeemCodesConfig>(json);
                         }
                     }
                 }
@@ -910,7 +910,7 @@ namespace English_Listen_WinUI.Views
                 if (File.Exists(configPath))
                 {
                     var json = File.ReadAllText(configPath);
-                    return JsonConvert.DeserializeObject<RedeemCodesConfig>(json);
+                    return JsonSerializer.Deserialize<RedeemCodesConfig>(json);
                 }
 
                 return null;

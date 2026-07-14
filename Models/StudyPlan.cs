@@ -68,14 +68,4 @@ namespace English_Listen_WinUI.Models
         /// </summary>
         public bool IsWordListLocked { get; set; } = false;
     }
-
-    /// <summary>
-    /// 每日金句
-    /// </summary>
-    public class DailyQuote
-    {
-        public string Text { get; set; } = string.Empty;
-        public string Author { get; set; } = string.Empty;
-        public string Translation { get; set; } = string.Empty;
-    }
 }

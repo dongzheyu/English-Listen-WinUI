@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Speech.Synthesis;
 using System.Threading.Tasks;
 using English_Listen_WinUI.Models;
@@ -17,10 +15,7 @@ using Microsoft.UI.Xaml.Navigation;
 
 namespace English_Listen_WinUI.Views
 {
-    /// <summary>
-    /// 背单词页面单词项（支持选中状态绑定）
-    /// </summary>
-    public class MemorizeWordItem : INotifyPropertyChanged
+    public class MemorizeWordItem : ViewModelBase
     {
         private bool _isSelected = false;
         private string _learnedStatus = "";
@@ -30,48 +25,25 @@ namespace English_Listen_WinUI.Views
         public string Word
         {
             get => _word;
-            set
-            {
-                _word = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _word, value);
         }
 
         public string Translation
         {
             get => _translation;
-            set
-            {
-                _translation = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _translation, value);
         }
 
         public bool IsSelected
         {
             get => _isSelected;
-            set
-            {
-                _isSelected = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _isSelected, value);
         }
 
         public string LearnedStatus
         {
             get => _learnedStatus;
-            set
-            {
-                _learnedStatus = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            set => SetProperty(ref _learnedStatus, value);
         }
     }
 
@@ -79,111 +51,48 @@ namespace English_Listen_WinUI.Views
     {
         private static readonly List<DailyQuote> _quotes = new()
         {
-            new DailyQuote
-            {
-                Text =
-                    "Persistence is the hard work you do after you get tired of doing the hard work you already did.",
-                Author = "Newt Gingrich", Translation = "坚持就是在你厌倦了已经付出的辛苦之后，仍然继续努力。"
-            },
-            new DailyQuote
-            {
-                Text = "It does not matter how slowly you go as long as you do not stop.", Author = "Confucius",
-                Translation = "不在乎你走得多慢，只要你不停下来。"
-            },
-            new DailyQuote
-            {
-                Text = "The secret of getting ahead is getting started.", Author = "Mark Twain",
-                Translation = "领先的秘诀就是开始行动。"
-            },
-            new DailyQuote
-            {
-                Text = "Success is the sum of small efforts, repeated day in and day out.", Author = "Robert Collier",
-                Translation = "成功是日复一日的小努力的积累。"
-            },
-            new DailyQuote
-            {
-                Text = "A journey of a thousand miles begins with a single step.", Author = "Lao Tzu",
-                Translation = "千里之行，始于足下。"
-            },
-            new DailyQuote
-            {
-                Text = "The difference between ordinary and extraordinary is that little extra.",
-                Author = "Jimmy Johnson", Translation = "平凡与非凡之间的区别就在于那一点点额外的付出。"
-            },
-            new DailyQuote
-            {
-                Text = "Don't watch the clock; do what it does. Keep going.", Author = "Sam Levenson",
-                Translation = "不要盯着时钟看，要像它一样不停地走。"
-            },
-            new DailyQuote
-            {
-                Text =
-                    "Learning is not attained by chance, it must be sought for with ardor and attended to with diligence.",
-                Author = "Abigail Adams", Translation = "学问不是靠偶然获得的，必须以热情去追求，以勤奋去维护。"
-            },
-            new DailyQuote
-            {
-                Text =
-                    "The more that you read, the more things you will know. The more that you learn, the more places you'll go.",
-                Author = "Dr. Seuss", Translation = "你读得越多，知道的就越多。你学得越多，能去的地方就越多。"
-            },
-            new DailyQuote
-            {
-                Text =
-                    "Knowledge is power. Information is liberating. Education is the premise of progress, in every society, in every family.",
-                Author = "Kofi Annan", Translation = "知识就是力量。信息带来解放。教育是每个社会、每个家庭进步的前提。"
-            },
-            new DailyQuote
-            {
-                Text = "Live as if you were to die tomorrow. Learn as if you were to live forever.",
-                Author = "Mahatma Gandhi", Translation = "像明天就会死去一样生活，像永远会活着一样学习。"
-            },
-            new DailyQuote
-            {
-                Text =
-                    "Education is the passport to the future, for tomorrow belongs to those who prepare for it today.",
-                Author = "Malcolm X", Translation = "教育是通向未来的通行证，因为明天属于今天为之做准备的人。"
-            },
-            new DailyQuote
-            {
-                Text = "The beautiful thing about learning is that no one can take it away from you.",
-                Author = "B.B. King", Translation = "学习的美好之处在于，没有人能把它从你身上夺走。"
-            },
-            new DailyQuote
-            {
-                Text = "An investment in knowledge pays the best interest.", Author = "Benjamin Franklin",
-                Translation = "对知识的投资回报率最高。"
-            },
-            new DailyQuote
-            {
-                Text = "Your attitude, not your aptitude, will determine your altitude.", Author = "Zig Ziglar",
-                Translation = "决定你高度的不是能力，而是你的态度。"
-            },
-            new DailyQuote
-            {
-                Text = "There are no shortcuts to any place worth going.", Author = "Beverly Sills",
-                Translation = "任何值得去的地方都没有捷径。"
-            },
-            new DailyQuote
-            {
-                Text = "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-                Author = "Winston Churchill", Translation = "成功不是终点，失败也不是致命的，重要的是继续前进的勇气。"
-            },
-            new DailyQuote
-            {
-                Text = "The only way to do great work is to love what you do.", Author = "Steve Jobs",
-                Translation = "做出伟大工作的唯一方法就是热爱你所做的事情。"
-            },
-            new DailyQuote
-            {
-                Text = "Believe you can and you're halfway there.", Author = "Theodore Roosevelt",
-                Translation = "相信你能做到，你就已经成功了一半。"
-            },
-            new DailyQuote
-            {
-                Text = "I have not failed. I've just found 10,000 ways that won't work.", Author = "Thomas Edison",
-                Translation = "我没有失败，我只是发现了一万种行不通的方法。"
-            }
+            new("Persistence is the hard work you do after you get tired of doing the hard work you already did.",
+                "Newt Gingrich", "坚持就是在你厌倦了已经付出的辛苦之后，仍然继续努力。"),
+            new("It does not matter how slowly you go as long as you do not stop.", "Confucius",
+                "不在乎你走得多慢，只要你不停下来。"),
+            new("The secret of getting ahead is getting started.", "Mark Twain",
+                "领先的秘诀就是开始行动。"),
+            new("Success is the sum of small efforts, repeated day in and day out.", "Robert Collier",
+                "成功是日复一日的小努力的积累。"),
+            new("A journey of a thousand miles begins with a single step.", "Lao Tzu",
+                "千里之行，始于足下。"),
+            new("The difference between ordinary and extraordinary is that little extra.",
+                "Jimmy Johnson", "平凡与非凡之间的区别就在于那一点点额外的付出。"),
+            new("Don't watch the clock; do what it does. Keep going.", "Sam Levenson",
+                "不要盯着时钟看，要像它一样不停地走。"),
+            new("Learning is not attained by chance, it must be sought for with ardor and attended to with diligence.",
+                "Abigail Adams", "学问不是靠偶然获得的，必须以热情去追求，以勤奋去维护。"),
+            new(
+                "The more that you read, the more things you will know. The more that you learn, the more places you'll go.",
+                "Dr. Seuss", "你读得越多，知道的就越多。你学得越多，能去的地方就越多。"),
+            new(
+                "Knowledge is power. Information is liberating. Education is the premise of progress, in every society, in every family.",
+                "Kofi Annan", "知识就是力量。信息带来解放。教育是每个社会、每个家庭进步的前提。"),
+            new("Live as if you were to die tomorrow. Learn as if you were to live forever.",
+                "Mahatma Gandhi", "像明天就会死去一样生活，像永远会活着一样学习。"),
+            new("Education is the passport to the future, for tomorrow belongs to those who prepare for it today.",
+                "Malcolm X", "教育是通向未来的通行证，因为明天属于今天为之做准备的人。"),
+            new("The beautiful thing about learning is that no one can take it away from you.",
+                "B.B. King", "学习的美好之处在于，没有人能把它从你身上夺走。"),
+            new("An investment in knowledge pays the best interest.", "Benjamin Franklin",
+                "对知识的投资回报率最高。"),
+            new("Your attitude, not your aptitude, will determine your altitude.", "Zig Ziglar",
+                "决定你高度的不是能力，而是你的态度。"),
+            new("There are no shortcuts to any place worth going.", "Beverly Sills",
+                "任何值得去的地方都没有捷径。"),
+            new("Success is not final, failure is not fatal: it is the courage to continue that counts.",
+                "Winston Churchill", "成功不是终点，失败也不是致命的，重要的是继续前进的勇气。"),
+            new("The only way to do great work is to love what you do.", "Steve Jobs",
+                "做出伟大工作的唯一方法就是热爱你所做的事情。"),
+            new("Believe you can and you're halfway there.", "Theodore Roosevelt",
+                "相信你能做到，你就已经成功了一半。"),
+            new("I have not failed. I've just found 10,000 ways that won't work.", "Thomas Edison",
+                "我没有失败，我只是发现了一万种行不通的方法。"),
         };
 
         private readonly HashSet<string> _readWords = new();
@@ -968,5 +877,7 @@ namespace English_Listen_WinUI.Views
                 Debug.WriteLine($"朗读失败: {ex.Message}");
             }
         }
+
+        private record DailyQuote(string Text, string Author, string Translation);
     }
 }
