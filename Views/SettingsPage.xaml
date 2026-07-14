@@ -9,14 +9,14 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-            <TextBlock Text="设置" 
-                        Style="{ThemeResource TitleTextBlockStyle}"
-                       VerticalAlignment="Center" Margin="20"/>
+            <TextBlock Text="设置"
+                       Style="{ThemeResource TitleTextBlockStyle}"
+                       VerticalAlignment="Center" Margin="20" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" Margin="20">
@@ -26,14 +26,14 @@
                         BorderThickness="1"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                     <StackPanel>
-                        <TextBlock Text="主题设置" 
-                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,10"/>
+                        <TextBlock Text="主题设置"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,10" />
                         <ComboBox x:Name="ThemeComboBox" Width="200"
                                   HorizontalAlignment="Left"
                                   SelectionChanged="ThemeComboBox_SelectionChanged">
-                            <ComboBoxItem Content="跟随系统" Tag="0"/>
-                            <ComboBoxItem Content="浅色" Tag="1"/>
-                            <ComboBoxItem Content="深色" Tag="2"/>
+                            <ComboBoxItem Content="跟随系统" Tag="0" />
+                            <ComboBoxItem Content="浅色" Tag="1" />
+                            <ComboBoxItem Content="深色" Tag="2" />
                         </ComboBox>
                     </StackPanel>
                 </Border>
@@ -43,70 +43,73 @@
                         BorderThickness="1"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                     <StackPanel>
-                        <TextBlock Text="朗读设置" 
-                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
-                        
+                        <TextBlock Text="朗读设置"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15" />
+
                         <StackPanel Margin="0,10">
-                            <TextBlock Text="朗读时间间隔(秒):" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock Text="朗读时间间隔(秒):"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
                             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
                                 <Slider x:Name="IntervalSlider" Grid.Column="0" Grid.Row="0"
                                         Minimum="1" Maximum="30" Value="5"
-                                        ValueChanged="IntervalSlider_ValueChanged"/>
-                                <TextBlock x:Name="IntervalText" Grid.Column="1" Grid.Row="0" 
-                                           Text="5秒" 
+                                        ValueChanged="IntervalSlider_ValueChanged" />
+                                <TextBlock x:Name="IntervalText" Grid.Column="1" Grid.Row="0"
+                                           Text="5秒"
                                            VerticalAlignment="Center" Margin="10,0,0,0"
-                                           Style="{ThemeResource BodyTextBlockStyle}"/>
+                                           Style="{ThemeResource BodyTextBlockStyle}" />
                             </Grid>
                         </StackPanel>
-                        
-                        <StackPanel Margin="0,15,0,10">
-                            <TextBlock Text="语音引擎:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
-                            <ComboBox x:Name="EngineComboBox" 
-                                      SelectionChanged="EngineComboBox_SelectionChanged">
-                                <ComboBoxItem Content="自动选择" Tag="Auto"/>
-                                <ComboBoxItem Content="Windows系统语音" Tag="WindowsTTS"/>
 
+                        <StackPanel Margin="0,15,0,10">
+                            <TextBlock Text="语音引擎:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
+                            <ComboBox x:Name="EngineComboBox"
+                                      SelectionChanged="EngineComboBox_SelectionChanged">
+                                <ComboBoxItem Content="SAPI" Tag="SAPI" />
+                                <ComboBoxItem Content="自然语音" Tag="Natural" />
+                                <ComboBoxItem Content="WinRT TTS" Tag="WinRT" />
                             </ComboBox>
-                            <TextBlock x:Name="EngineStatusText" Text="" 
-                                       Style="{ThemeResource CaptionTextBlockStyle}" 
+                            <TextBlock x:Name="EngineStatusText" Text=""
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondary}"
-                                       Margin="0,5,0,0"/>
+                                       Margin="0,5,0,0" />
                         </StackPanel>
-                        
+
                         <!-- Windows TTS 语音选择 -->
                         <StackPanel Margin="0,15,0,10" x:Name="WindowsTtsVoicePanel" Visibility="Collapsed">
-                            <TextBlock Text="英文语音:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock Text="英文语音:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
                             <Grid ColumnDefinitions="*,Auto">
                                 <ComboBox x:Name="WindowsTtsEnglishVoiceComboBox" Grid.Column="0"
-                                          SelectionChanged="WindowsTtsEnglishVoiceComboBox_SelectionChanged"/>
-                                <Button x:Name="WindowsTtsEnglishPreviewButton" Grid.Column="1" 
+                                          SelectionChanged="WindowsTtsEnglishVoiceComboBox_SelectionChanged" />
+                                <Button x:Name="WindowsTtsEnglishPreviewButton" Grid.Column="1"
                                         Content="试听" Margin="10,0,0,0" Width="60"
-                                        Click="WindowsTtsEnglishPreviewButton_Click"/>
+                                        Click="WindowsTtsEnglishPreviewButton_Click" />
                             </Grid>
                         </StackPanel>
-                        
+
                         <!-- Windows TTS 中文语音选择 -->
                         <StackPanel Margin="0,15,0,10" x:Name="WindowsTtsChineseVoicePanel" Visibility="Collapsed">
-                            <TextBlock Text="中文语音:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock Text="中文语音:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
                             <Grid ColumnDefinitions="*,Auto">
                                 <ComboBox x:Name="WindowsTtsChineseVoiceComboBox" Grid.Column="0"
-                                          SelectionChanged="WindowsTtsChineseVoiceComboBox_SelectionChanged"/>
-                                <Button x:Name="WindowsTtsChinesePreviewButton" Grid.Column="1" 
+                                          SelectionChanged="WindowsTtsChineseVoiceComboBox_SelectionChanged" />
+                                <Button x:Name="WindowsTtsChinesePreviewButton" Grid.Column="1"
                                         Content="试听" Margin="10,0,0,0" Width="60"
-                                        Click="WindowsTtsChinesePreviewButton_Click"/>
+                                        Click="WindowsTtsChinesePreviewButton_Click" />
                             </Grid>
                         </StackPanel>
-                        
 
-                        
-                        <CheckBox x:Name="RandomOrderCheckBox" Content="随机播放单词" 
-                                  Checked="RandomOrderCheckBox_Changed" 
+
+                        <!-- WinRT TTS 用 MediaPlayerElement 播放，隐藏播放控制 -->
+                        <MediaPlayerElement x:Name="TtsMediaPlayerElement" Height="0"
+                                            AreTransportControlsEnabled="False" />
+
+                        <CheckBox x:Name="RandomOrderCheckBox" Content="随机播放单词"
+                                  Checked="RandomOrderCheckBox_Changed"
                                   Unchecked="RandomOrderCheckBox_Changed"
-                                  Margin="0,10,0,0"/>
+                                  Margin="0,10,0,0" />
                     </StackPanel>
                 </Border>
 
@@ -115,56 +118,56 @@
                         BorderThickness="1"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                     <StackPanel>
-                        <TextBlock Text="百度翻译API设置" 
-                                    Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
-                        
+                        <TextBlock Text="百度翻译API设置"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15" />
+
                         <StackPanel Margin="0,10">
-                            <TextBlock Text="API模式:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock Text="API模式:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
                             <ComboBox x:Name="TranslateApiModeComboBox" Width="200"
                                       HorizontalAlignment="Left"
                                       SelectionChanged="TranslateApiModeComboBox_SelectionChanged">
-                                <ComboBoxItem Content="默认API" Tag="default"/>
-                                <ComboBoxItem Content="自定义API" Tag="custom"/>
+                                <ComboBoxItem Content="默认API" Tag="default" />
+                                <ComboBoxItem Content="自定义API" Tag="custom" />
                             </ComboBox>
                         </StackPanel>
-                        
+
                         <StackPanel Margin="0,15,0,10" x:Name="CustomApiPanel" Visibility="Collapsed">
-                            <TextBlock Text="App ID:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock Text="App ID:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
                             <TextBox x:Name="AppIdTextBox" Width="300"
                                      PlaceholderText="请输入百度翻译App ID"
-                                     TextChanged="CustomApiTextBox_TextChanged"/>
-                            
-                            <TextBlock Text="密钥:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,15,0,5"/>
+                                     TextChanged="CustomApiTextBox_TextChanged" />
+
+                            <TextBlock Text="密钥:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,15,0,5" />
                             <PasswordBox x:Name="SecretKeyBox" Width="300"
-                                     PlaceholderText="请输入百度翻译密钥"
-                                     PasswordChanged="CustomApiTextBox_TextChanged"/>
-                            
-                            <Button x:Name="ConfirmCustomApiButton" Content="确认" 
-                                   Width="100" Margin="0,15,0,0"
-                                   Click="ConfirmCustomApiButton_Click"/>
+                                         PlaceholderText="请输入百度翻译密钥"
+                                         PasswordChanged="CustomApiTextBox_TextChanged" />
+
+                            <Button x:Name="ConfirmCustomApiButton" Content="确认"
+                                    Width="100" Margin="0,15,0,0"
+                                    Click="ConfirmCustomApiButton_Click" />
                         </StackPanel>
-                        
+
                         <StackPanel Margin="0,15,0,10">
-                            <TextBlock Text="剩余翻译限额:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
+                            <TextBlock Text="剩余翻译限额:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock x:Name="TranslationLimitText" Text="--" 
-                                           Style="{ThemeResource BodyTextBlockStyle}" VerticalAlignment="Center"/>
-                                <Button x:Name="ClaimLimitButton" Grid.Column="1" 
+                                <TextBlock x:Name="TranslationLimitText" Text="--"
+                                           Style="{ThemeResource BodyTextBlockStyle}" VerticalAlignment="Center" />
+                                <Button x:Name="ClaimLimitButton" Grid.Column="1"
                                         Content="领取限额" Margin="10,0,0,0" Width="100"
-                                        Click="ClaimLimitButton_Click"/>
+                                        Click="ClaimLimitButton_Click" />
                             </Grid>
                         </StackPanel>
-                        
+
                         <StackPanel Margin="0,15,0,10">
-                            <TextBlock Text="获取API Key:" 
-                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5"/>
-                            <HyperlinkButton Content="前往百度翻译开放平台" 
-                                            NavigateUri="https://fanyi-api.baidu.com/" 
-                                            Click="HyperlinkButton_Click"/>
+                            <TextBlock Text="获取API Key:"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,0,0,5" />
+                            <HyperlinkButton Content="前往百度翻译开放平台"
+                                             NavigateUri="https://fanyi-api.baidu.com/"
+                                             Click="HyperlinkButton_Click" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -174,14 +177,14 @@
                         BorderThickness="1"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                     <StackPanel>
-                        <TextBlock Text="系统设置" 
-                                   Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15"/>
-                        
-                        <Button Content="初始化程序" Click="InitializeButton_Click" 
+                        <TextBlock Text="系统设置"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,15" />
+
+                        <Button Content="初始化程序" Click="InitializeButton_Click"
                                 Style="{ThemeResource AccentButtonStyle}"
-                                HorizontalAlignment="Left"/>
-                        <TextBlock x:Name="VersionLabel" Text="当前版本: v1.1.0" 
-                                   Style="{ThemeResource BodyTextBlockStyle}" Margin="0,10,0,0" Visibility="Collapsed"/>
+                                HorizontalAlignment="Left" />
+                        <TextBlock x:Name="VersionLabel" Text="当前版本"
+                                   Style="{ThemeResource BodyTextBlockStyle}" Margin="0,10,0,0" Visibility="Collapsed" />
                     </StackPanel>
                 </Border>
             </StackPanel>

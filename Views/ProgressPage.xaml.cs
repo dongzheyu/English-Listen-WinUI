@@ -1,16 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using Windows.Foundation;
+using Windows.Storage;
+using Windows.Storage.Pickers;
+using English_Listen_WinUI.Models;
+using English_Listen_WinUI.Services;
+using English_Listen_WinUI.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
-using Windows.UI;
-using Windows.Foundation;
-using English_Listen_WinUI.ViewModels;
-using English_Listen_WinUI.Services;
-using Colors = Microsoft.UI.Colors;
 using WinRT.Interop;
+using Colors = Microsoft.UI.Colors;
 
 namespace English_Listen_WinUI.Views
 {
@@ -34,35 +37,69 @@ namespace English_Listen_WinUI.Views
         private void LoadStats()
         {
             if (_viewModel == null) return;
-            
+
             var history = _viewModel.TestHistory;
             if (history == null)
             {
                 TotalTestsText.Text = "0";
                 return;
             }
+
             TotalTestsText.Text = history.Count.ToString();
 
-            if (history.Count > 0)
+            // ponytail: exclude learning records from accuracy stats/chart
+            var dictationHistory = history.Where(h => h.RecordType != "learning").ToList();
+            if (dictationHistory.Count > 0)
             {
-                AvgAccuracyText.Text = $"{history.Average(h => h.Accuracy):F1}%";
+                AvgAccuracyText.Text = $"{dictationHistory.Average(h => h.Accuracy):F1}%";
                 var totalWords = history.Sum(h => h.TotalWords);
                 TotalWordsText.Text = totalWords.ToString();
 
                 var streak = CalculateStreak(history);
                 StreakDaysText.Text = streak.ToString();
-                
-                // Draw chart
-                DrawAccuracyChart(history);
+
+                DrawAccuracyChart(dictationHistory);
             }
+            else
+            {
+                var totalWords = history.Sum(h => h.TotalWords);
+                TotalWordsText.Text = totalWords.ToString();
+                AvgAccuracyText.Text = "-";
+                var streak = CalculateStreak(history);
+                StreakDaysText.Text = streak.ToString();
+            }
+
+            ApplySort();
+        }
+
+        private void SortComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ApplySort();
+        }
+
+        private void ApplySort()
+        {
+            if (_viewModel?.TestHistory == null) return;
+
+            var tag = (SortComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+            IEnumerable<TestResult> sorted = tag switch
+            {
+                "Oldest" => _viewModel.TestHistory.OrderBy(h => h.Timestamp),
+                "Accuracy" => _viewModel.TestHistory.OrderByDescending(h => h.Accuracy),
+                _ => _viewModel.TestHistory.OrderByDescending(h => h.Timestamp),
+            };
+
+            _viewModel.TestHistoryViewModels.Clear();
+            foreach (var r in sorted)
+                _viewModel.TestHistoryViewModels.Add(new TestResultViewModel { Result = r });
 
             HistoryListView.ItemsSource = _viewModel.TestHistoryViewModels;
         }
 
-        private void DrawAccuracyChart(List<Models.TestResult> history)
+        private void DrawAccuracyChart(List<TestResult> history)
         {
             AccuracyChartCanvas.Children.Clear();
-            
+
             var chartData = ChartService.GenerateAccuracyTrendData(history, 8);
             if (chartData.Count == 0) return;
 
@@ -103,10 +140,10 @@ namespace English_Listen_WinUI.Views
 
                 var label = new TextBlock
                 {
-                    Text = $"{(4 - i) * 25}%",
+                    Text = $"{i * 25}%",
                     FontSize = 10,
                     Foreground = textBrush,
-                    Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 5, 0)
+                    Margin = new Thickness(0, 0, 5, 0)
                 };
                 Canvas.SetLeft(label, 0);
                 Canvas.SetTop(label, y - 8);
@@ -171,7 +208,7 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        private int CalculateStreak(System.Collections.Generic.List<English_Listen_WinUI.Models.TestResult> history)
+        private int CalculateStreak(List<TestResult> history)
         {
             if (history.Count == 0) return 0;
 
@@ -204,31 +241,32 @@ namespace English_Listen_WinUI.Views
 
         private async void ExportButton_Click(object sender, RoutedEventArgs e)
         {
-            var picker = new Windows.Storage.Pickers.FileSavePicker
+            var picker = new FileSavePicker
             {
-                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
                 SuggestedFileName = $"test_history_{DateTime.Now:yyyyMMdd}"
             };
             picker.FileTypeChoices.Add("CSV", new[] { ".csv" });
 
             // Set XamlRoot for WinUI3 compatibility
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            var hwnd = WindowNative.GetWindowHandle(App.MainWindow);
+            InitializeWithWindow.Initialize(picker, hwnd);
 
             var file = await picker.PickSaveFileAsync();
             if (file != null)
             {
-                var lines = new System.Collections.Generic.List<string>
+                var lines = new List<string>
                 {
                     "时间,词库名称,总单词数,正确数,正确率"
                 };
 
                 foreach (var result in _viewModel.TestHistory)
                 {
-                    lines.Add($"{result.Timestamp:yyyy-MM-dd HH:mm},{result.WordListName},{result.TotalWords},{result.CorrectCount},{result.Accuracy:F1}%");
+                    lines.Add(
+                        $"{result.Timestamp:yyyy-MM-dd HH:mm},{result.WordListName},{result.TotalWords},{result.CorrectCount},{result.Accuracy:F1}%");
                 }
 
-                await Windows.Storage.FileIO.WriteTextAsync(file, string.Join(Environment.NewLine, lines));
+                await FileIO.WriteTextAsync(file, string.Join(Environment.NewLine, lines));
             }
         }
 
@@ -254,13 +292,72 @@ namespace English_Listen_WinUI.Views
                     {
                         await _viewModel.Settings.SaveTestHistoryAsync(currentUser ?? "", _viewModel.TestHistory);
                     }
+
                     LoadStats();
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"ClearButton_Click error: {ex.Message}");
+                Debug.WriteLine($"ClearButton_Click error: {ex.Message}");
             }
+        }
+
+        private async void RedictateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn || btn.DataContext is not TestResultViewModel vm) return;
+            if (vm.Result.Words is not { Count: > 0 } words) return;
+
+            var wordList = words
+                .Select(w => new DictationTestPage.WordTranslationPair { Word = w.Word, Translation = w.Translation })
+                .ToList();
+
+            var settingsDialog = new ContentDialog
+            {
+                Title = "听考选项",
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stackPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0), Spacing = 10 };
+
+            var modeStack = new StackPanel { Spacing = 5 };
+            var onlineModeRadio = new RadioButton { Content = "在线听写", IsChecked = true, GroupName = "RedictateMode" };
+            var paperModeRadio = new RadioButton { Content = "纸笔听写", GroupName = "RedictateMode" };
+            modeStack.Children.Add(onlineModeRadio);
+            modeStack.Children.Add(paperModeRadio);
+            stackPanel.Children.Add(modeStack);
+
+            var randomOrderSwitch = new ToggleSwitch { Header = "随机顺序", IsOn = false };
+            stackPanel.Children.Add(randomOrderSwitch);
+
+            var readTranslationSwitch = new ToggleSwitch { Header = "朗读翻译", IsOn = false };
+            stackPanel.Children.Add(readTranslationSwitch);
+
+            settingsDialog.Content = stackPanel;
+
+            var result = await settingsDialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            var testParams = new WordsPage.DictationTestParamsWithTranslations(
+                wordList,
+                randomOrderSwitch.IsOn,
+                readTranslationSwitch.IsOn,
+                paperModeRadio.IsChecked ?? false);
+
+            Frame?.Navigate(typeof(DictationTestPage), testParams);
+        }
+
+        private void RelearnButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn || btn.DataContext is not TestResultViewModel vm) return;
+            if (vm.Result.Words is not { Count: > 0 } words) return;
+
+            var wordList = words
+                .Select(w => new DictationTestPage.WordTranslationPair { Word = w.Word, Translation = w.Translation })
+                .ToList();
+
+            Frame?.Navigate(typeof(MemorizePage), wordList);
         }
     }
 }

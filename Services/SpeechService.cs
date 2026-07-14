@@ -5,36 +5,19 @@ using System.Linq;
 using System.Speech.Synthesis;
 using System.Threading;
 using System.Threading.Tasks;
-using English_Listen_WinUI.Models;
+using VoiceGender = English_Listen_WinUI.Models.VoiceGender;
+using VoiceInfo = English_Listen_WinUI.Models.VoiceInfo;
 
 namespace English_Listen_WinUI.Services
 {
     public class SpeechService : IDisposable
     {
-        private string _engineType = "SAPI";
-        private bool _isSpeaking;
-        private bool _isPaused;
-        private SpeechSynthesizer? _synthesizer;
-        private bool _hasAudioDevice = false;
         private readonly object _synthesizerLock = new object();
-
-        public bool IsSpeaking
-        {
-            get { return _isSpeaking; }
-            private set { _isSpeaking = value; }
-        }
-
-        public string EngineType
-        {
-            get => _engineType;
-            set => _engineType = value;
-        }
-
-        public bool IsWindowsTtsAvailable => _synthesizer != null;
-
-        public bool HasAudioDevice => _hasAudioDevice;
-
-        public string AudioDeviceStatus => _hasAudioDevice ? "音频设备正常" : "未检测到音频设备";
+        private string _engineType = "SAPI";
+        private bool _hasAudioDevice = false;
+        private bool _isPaused;
+        private bool _isSpeaking;
+        private SpeechSynthesizer? _synthesizer;
 
         public SpeechService()
         {
@@ -60,6 +43,33 @@ namespace English_Listen_WinUI.Services
                 Debug.WriteLine($"SpeechService 初始化失败: {ex.Message}");
                 _synthesizer = null;
                 _hasAudioDevice = false;
+            }
+        }
+
+        public bool IsSpeaking
+        {
+            get { return _isSpeaking; }
+            private set { _isSpeaking = value; }
+        }
+
+        public string EngineType
+        {
+            get => _engineType;
+            set => _engineType = value;
+        }
+
+        public bool IsWindowsTtsAvailable => _synthesizer != null;
+
+        public bool HasAudioDevice => _hasAudioDevice;
+
+        public string AudioDeviceStatus => _hasAudioDevice ? "音频设备正常" : "未检测到音频设备";
+
+        public void Dispose()
+        {
+            if (_synthesizer != null)
+            {
+                _synthesizer.Dispose();
+                _synthesizer = null;
             }
         }
 
@@ -96,9 +106,9 @@ namespace English_Listen_WinUI.Services
             return "SAPI";
         }
 
-        public Models.VoiceInfo[] GetWindowsTtsVoices()
+        public VoiceInfo[] GetWindowsTtsVoices()
         {
-            var voices = new List<Models.VoiceInfo>();
+            var voices = new List<VoiceInfo>();
             if (_synthesizer == null) return voices.ToArray();
 
             try
@@ -111,13 +121,20 @@ namespace English_Listen_WinUI.Services
                         if (voice != null && voice.Enabled)
                         {
                             var info = voice.VoiceInfo;
-                            voices.Add(new Models.VoiceInfo
+                            var name = info.Name;
+                            var id = info.Id ?? "";
+                            // NaturalVoiceSAPIAdapter: Id starts with "Local-" (Narrator natural voices)
+                            // Regular SAPI: Id starts with "TTS_" (e.g. TTS_MS_EN-US_ZIRA_11.0)
+                            var isNatural = id.StartsWith("Local-", StringComparison.OrdinalIgnoreCase)
+                                            || name.IndexOf("Online", StringComparison.OrdinalIgnoreCase) >= 0;
+                            voices.Add(new VoiceInfo
                             {
-                                Name = info.Name,
-                                DisplayName = info.Name,
+                                Name = name,
+                                DisplayName = name,
                                 Culture = info.Culture.Name,
-                                Gender = Models.VoiceGender.Female,
-                                Engine = "SAPI"
+                                Gender = VoiceGender.Female,
+                                Engine = "SAPI",
+                                IsNatural = isNatural
                             });
                         }
                     }
@@ -127,7 +144,14 @@ namespace English_Listen_WinUI.Services
             {
                 Debug.WriteLine($"获取语音列表失败: {ex.Message}");
             }
+
             return voices.ToArray();
+        }
+
+        private static bool IsNaturalVoiceId(string id)
+        {
+            return !string.IsNullOrEmpty(id) &&
+                   id.StartsWith("Local-", StringComparison.OrdinalIgnoreCase);
         }
 
         public bool SetWindowsTtsEnglishVoice(string voiceName)
@@ -182,9 +206,15 @@ namespace English_Listen_WinUI.Services
             try
             {
                 using (cancellationToken.Register(() =>
-                {
-                    try { _synthesizer?.SpeakAsyncCancelAll(); } catch { }
-                }))
+                       {
+                           try
+                           {
+                               _synthesizer?.SpeakAsyncCancelAll();
+                           }
+                           catch
+                           {
+                           }
+                       }))
                 {
                     var tcs = new TaskCompletionSource<bool>();
                     EventHandler<SpeakCompletedEventArgs>? handler = null;
@@ -278,7 +308,10 @@ namespace English_Listen_WinUI.Services
                     _synthesizer?.SpeakAsyncCancelAll();
                 }
             }
-            catch { }
+            catch
+            {
+            }
+
             IsSpeaking = false;
         }
 
@@ -287,7 +320,13 @@ namespace English_Listen_WinUI.Services
             if (!_isPaused && _isSpeaking)
             {
                 _isPaused = true;
-                try { _synthesizer?.SpeakAsyncCancelAll(); } catch { }
+                try
+                {
+                    _synthesizer?.SpeakAsyncCancelAll();
+                }
+                catch
+                {
+                }
             }
         }
 
@@ -299,13 +338,35 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        public void Dispose()
+        // ponytail: debug, remove after NaturalVoiceSAPIAdapter detection stable
+        public string[] DumpRawVoiceInfo()
         {
-            if (_synthesizer != null)
+            var lines = new List<string>();
+            lock (_synthesizerLock)
             {
-                _synthesizer.Dispose();
-                _synthesizer = null;
+                if (_synthesizer == null) return lines.ToArray();
+                try
+                {
+                    var installed = _synthesizer.GetInstalledVoices();
+                    foreach (var v in installed)
+                    {
+                        if (v?.VoiceInfo == null) continue;
+                        var info = v.VoiceInfo;
+                        var addInfo = string.Join("; ",
+                            info.AdditionalInfo?.Select(kv => $"{kv.Key}={kv.Value}") ?? Enumerable.Empty<string>());
+                        var isNatural = IsNaturalVoiceId(info.Id);
+                        lines.Add(
+                            $"Name=[{info.Name}] Id=[{info.Id}] Culture=[{info.Culture?.Name}] " +
+                            $"IsNatural={isNatural} AddInfo=[{addInfo}]");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lines.Add($"Error: {ex.Message}");
+                }
             }
+
+            return lines.ToArray();
         }
     }
 }

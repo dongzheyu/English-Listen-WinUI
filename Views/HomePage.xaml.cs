@@ -1,10 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
+using Windows.ApplicationModel;
+using English_Listen_WinUI.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using English_Listen_WinUI.ViewModels;
 
 namespace English_Listen_WinUI.Views
 {
@@ -22,6 +20,9 @@ namespace English_Listen_WinUI.Views
 
         private void HomePage_Loaded(object sender, RoutedEventArgs e)
         {
+            var v = Package.Current.Id.Version;
+            VersionTextBlock.Text = $"English Listen v{v.Major}.{v.Minor}.{v.Build} | 智能英语听写训练系统";
+
             if (_viewModel?.TestHistory != null && _viewModel.TestHistory.Count > 0)
             {
                 StatsPanel.Visibility = Visibility.Visible;
@@ -29,11 +30,6 @@ namespace English_Listen_WinUI.Views
                 var avg = _viewModel.TestHistory.Average(t => t.Accuracy);
                 AvgAccuracyInfoBar.Title = $"平均正确率: {avg:F1}%";
             }
-            
-            // Qt版本风格：专注于功能，静态渐变已足够美观
-            // 不需要复杂动画，避免性能问题和颜色异常
         }
-
-
     }
 }

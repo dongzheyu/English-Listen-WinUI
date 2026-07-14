@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+      <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>English_Listen_WinUI</RootNamespace>
+      <Version>1.1.25.0</Version>
     <Platforms>x64</Platforms>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
@@ -14,7 +15,11 @@
     <NoWarn>$(NoWarn);CA1416</NoWarn>
     <WindowsPackageType>MSIX</WindowsPackageType>
     <EnableDefaultXamlItems>true</EnableDefaultXamlItems>
+
+      <!-- 新增：禁用符号包生成，避免查找 mspdbcmf.exe -->
+      <GenerateAppxPackageSymbols>false</GenerateAppxPackageSymbols>
   </PropertyGroup>
+
   <ItemGroup>
     <None Remove="logo.scale-100.png" />
     <None Remove="logo.scale-125.png" />
@@ -79,12 +84,13 @@
   <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
     <ProjectCapability Include="Msix" />
   </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
-    <PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
-    <PackageReference Include="System.Speech" Version="8.0.0" />
+      <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0"/>
+      <PackageReference Include="System.Windows.Extensions" Version="10.0.0"/>
+      <PackageReference Include="System.Speech" Version="10.0.0"/>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <None Include="flite.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -119,12 +125,20 @@
     <PlatformTarget>x64</PlatformTarget>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Optimize>False</Optimize>
+    <!-- Debug: 自动签名 devcert.pfx（winappcli 默认密码 password） -->
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+        <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
+        <PackageCertificateKeyFile>devcert.pfx</PackageCertificateKeyFile>
+        <PackageCertificatePassword>password</PackageCertificatePassword>
+        <GenerateAppxPackageOnBuild>true</GenerateAppxPackageOnBuild>
+        <AppxBundle>Always</AppxBundle>
   </PropertyGroup>
 
-  <!-- 证书签名配置 - 构建后手动签名 -->
-  <PropertyGroup>
+    <!-- Release: 不签名 -->
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <Optimize>True</Optimize>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+        <GenerateAppxPackageOnBuild>true</GenerateAppxPackageOnBuild>
+        <AppxBundle>Always</AppxBundle>
   </PropertyGroup>
 </Project>

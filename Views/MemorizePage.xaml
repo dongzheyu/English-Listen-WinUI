@@ -5,63 +5,270 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    d:DesignHeight="600" d:DesignWidth="800">
+    d:DesignHeight="700" d:DesignWidth="900">
 
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- 顶部区域 -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
-            <TextBlock x:Name="TitleText" Text="背单词" FontSize="24" FontWeight="Bold"
-                       VerticalAlignment="Center" Margin="0,0,30,0"/>
-            <TextBlock x:Name="ProgressText" Text="第 0 / 0 个"
-                       VerticalAlignment="Center" FontSize="16"/>
-        </StackPanel>
-
-        <!-- 中间区域 -->
-        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="30">
-            <!-- 单词显示 -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="12" Padding="40,30"
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    MinWidth="400">
-                <StackPanel HorizontalAlignment="Center" Spacing="15">
-                    <TextBlock x:Name="WordText" Text=""
-                               FontSize="36" FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               TextWrapping="WrapWholeWords"/>
-                    <TextBlock x:Name="PhoneticText" Text=""
-                               FontSize="18"
-                               Foreground="#888888"
-                               HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="TranslationText" Text=""
-                               FontSize="22"
-                               Foreground="{ThemeResource SystemAccentColor}"
-                               HorizontalAlignment="Center"
-                               TextWrapping="WrapWholeWords"/>
+    <Grid x:Name="MainGrid">
+        <!-- 配置面板 -->
+        <ScrollViewer x:Name="ConfigPanel" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,20,24,40" MaxWidth="800" HorizontalAlignment="Center" Spacing="20">
+                <!-- 标题 -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                    <FontIcon Glyph="&#xE7C3;" FontSize="28" Margin="0,0,12,0"
+                              Foreground="{ThemeResource SystemAccentColor}" />
+                    <TextBlock Text="背单词" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
                 </StackPanel>
-            </Border>
-        </StackPanel>
 
-        <!-- 底部按钮区域 -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0" Spacing="15">
-            <Button x:Name="PreviousButton" Content="上一个"
-                    Width="100" Height="40"
-                    Click="PreviousButton_Click"/>
-            <Button x:Name="ReplayButton" Content="重读"
-                    Width="100" Height="40"
-                    Click="ReplayButton_Click"/>
-            <Button x:Name="NextButton" Content="下一个"
-                    Width="100" Height="40"
-                    Click="NextButton_Click"/>
-            <Button x:Name="EndButton" Content="结束"
-                    Width="100" Height="40"
-                    Click="EndButton_Click"/>
-        </StackPanel>
+                <!-- 词库选择卡片 -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="12" Padding="24" BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal">
+                            <FontIcon Glyph="&#xE8B5;" FontSize="20" Margin="0,0,8,0"
+                                      Foreground="{ThemeResource SystemAccentColor}" />
+                            <TextBlock Text="选择词库" FontSize="18" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <ItemsControl x:Name="WordBookItemsControl" MinHeight="60" MaxHeight="200">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox x:Name="BookCheckBox" Content="{Binding}"
+                                              Click="WordBookCheckBox_Click"
+                                              Margin="0,2" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="全选" Click="SelectAllBooksButton_Click" Padding="12,4" />
+                            <Button Content="反选" Click="InvertBooksButton_Click" Padding="12,4" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button x:Name="LoadWordlistButton" Click="LoadWordlistButton_Click"
+                                    HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8B5;" FontSize="14" />
+                                    <TextBlock Text="加载词库" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="ChangeWordListButton" Click="ChangeWordListButton_Click"
+                                    HorizontalAlignment="Left"
+                                    Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE7C3;" FontSize="14" />
+                                    <TextBlock Text="更改词书" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 搜索和单词列表 -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="12" Padding="24" BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal">
+                            <FontIcon Glyph="&#xE773;" FontSize="20" Margin="0,0,8,0"
+                                      Foreground="{ThemeResource SystemAccentColor}" />
+                            <TextBlock Text="单词列表" FontSize="18" FontWeight="SemiBold" />
+                        </StackPanel>
+
+                        <TextBox x:Name="SearchTextBox" PlaceholderText="搜索单词"
+                                 TextChanged="SearchTextBox_TextChanged" />
+
+                        <CheckBox x:Name="SelectAllCheckBox" Content="全选 / 全不选"
+                                  Click="SelectAllCheckBox_Click" />
+
+                        <ListBox x:Name="WordsListBox" MinHeight="200" MaxHeight="300"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollMode="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Width="600">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  Margin="5" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Word}"
+                                                   Margin="10" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Translation}"
+                                                   Margin="10" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondary}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding LearnedStatus}"
+                                                   Margin="10" VerticalAlignment="Center" FontSize="12"
+                                                   Foreground="{ThemeResource SystemAccentColor}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <TextBlock x:Name="WordCountTextBlock" Text="单词数量: 0"
+                                   Foreground="{ThemeResource TextFillColorSecondary}"
+                                   FontSize="12" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button x:Name="ResetProgressButton" Click="ResetProgressButton_Click"
+                                    Padding="12,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE72E;" FontSize="14" />
+                                    <TextBlock Text="重置学习进度" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="ClearSelectedLearnedButton" Click="ClearSelectedLearnedButton_Click"
+                                    Padding="12,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE72E;" FontSize="14" />
+                                    <TextBlock Text="清除选中单词的学习状态" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 设置卡片 -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="12" Padding="24" BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <Grid ColumnSpacing="20" RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="每日单词数"
+                                   VerticalAlignment="Center" FontSize="14" />
+                        <NumberBox x:Name="DailyWordCountBox" Grid.Row="0" Grid.Column="1"
+                                   Value="20" Minimum="5" Maximum="200"
+                                   SpinButtonPlacementMode="Inline"
+                                   HorizontalAlignment="Left" Width="150"
+                                   ValueChanged="DailyWordCountBox_ValueChanged" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="随机顺序"
+                                   VerticalAlignment="Center" FontSize="14" />
+                        <ToggleSwitch x:Name="RandomOrderToggle" Grid.Row="1" Grid.Column="1"
+                                      IsOn="True"
+                                      Toggled="RandomOrderToggle_Toggled" />
+                    </Grid>
+                </Border>
+
+                <!-- 开始背单词按钮区域 -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="20">
+                    <Button x:Name="StartMemorizeButton" Click="StartMemorizeButton_Click"
+                            Padding="24,12"
+                            Background="{ThemeResource SystemAccentColor}" Foreground="White"
+                            CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE768;" FontSize="18" Foreground="White" />
+                            <TextBlock Text="开始背单词" FontSize="16" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- 每日金句 -->
+                <Border CornerRadius="12" Padding="24" BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <Border.Background>
+                        <SolidColorBrush Color="{ThemeResource SystemAccentColor}" Opacity="0.9" />
+                    </Border.Background>
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <FontIcon Glyph="&#xE7C3;" FontSize="20" Margin="0,0,8,0" Foreground="White" />
+                            <TextBlock Text="每日金句" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="White" />
+                        </StackPanel>
+                        <TextBlock x:Name="QuoteTextBlock" FontSize="16" FontStyle="Italic"
+                                   Foreground="White" TextWrapping="Wrap" Margin="0,0,0,8" />
+                        <TextBlock x:Name="QuoteTranslationBlock" FontSize="14"
+                                   Foreground="White" Opacity="0.85" TextWrapping="Wrap" Margin="0,0,0,8" />
+                        <TextBlock x:Name="QuoteAuthorBlock" FontSize="13"
+                                   Foreground="White" Opacity="0.8" HorizontalAlignment="Right" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 背单词面板 -->
+        <Grid x:Name="StudyPanel" Visibility="Collapsed" Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 顶部 -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+                <Button x:Name="BackToConfigButton" Click="BackToConfigButton_Click"
+                        Margin="0,0,20,0" Padding="8,4">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE72B;" FontSize="14" />
+                        <TextBlock Text="返回" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Text="背单词" FontSize="24" FontWeight="Bold"
+                           VerticalAlignment="Center" Margin="0,0,30,0" />
+                <TextBlock x:Name="ProgressText" Text="第 0 / 0 个"
+                           VerticalAlignment="Center" FontSize="16" />
+            </StackPanel>
+
+            <!-- 中间单词卡片 -->
+            <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="30">
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="12" Padding="40,30"
+                        BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        MinWidth="400">
+                    <StackPanel HorizontalAlignment="Center" Spacing="15">
+                        <TextBlock x:Name="WordText" Text=""
+                                   FontSize="36" FontWeight="Bold"
+                                   HorizontalAlignment="Center"
+                                   TextWrapping="WrapWholeWords" />
+                        <TextBlock x:Name="PhoneticText" Text=""
+                                   FontSize="18"
+                                   Foreground="{ThemeResource TextFillColorSecondary}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock x:Name="TranslationText" Text=""
+                                   FontSize="22"
+                                   Foreground="{ThemeResource SystemAccentColor}"
+                                   HorizontalAlignment="Center"
+                                   TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 底部按钮 -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center"
+                        Margin="0,20,0,0" Spacing="15">
+                <Button x:Name="PreviousButton" Click="PreviousButton_Click" Width="110" Height="40">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE76B;" FontSize="14" />
+                        <TextBlock Text="上一个" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ReplayButton" Click="ReplayButton_Click" Width="110" Height="40">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE767;" FontSize="14" />
+                        <TextBlock Text="重读" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="NextButton" Click="NextButton_Click" Width="110" Height="40">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="下一个" VerticalAlignment="Center" />
+                        <FontIcon Glyph="&#xE76C;" FontSize="14" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="EndButton" Click="EndButton_Click" Width="110" Height="40">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE711;" FontSize="14" />
+                        <TextBlock Text="结束" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>

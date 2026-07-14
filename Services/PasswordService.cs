@@ -1,6 +1,5 @@
 using System;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace English_Listen_WinUI.Services
 {
@@ -21,11 +20,7 @@ namespace English_Listen_WinUI.Services
                 rng.GetBytes(salt);
             }
 
-            byte[] hash;
-            using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations, HashAlgorithmName.SHA256))
-            {
-                hash = pbkdf2.GetBytes(HashSize);
-            }
+            byte[] hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, HashSize);
 
             return $"{Convert.ToBase64String(salt)}{Separator}{Convert.ToBase64String(hash)}";
         }
@@ -46,11 +41,9 @@ namespace English_Listen_WinUI.Services
                 byte[] salt = Convert.FromBase64String(parts[0]);
                 byte[] storedHash = Convert.FromBase64String(parts[1]);
 
-                using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations, HashAlgorithmName.SHA256))
-                {
-                    byte[] computedHash = pbkdf2.GetBytes(storedHash.Length);
-                    return CryptographicOperations.FixedTimeEquals(computedHash, storedHash);
-                }
+                byte[] computedHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256,
+                    storedHash.Length);
+                return CryptographicOperations.FixedTimeEquals(computedHash, storedHash);
             }
             catch
             {

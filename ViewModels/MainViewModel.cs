@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using English_Listen_WinUI.Models;
 using English_Listen_WinUI.Services;
-using Windows.UI;
+using Microsoft.UI.Xaml;
 
 namespace English_Listen_WinUI.ViewModels
 {
@@ -20,7 +20,13 @@ namespace English_Listen_WinUI.ViewModels
         public string TimestampFormatted => Result.Timestamp.ToString("yyyy-MM-dd HH:mm");
         public int CorrectCount => Result.CorrectCount;
         public int TotalWords => Result.TotalWords;
-        public string AccuracyFormatted => $"{Result.Accuracy:F1}%";
+        public bool IsLearningRecord => Result.RecordType == "learning";
+        public string AccuracyFormatted => IsLearningRecord ? "" : $"{Result.Accuracy:F1}%";
+        public Visibility AccuracyVisibility => IsLearningRecord ? Visibility.Collapsed : Visibility.Visible;
+        public bool CanRedictate => Result.Words is { Count: > 0 };
+        public bool CanRelearn => IsLearningRecord && Result.Words is { Count: > 0 };
+        public Visibility RedictateVisibility => CanRedictate ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility RelearnVisibility => CanRelearn ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public class MainViewModel : ViewModelBase
@@ -28,19 +34,67 @@ namespace English_Listen_WinUI.ViewModels
         private readonly SettingsService _settingsService = new();
         private readonly SpeechService _speechService = new();
 
-        public SpeechService SpeechService => _speechService;
-
         private string _currentPage = "Home";
-        private int _themeMode; // 0 = Light, 1 = Dark, 2 = System
-        private string _welcomeMessage = "欢迎使用英语听写训练系统";
-        private string _userStatus = "未登录";
-        private int _readInterval = 5;
         private string _currentWordListName = "";
         private List<string> _currentWords = new();
-        private List<TestResult> _testHistory = new();
-        private string _wordsText = "";
         private bool _isRandomOrder;
+        private int _readInterval = 5;
+
+        private StudyPlanSettings _studyPlan = new();
+        private List<TestResult> _testHistory = new();
+        private int _themeMode; // 0 = Light, 1 = Dark, 2 = System
+        private string _userStatus = "未登录";
         private ObservableCollection<UserData> _users = new();
+        private string _welcomeMessage = "欢迎使用英语听写训练系统";
+        private string _wordsText = "";
+
+        public MainViewModel()
+        {
+            Debug.WriteLine("[MainViewModel] Constructor started");
+
+            try
+            {
+                Debug.WriteLine("[MainViewModel] Services already initialized inline");
+
+                NavigateCommand = new RelayCommand<string>(Navigate);
+                ToggleThemeCommand = new RelayCommand(ToggleTheme);
+                SaveWordsCommand = new RelayCommand(async () =>
+                {
+                    try
+                    {
+                        await SaveWordsAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"SaveWordsAsync 异常: {ex.Message}");
+                    }
+                });
+                LoadWordsCommand = new RelayCommand<string>(async (file) =>
+                {
+                    try
+                    {
+                        await LoadWordsAsync(file);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"LoadWordsAsync 异常: {ex.Message}");
+                    }
+                });
+
+                Debug.WriteLine("[MainViewModel] Commands initialized");
+
+                _ = InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MainViewModel] Constructor error: {ex.Message}");
+                Debug.WriteLine($"[MainViewModel] Stack trace: {ex.StackTrace}");
+            }
+
+            Debug.WriteLine("[MainViewModel] Constructor completed");
+        }
+
+        public SpeechService SpeechService => _speechService;
 
         public ObservableCollection<UserData> Users
         {
@@ -128,7 +182,33 @@ namespace English_Listen_WinUI.ViewModels
             }
         }
 
+        public StudyPlanSettings StudyPlan
+        {
+            get => _studyPlan;
+            set
+            {
+                if (SetProperty(ref _studyPlan, value))
+                {
+                    _settingsService.Settings.StudyPlan = value;
+                    _ = _settingsService.SaveSettingsAsync();
+                }
+            }
+        }
+
         public int WordsCount => _currentWords.Count;
+
+        public SettingsService Settings => _settingsService;
+
+        public ObservableCollection<string> WordListFiles { get; } = new();
+        public ObservableCollection<TestResultViewModel> TestHistoryViewModels { get; } = new();
+        public ObservableCollection<string> AvailableVoices { get; } = new();
+
+        public ICommand NavigateCommand { get; } = null!;
+        public ICommand ToggleThemeCommand { get; } = null!;
+        public ICommand SaveWordsCommand { get; } = null!;
+        public ICommand LoadWordsCommand { get; } = null!;
+
+        public bool CanStartTest => CurrentWords.Count > 0;
 
         private void UpdateCurrentWordsFromText()
         {
@@ -152,43 +232,6 @@ namespace English_Listen_WinUI.ViewModels
             }
         }
 
-        public Services.SettingsService Settings => _settingsService;
-
-        public ObservableCollection<string> WordListFiles { get; } = new();
-        public ObservableCollection<TestResultViewModel> TestHistoryViewModels { get; } = new();
-        public ObservableCollection<string> AvailableVoices { get; } = new();
-
-        public ICommand NavigateCommand { get; } = null!;
-        public ICommand ToggleThemeCommand { get; } = null!;
-        public ICommand SaveWordsCommand { get; } = null!;
-        public ICommand LoadWordsCommand { get; } = null!;
-
-        public MainViewModel()
-        {
-            System.Diagnostics.Debug.WriteLine("[MainViewModel] Constructor started");
-
-            try
-            {
-                System.Diagnostics.Debug.WriteLine("[MainViewModel] Services already initialized inline");
-
-                NavigateCommand = new RelayCommand<string>(Navigate);
-                ToggleThemeCommand = new RelayCommand(ToggleTheme);
-                SaveWordsCommand = new RelayCommand(async () => { try { await SaveWordsAsync(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SaveWordsAsync 异常: {ex.Message}"); } });
-                LoadWordsCommand = new RelayCommand<string>(async (file) => { try { await LoadWordsAsync(file); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadWordsAsync 异常: {ex.Message}"); } });
-
-                System.Diagnostics.Debug.WriteLine("[MainViewModel] Commands initialized");
-
-                _ = InitializeAsync();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Constructor error: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Stack trace: {ex.StackTrace}");
-            }
-
-            System.Diagnostics.Debug.WriteLine("[MainViewModel] Constructor completed");
-        }
-
         private void Navigate(string? page)
         {
             if (string.IsNullOrEmpty(page)) return;
@@ -206,12 +249,13 @@ namespace English_Listen_WinUI.ViewModels
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("[MainViewModel] InitializeAsync started");
+                Debug.WriteLine("[MainViewModel] InitializeAsync started");
 
                 await _settingsService.LoadSettingsAsync();
                 _themeMode = _settingsService.Settings.ThemeMode;
                 _readInterval = _settingsService.Settings.ReadInterval;
                 _isRandomOrder = _settingsService.Settings.IsRandomOrder;
+                _studyPlan = _settingsService.Settings.StudyPlan ?? new StudyPlanSettings();
 
                 await LoadWordListFilesAsync();
                 await LoadTestHistoryAsync();
@@ -225,13 +269,14 @@ namespace English_Listen_WinUI.ViewModels
                 OnPropertyChanged(nameof(ThemeMode));
                 OnPropertyChanged(nameof(ReadInterval));
                 OnPropertyChanged(nameof(IsRandomOrder));
+                OnPropertyChanged(nameof(StudyPlan));
 
-                System.Diagnostics.Debug.WriteLine("[MainViewModel] InitializeAsync completed");
+                Debug.WriteLine("[MainViewModel] InitializeAsync completed");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[MainViewModel] InitializeAsync error: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Stack trace: {ex.StackTrace}");
+                Debug.WriteLine($"[MainViewModel] InitializeAsync error: {ex.Message}");
+                Debug.WriteLine($"[MainViewModel] Stack trace: {ex.StackTrace}");
             }
         }
 
@@ -269,7 +314,7 @@ namespace English_Listen_WinUI.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"加载语音列表失败: {ex.Message}");
+                Debug.WriteLine($"加载语音列表失败: {ex.Message}");
             }
         }
 
@@ -280,7 +325,7 @@ namespace English_Listen_WinUI.ViewModels
                 CurrentWordListName = "default.txt";
             }
 
-            var filePath = System.IO.Path.Combine(
+            var filePath = Path.Combine(
                 _settingsService.GetWordlistDirectory(),
                 CurrentWordListName);
 
@@ -301,7 +346,7 @@ namespace English_Listen_WinUI.ViewModels
             if (string.IsNullOrEmpty(fileName)) return;
 
             CurrentWordListName = fileName;
-            var filePath = System.IO.Path.Combine(
+            var filePath = Path.Combine(
                 _settingsService.GetWordlistDirectory(),
                 fileName);
 
@@ -339,7 +384,7 @@ namespace English_Listen_WinUI.ViewModels
             var files = await _settingsService.GetWordlistFilesAsync();
             foreach (var file in files)
             {
-                WordListFiles.Add(System.IO.Path.GetFileName(file));
+                WordListFiles.Add(Path.GetFileName(file));
             }
 
             if (WordListFiles.Count > 0)
@@ -361,16 +406,23 @@ namespace English_Listen_WinUI.ViewModels
 
         public async Task ImportWordsFromFileAsync(string sourcePath)
         {
-            var fileName = System.IO.Path.GetFileName(sourcePath);
-            var destPath = System.IO.Path.Combine(
+            var fileName = Path.GetFileName(sourcePath);
+            var destPath = Path.Combine(
                 _settingsService.GetWordlistDirectory(),
                 fileName);
 
-            System.IO.File.Copy(sourcePath, destPath, true);
+            File.Copy(sourcePath, destPath, true);
             await LoadWordListFilesAsync();
         }
 
-        public bool CanStartTest => CurrentWords.Count > 0;
+        /// <summary>
+        /// 保存学习计划
+        /// </summary>
+        public async Task SaveStudyPlanAsync()
+        {
+            _settingsService.Settings.StudyPlan = _studyPlan;
+            await _settingsService.SaveSettingsAsync();
+        }
 
         public void Cleanup()
         {
@@ -380,15 +432,15 @@ namespace English_Listen_WinUI.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Cleanup失败: {ex.Message}");
+                Debug.WriteLine($"Cleanup失败: {ex.Message}");
             }
         }
     }
 
     public class RelayCommand : ICommand
     {
-        private readonly Action _execute;
         private readonly Func<bool>? _canExecute;
+        private readonly Action _execute;
 
         public RelayCommand(Action execute, Func<bool>? canExecute = null)
         {
@@ -405,8 +457,8 @@ namespace English_Listen_WinUI.ViewModels
 
     public class RelayCommand<T> : ICommand
     {
-        private readonly Action<T?> _execute;
         private readonly Func<T?, bool>? _canExecute;
+        private readonly Action<T?> _execute;
 
         public RelayCommand(Action<T?> execute, Func<T?, bool>? canExecute = null)
         {

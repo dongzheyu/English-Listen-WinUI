@@ -8,134 +8,81 @@
     d:DesignHeight="600" d:DesignWidth="800">
 
     <Page.Resources>
-        <!-- Qt版本风格：简洁的静态渐变，避免复杂动画问题 -->
         <LinearGradientBrush x:Key="WelcomeGradientBrush" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#FF4A90E2" Offset="0.0"/>  <!-- Blue -->
-            <GradientStop Color="#FF7B68EE" Offset="0.5"/>  <!-- Medium Purple -->
-            <GradientStop Color="#FF9013FE" Offset="1.0"/>  <!-- Purple -->
+            <GradientStop Color="#FF4A90E2" Offset="0.0" />
+            <GradientStop Color="#FF7B68EE" Offset="0.5" />
+            <GradientStop Color="#FF9013FE" Offset="1.0" />
         </LinearGradientBrush>
     </Page.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="20">
-                 <!-- Qt版本风格：简洁的标题，专注于功能 -->
-                 <TextBlock x:Name="WelcomeTextBlock" Text="欢迎使用英语听写训练系统"
-                           FontSize="24"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center" 
-                           Margin="0,0,0,30"
-                           Foreground="{StaticResource WelcomeGradientBrush}">
-                </TextBlock>
-             
+        <StackPanel Margin="20">
+            <TextBlock x:Name="WelcomeTextBlock" Text="欢迎使用英语听写训练系统"
+                       FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,30"
+                       Foreground="{StaticResource WelcomeGradientBrush}" />
 
-
-            <!-- Quick Stats -->
-            <StackPanel x:Name="StatsPanel" Orientation="Horizontal" 
-                        HorizontalAlignment="Center" Margin="0,0,0,30" Visibility="Collapsed">
-                <InfoBar x:Name="TotalTestsInfoBar" 
-                         Title="总测试次数: 0"
-                         Severity="Informational"
-                         IsClosable="False"
-                         Margin="10"/>
-                <InfoBar x:Name="AvgAccuracyInfoBar" 
-                         Title="平均正确率: 0%"
-                         Severity="Informational"
-                         IsClosable="False"
-                         Margin="10"/>
+            <StackPanel x:Name="StatsPanel" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,30"
+                        Visibility="Collapsed">
+                <InfoBar x:Name="TotalTestsInfoBar" Title="总测试次数: 0" Severity="Informational" IsClosable="False"
+                         Margin="10" />
+                <InfoBar x:Name="AvgAccuracyInfoBar" Title="平均正确率: 0%" Severity="Informational" IsClosable="False"
+                         Margin="10" />
             </StackPanel>
 
-            <!-- Recent Updates Card -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
-                    Margin="0,0,0,20"
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="20"
+                    Margin="0,0,0,20" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                     <TextBlock Text="📢 最新更新" 
-                                FontSize="18"
-                                FontWeight="SemiBold"
-                                Margin="0,0,0,10"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <FontIcon Glyph="&#xE7C3;" FontSize="18" Margin="0,0,8,0"
+                                  Foreground="{ThemeResource SystemAccentColor}" />
+                        <TextBlock Text="最新更新" FontSize="18" FontWeight="SemiBold" />
+                    </StackPanel>
                     <StackPanel Spacing="8">
-                         <TextBlock Text="• 新增侧边栏导航，操作更便捷" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="• 优化界面布局，主页更简洁" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="• 移除数据加密功能，提升性能" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="• 改进用户登录体验" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
+                        <TextBlock Text="新增侧边栏导航，操作更便捷" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="优化界面布局，主页更简洁" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="移除数据加密功能，提升性能" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="改进用户登录体验" FontSize="14" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- Tips Card -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
-                    Margin="0,0,0,20"
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="20"
+                    Margin="0,0,0,20" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                     <TextBlock Text="💡 使用技巧" 
-                                FontSize="18"
-                                FontWeight="SemiBold"
-                                Margin="0,0,0,10"/>
-                     <StackPanel Spacing="8">
-                         <TextBlock Text="• 在'查看单词'页面添加您的词库，支持从文件导入" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="• 测试时可以使用快捷键：空格键重复朗读，方向键切换单词" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="• 在设置中可以调节朗读时间间隔和选择语音引擎" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="• 登录后可以查看个人学习进度和测试历史" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <FontIcon Glyph="&#xE82C;" FontSize="18" Margin="0,0,8,0"
+                                  Foreground="{ThemeResource SystemAccentColor}" />
+                        <TextBlock Text="使用技巧" FontSize="18" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="在'查看单词'页面添加您的词库，支持从文件导入" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="测试时可以使用快捷键：空格键重复朗读，方向键切换单词" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="在设置中可以调节朗读时间间隔和选择语音引擎" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="登录后可以查看个人学习进度和测试历史" FontSize="14" TextWrapping="Wrap" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- Quick Guide Card -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="20"
+                    BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                     <TextBlock Text="🚀 快速开始" 
-                                FontSize="18"
-                                FontWeight="SemiBold"
-                                Margin="0,0,0,10"/>
-                     <StackPanel Spacing="8">
-                         <TextBlock Text="1. 点击'查看单词'添加您的词库" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="2. 返回主页点击'开始听写测试'" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="3. 选择听写模式并开始练习" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                         <TextBlock Text="4. 完成后查看答案和统计信息" 
-                                    FontSize="14"
-                                    TextWrapping="Wrap"/>
-                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <FontIcon Glyph="&#xE768;" FontSize="18" Margin="0,0,8,0"
+                                  Foreground="{ThemeResource SystemAccentColor}" />
+                        <TextBlock Text="快速开始" FontSize="18" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="1. 点击'查看单词'添加您的词库" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="2. 返回主页点击'开始听写测试'" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="3. 选择听写模式并开始练习" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="4. 完成后查看答案和统计信息" FontSize="14" TextWrapping="Wrap" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
-             <!-- Footer -->
-             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-                 <TextBlock Text="English Listen v1.0.0 | 智能英语听写训练系统" 
-                            FontSize="12"
-                            Foreground="{ThemeResource TextFillColorSecondary}"/>
-             </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
+                <TextBlock x:Name="VersionTextBlock" FontSize="12" Foreground="{ThemeResource TextFillColorSecondary}" />
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>

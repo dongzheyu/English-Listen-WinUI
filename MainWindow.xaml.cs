@@ -1,34 +1,35 @@
 using System;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
-using Microsoft.UI.Xaml.Navigation;
+using System.Diagnostics;
+using System.IO;
+using Windows.ApplicationModel;
 using English_Listen_WinUI.ViewModels;
 using English_Listen_WinUI.Views;
-using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace English_Listen_WinUI
 {
     public sealed partial class MainWindow : Window
     {
-        private readonly MainViewModel? _viewModel;
-        private bool _isNavigating = false;
         private static DispatcherTimer? _notificationTimer;
         private static MainWindow? _currentInstance;
-        private static Storyboard? _currentToastAnimation;
+        private static bool _isToastHovered = false;
+        private readonly MainViewModel? _viewModel;
+        private bool _isNavigating = false;
 
         public MainWindow()
         {
-            System.Diagnostics.Debug.WriteLine("[MainWindow] Constructor started");
+            Debug.WriteLine("[MainWindow] Constructor started");
 
             try
             {
                 this.InitializeComponent();
-                System.Diagnostics.Debug.WriteLine("[MainWindow] InitializeComponent completed");
+                Debug.WriteLine("[MainWindow] InitializeComponent completed");
 
                 _viewModel = App.SharedViewModel ?? throw new InvalidOperationException("SharedViewModel is null");
-                System.Diagnostics.Debug.WriteLine("[MainWindow] ViewModel assigned");
+                Debug.WriteLine("[MainWindow] ViewModel assigned");
 
                 _currentInstance = this;
 
@@ -41,30 +42,32 @@ namespace English_Listen_WinUI
                 MainNavigationView.ItemInvoked += NavigationView_ItemInvoked;
                 MainNavigationView.BackRequested += NavigationView_BackRequested;
                 ContentFrame.Navigated += ContentFrame_Navigated;
-                System.Diagnostics.Debug.WriteLine("[MainWindow] Navigation handlers attached");
-                
+                Debug.WriteLine("[MainWindow] Navigation handlers attached");
+
                 // 设置返回按钮状态
                 UpdateBackButtonState();
 
                 // Navigate to home page initially
                 NavigateToPage(typeof(HomePage));
-                System.Diagnostics.Debug.WriteLine("[MainWindow] Initial navigation to HomePage completed");
+                Debug.WriteLine("[MainWindow] Initial navigation to HomePage completed");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[MainWindow] FATAL initialization failed: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"[MainWindow] Stack trace: {ex.StackTrace}");
+                Debug.WriteLine($"[MainWindow] FATAL initialization failed: {ex.Message}");
+                Debug.WriteLine($"[MainWindow] Stack trace: {ex.StackTrace}");
 
                 // Write error to log file
                 try
                 {
-                    var logPath = System.IO.Path.Combine(AppContext.BaseDirectory, "window_error.log");
-                    System.IO.File.WriteAllText(logPath, $"[{DateTime.Now}] WINDOW ERROR:\n{ex}\n\nStack:\n{ex.StackTrace}");
+                    var logPath = Path.Combine(AppContext.BaseDirectory, "window_error.log");
+                    File.WriteAllText(logPath, $"[{DateTime.Now}] WINDOW ERROR:\n{ex}\n\nStack:\n{ex.StackTrace}");
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
-            System.Diagnostics.Debug.WriteLine("[MainWindow] Constructor completed");
+            Debug.WriteLine("[MainWindow] Constructor completed");
         }
 
         private void NavigationView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
@@ -76,7 +79,8 @@ namespace English_Listen_WinUI
             }
         }
 
-        private void NavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+        private void NavigationView_SelectionChanged(NavigationView sender,
+            NavigationViewSelectionChangedEventArgs args)
         {
             if (_isNavigating) return;
 
@@ -96,7 +100,7 @@ namespace English_Listen_WinUI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Navigation failed: {ex.Message}");
+                Debug.WriteLine($"Navigation failed: {ex.Message}");
                 try
                 {
                     ShowErrorDialog("导航失败", $"页面导航失败: {ex.Message}");
@@ -116,7 +120,7 @@ namespace English_Listen_WinUI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Settings navigation failed: {ex.Message}");
+                Debug.WriteLine($"Settings navigation failed: {ex.Message}");
                 ShowErrorDialog("设置错误", $"无法打开设置页面: {ex.Message}");
             }
         }
@@ -172,10 +176,9 @@ namespace English_Listen_WinUI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Login prompt failed: {ex.Message}");
+                Debug.WriteLine($"Login prompt failed: {ex.Message}");
             }
         }
-
 
 
         private async void ShowErrorDialog(string title, string message)
@@ -185,7 +188,7 @@ namespace English_Listen_WinUI
                 // Ensure we have a valid XamlRoot
                 if (this.Content?.XamlRoot == null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Dialog] Cannot show dialog - XamlRoot is null");
+                    Debug.WriteLine($"[Dialog] Cannot show dialog - XamlRoot is null");
                     return;
                 }
 
@@ -201,7 +204,7 @@ namespace English_Listen_WinUI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error dialog failed: {ex.Message}");
+                Debug.WriteLine($"Error dialog failed: {ex.Message}");
             }
         }
 
@@ -213,11 +216,12 @@ namespace English_Listen_WinUI
                 var scrollViewer = new ScrollViewer();
                 var textBlock = new TextBlock
                 {
-                    Text = @"English Listen v1.0.0
+                    Text =
+                        $@"English Listen v{Package.Current.Id.Version.Major}.{Package.Current.Id.Version.Minor}.{Package.Current.Id.Version.Build}
 
 一个帮助学习英语的听写练习工具
 
-基于 WinUI3 框架开发，使用 Flite 语音引擎。
+基于 WinUI3 框架开发，支持多种语音引擎。
 
 功能特点：
 - 支持自定义词库
@@ -247,7 +251,7 @@ namespace English_Listen_WinUI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"About dialog failed: {ex.Message}");
+                Debug.WriteLine($"About dialog failed: {ex.Message}");
             }
         }
 
@@ -259,7 +263,7 @@ namespace English_Listen_WinUI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to set sidebar visibility: {ex.Message}");
+                Debug.WriteLine($"Failed to set sidebar visibility: {ex.Message}");
             }
         }
 
@@ -286,6 +290,17 @@ namespace English_Listen_WinUI
                 var currentPageType = e.Content.GetType();
                 UpdateNavigationViewSelection(currentPageType);
                 UpdateBackButtonState();
+
+                // 根据页面类型自动隐藏/显示侧边栏
+                // 听考单词页面隐藏侧边栏，其他页面显示
+                if (currentPageType == typeof(DictationTestPage))
+                {
+                    MainNavigationView.IsPaneVisible = false;
+                }
+                else
+                {
+                    MainNavigationView.IsPaneVisible = true;
+                }
             }
         }
 
@@ -295,10 +310,10 @@ namespace English_Listen_WinUI
             if (pageType == null) return;
 
             string pageName = pageType.Name;
-            
+
             // 查找对应的NavigationViewItem
             NavigationViewItem? selectedItem = null;
-            
+
             // 检查菜单项
             foreach (var item in MainNavigationView.MenuItems)
             {
@@ -312,7 +327,7 @@ namespace English_Listen_WinUI
                     }
                 }
             }
-            
+
             // 检查底部菜单项
             if (selectedItem == null)
             {
@@ -329,7 +344,7 @@ namespace English_Listen_WinUI
                     }
                 }
             }
-            
+
             // 更新选中项
             if (selectedItem != null)
             {
@@ -357,7 +372,7 @@ namespace English_Listen_WinUI
             try
             {
                 _isNavigating = true;
-                System.Diagnostics.Debug.WriteLine($"[Navigation] Navigating to {pageType.Name}");
+                Debug.WriteLine($"[Navigation] Navigating to {pageType.Name}");
 
                 if (ContentFrame?.Content?.GetType() == pageType)
                 {
@@ -369,17 +384,17 @@ namespace English_Listen_WinUI
 
                 if (!navigationResult)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Failed to navigate to {pageType.Name}");
+                    Debug.WriteLine($"Failed to navigate to {pageType.Name}");
                     ShowErrorDialog("导航失败", $"无法导航到页面: {pageType.Name}");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Navigation] Successfully navigated to {pageType.Name}");
+                    Debug.WriteLine($"[Navigation] Successfully navigated to {pageType.Name}");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Page navigation failed: {ex.Message}");
+                Debug.WriteLine($"Page navigation failed: {ex.Message}");
                 try
                 {
                     ShowErrorDialog("导航错误", $"页面导航出错: {ex.Message}");
@@ -408,63 +423,39 @@ namespace English_Listen_WinUI
         private void ShowNotificationInternal(string message, string? title)
         {
             _notificationTimer?.Stop();
-            _currentToastAnimation?.Stop();
 
-            ToastTitle.Text = title ?? "";
-            ToastTitle.Visibility = string.IsNullOrEmpty(title) ? Visibility.Collapsed : Visibility.Visible;
-            ToastMessage.Text = message;
+            ToastInfoBar.Title = title ?? "";
+            ToastInfoBar.Message = message;
+            ToastInfoBar.IsOpen = true;
 
-            // Reset initial state for animation
-            ToastBorder.Opacity = 0;
-            ToastTranslate.X = 100;
-            ToastBorder.Visibility = Visibility.Visible;
-
-            // Slide-in + fade-in animation
-            var storyboard = new Storyboard();
-
-            var fadeIn = new DoubleAnimation
-            {
-                From = 0,
-                To = 1,
-                Duration = new Duration(TimeSpan.FromMilliseconds(300)),
-                EnableDependentAnimation = true
-            };
-            Storyboard.SetTarget(fadeIn, ToastBorder);
-            Storyboard.SetTargetProperty(fadeIn, "Opacity");
-            storyboard.Children.Add(fadeIn);
-
-            var slideIn = new DoubleAnimation
-            {
-                From = 100,
-                To = 0,
-                Duration = new Duration(TimeSpan.FromMilliseconds(350)),
-                EnableDependentAnimation = true,
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-            };
-            Storyboard.SetTarget(slideIn, ToastTranslate);
-            Storyboard.SetTargetProperty(slideIn, "X");
-            storyboard.Children.Add(slideIn);
-
-            _currentToastAnimation = storyboard;
-            storyboard.Begin();
-
+            _isToastHovered = false;
             _notificationTimer!.Interval = TimeSpan.FromSeconds(5);
             _notificationTimer!.Start();
         }
 
         private static void HideNotification()
         {
-            _currentInstance?.DispatcherQueue.TryEnqueue(() =>
-            {
-                _currentInstance?.HideNotificationInternal();
-            });
+            _currentInstance?.DispatcherQueue.TryEnqueue(() => { _currentInstance?.HideNotificationInternal(); });
         }
 
         private void HideNotificationInternal()
         {
             _notificationTimer?.Stop();
-            _currentToastAnimation?.Stop();
-            ToastBorder.Visibility = Visibility.Collapsed;
+            if (_isToastHovered) return;
+            ToastInfoBar.IsOpen = false;
+        }
+
+        private void ToastInfoBar_PointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            _isToastHovered = true;
+            _notificationTimer?.Stop();
+        }
+
+        private void ToastInfoBar_PointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            _isToastHovered = false;
+            _notificationTimer!.Interval = TimeSpan.FromSeconds(5);
+            _notificationTimer!.Start();
         }
     }
 }

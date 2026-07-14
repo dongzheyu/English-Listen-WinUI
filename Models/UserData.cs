@@ -9,7 +9,25 @@ namespace English_Listen_WinUI.Models
         public int TotalWords { get; set; }
         public int CorrectCount { get; set; }
         public double Accuracy { get; set; }
+
         public string WordListName { get; set; } = string.Empty;
+
+        // ponytail: nullable List, compatible with legacy JSON. null means old record without saved words.
+        public List<WordTranslationPair>? Words { get; set; }
+
+        /// <summary>
+        /// 记录类型："dictation"=听写, "learning"=学习。null/空 兼容旧记录（视为听写）
+        /// </summary>
+        public string? RecordType { get; set; }
+    }
+
+    /// <summary>
+    /// 单词翻译对，用于保存听写记录中的单词列表
+    /// </summary>
+    public class WordTranslationPair
+    {
+        public string Word { get; set; } = string.Empty;
+        public string Translation { get; set; } = string.Empty;
     }
 
     public class UserData
@@ -48,7 +66,10 @@ namespace English_Listen_WinUI.Models
         public int WindowsTtsRate { get; set; } = 0; // -10 to 10
         public string? BaiduTranslateApiMode { get; set; } = "default";
         public string? BaiduTranslateApiKey { get; set; }
+
+        /// <summary>
+        /// 学习计划配置
+        /// </summary>
+        public StudyPlanSettings StudyPlan { get; set; } = new();
     }
-
-
 }

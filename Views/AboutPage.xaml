@@ -11,138 +11,138 @@
         <StackPanel Margin="20">
             <!-- Title -->
             <TextBlock Text="关于 English Listen"
-                       FontSize="36" FontWeight="Bold" 
-                       HorizontalAlignment="Center" 
-                       Margin="0,0,0,30"/>
-            
+                       FontSize="36" FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,30" />
+
             <!-- Version Info Card -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
+                    CornerRadius="8"
+                    Padding="20"
                     Margin="0,0,0,20"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="版本信息" 
-                               FontSize="16" FontWeight="SemiBold" 
-                               Margin="0,0,0,10"/>
-                    <TextBlock Text="English Listen v1.1.0" 
-                               FontSize="14" TextWrapping="Wrap"/>
-                    <TextBlock Text="智能英语听写训练系统" 
-                               FontSize="14" TextWrapping="Wrap" 
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock Text="版本信息"
+                               FontSize="16" FontWeight="SemiBold"
+                               Margin="0,0,0,10" />
+                    <TextBlock x:Name="VersionTextBlock" FontSize="14" TextWrapping="Wrap" />
+                    <TextBlock Text="智能英语听写训练系统"
+                               FontSize="14" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
             </Border>
 
             <!-- Description Card -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
+                    CornerRadius="8"
+                    Padding="20"
                     Margin="0,0,0,20"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="软件介绍" 
-                               FontSize="16" FontWeight="SemiBold" 
-                               Margin="0,0,0,10"/>
-                    <TextBlock Text="English Listen 是一个帮助学习英语的听写练习工具。该软件基于 WinUI3 框架开发，支持 Windows SAPI 和 Flite 语音引擎，为用户提供专业的英语听写训练体验。" 
-                               FontSize="14" TextWrapping="Wrap"/>
+                    <TextBlock Text="软件介绍"
+                               FontSize="16" FontWeight="SemiBold"
+                               Margin="0,0,0,10" />
+                    <TextBlock
+                        Text="English Listen 是一个帮助学习英语的听写练习工具。该软件基于 WinUI3 框架开发，支持 Windows SAPI 和 TTS 语音引擎，为用户提供专业的英语听写训练体验。"
+                        FontSize="14" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
             <!-- Features Card -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
+                    CornerRadius="8"
+                    Padding="20"
                     Margin="0,0,0,20"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="功能特点" 
-                               FontSize="16" FontWeight="SemiBold" 
-                               Margin="0,0,0,10"/>
+                    <TextBlock Text="功能特点"
+                               FontSize="16" FontWeight="SemiBold"
+                               Margin="0,0,0,10" />
                     <StackPanel Spacing="8">
-                        <TextBlock Text="• 支持自定义词库" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 可调节朗读时间间隔" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 支持深色/浅色主题切换" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 提供测试历史记录查看" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 界面字体统一为微软雅黑" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 按钮尺寸优化" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 新增使用指南功能" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 支持临时词库自动保存和另存为功能" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 支持SAPI和Flite两种朗读引擎" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 新增Flite语音引擎设置向导" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 首个单词立即朗读无需等待" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 设置功能整合到统一窗口" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 模型设置中增加试听功能" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="• 测试界面添加时间间隔设置" 
-                                   FontSize="14" TextWrapping="Wrap"/>
+                        <TextBlock Text="• 支持自定义词库"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 可调节朗读时间间隔"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 支持深色/浅色主题切换"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 提供测试历史记录查看"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 界面字体统一为微软雅黑"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 按钮尺寸优化"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 新增使用指南功能"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 支持临时词库自动保存和另存为功能"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 支持多种语音引擎"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 首个单词立即朗读无需等待"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 设置功能整合到统一窗口"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 模型设置中增加试听功能"
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="• 测试界面添加时间间隔设置"
+                                   FontSize="14" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
             <!-- License Card -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
+                    CornerRadius="8"
+                    Padding="20"
                     Margin="0,0,0,20"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="许可证" 
-                               FontSize="16" FontWeight="SemiBold" 
-                               Margin="0,0,0,10"/>
-                    <TextBlock Text="MIT 许可证" 
-                               FontSize="14" FontWeight="SemiBold" 
-                               Margin="0,0,0,5"/>
-                    <TextBlock Text="版权所有 (c) 2026 dongle" 
-                               FontSize="14" 
-                               Margin="0,0,0,10"/>
-                    <TextBlock Text="特此授予任何获得本软件及相关文档文件（“软件”）副本的人免费许可，不受限制地处理本软件，包括但不限于使用、复制、修改、合并、发布、分发、再许可和/或销售本软件副本的权利，并允许向其提供本软件的人员进行上述操作，但须符合以下条件：" 
-                               FontSize="14" TextWrapping="Wrap" 
-                               Margin="0,0,0,10"/>
-                    <TextBlock Text="上述版权声明和本许可声明应包含在本软件的所有副本或重要部分中。" 
-                               FontSize="14" TextWrapping="Wrap" 
-                               Margin="0,0,0,10"/>
-                    <TextBlock Text="本软件按“原样”提供，不附带任何形式的明示或暗示的担保，包括但不限于适销性、特定用途适用性和不侵权的担保。在任何情况下，作者或版权持有人均不对因本软件或本软件的使用或其他交易而引起的任何索赔、损害或其他责任负责，无论是在合同诉讼、侵权行为还是其他方面。" 
-                               FontSize="14" TextWrapping="Wrap"/>
+                    <TextBlock Text="许可证"
+                               FontSize="16" FontWeight="SemiBold"
+                               Margin="0,0,0,10" />
+                    <TextBlock Text="MIT 许可证"
+                               FontSize="14" FontWeight="SemiBold"
+                               Margin="0,0,0,5" />
+                    <TextBlock Text="版权所有 (c) 2026 dongle"
+                               FontSize="14"
+                               Margin="0,0,0,10" />
+                    <TextBlock
+                        Text="特此授予任何获得本软件及相关文档文件（“软件”）副本的人免费许可，不受限制地处理本软件，包括但不限于使用、复制、修改、合并、发布、分发、再许可和/或销售本软件副本的权利，并允许向其提供本软件的人员进行上述操作，但须符合以下条件："
+                        FontSize="14" TextWrapping="Wrap"
+                        Margin="0,0,0,10" />
+                    <TextBlock Text="上述版权声明和本许可声明应包含在本软件的所有副本或重要部分中。"
+                               FontSize="14" TextWrapping="Wrap"
+                               Margin="0,0,0,10" />
+                    <TextBlock
+                        Text="本软件按“原样”提供，不附带任何形式的明示或暗示的担保，包括但不限于适销性、特定用途适用性和不侵权的担保。在任何情况下，作者或版权持有人均不对因本软件或本软件的使用或其他交易而引起的任何索赔、损害或其他责任负责，无论是在合同诉讼、侵权行为还是其他方面。"
+                        FontSize="14" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
             <!-- Contact Card -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" 
-                    Padding="20" 
+                    CornerRadius="8"
+                    Padding="20"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="联系我们" 
-                               FontSize="16" FontWeight="SemiBold" 
-                               Margin="0,0,0,10"/>
+                    <TextBlock Text="联系我们"
+                               FontSize="16" FontWeight="SemiBold"
+                               Margin="0,0,0,10" />
                     <StackPanel Spacing="8">
-                        <TextBlock Text="GitHub 仓库地址：" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <HyperlinkButton Content="https://github.com/dongzheyu/English-Listen-WinUI" 
+                        <TextBlock Text="GitHub 仓库地址："
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <HyperlinkButton Content="https://github.com/dongzheyu/English-Listen-WinUI"
                                          NavigateUri="https://github.com/dongzheyu/English-Listen-WinUI"
-                                         FontSize="14"/>
-                        <TextBlock Text="Gitee 仓库地址：" 
-                                   FontSize="14" TextWrapping="Wrap"/>
-                        <HyperlinkButton Content="https://gitee.com/jetcpp/English-Listen-WinUI/" 
+                                         FontSize="14" />
+                        <TextBlock Text="Gitee 仓库地址："
+                                   FontSize="14" TextWrapping="Wrap" />
+                        <HyperlinkButton Content="https://gitee.com/jetcpp/English-Listen-WinUI/"
                                          NavigateUri="https://gitee.com/jetcpp/English-Listen-WinUI/"
-                                         FontSize="14"/>
+                                         FontSize="14" />
                     </StackPanel>
                 </StackPanel>
             </Border>

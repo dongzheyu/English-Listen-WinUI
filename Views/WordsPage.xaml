@@ -9,70 +9,73 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-            <TextBlock Text="单词管理" FontSize="24" FontWeight="Bold" 
-                       VerticalAlignment="Center" Margin="20"/>
+            <TextBlock Text="单词管理" FontSize="24" FontWeight="Bold"
+                       VerticalAlignment="Center" Margin="20" />
         </StackPanel>
 
         <!-- Search and Filter -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10">
-            <TextBlock Text="搜索:" VerticalAlignment="Center" Margin="5"/>
-            <TextBox x:Name="SearchTextBox" Width="200" 
-                      TextChanged="SearchTextBox_TextChanged"
-                      PlaceholderText="输入单词进行搜索"/>
-            <TextBlock Text="筛选:" VerticalAlignment="Center" Margin="15,0,5,0"/>
-            <ComboBox x:Name="FilterComboBox" Width="150" 
+            <TextBlock Text="搜索:" VerticalAlignment="Center" Margin="5" />
+            <TextBox x:Name="SearchTextBox" Width="200"
+                     TextChanged="SearchTextBox_TextChanged"
+                     PlaceholderText="输入单词进行搜索" />
+            <TextBlock Text="筛选:" VerticalAlignment="Center" Margin="15,0,5,0" />
+            <ComboBox x:Name="FilterComboBox" Width="150"
                       SelectionChanged="FilterComboBox_SelectionChanged">
-                <ComboBoxItem Content="全部单词" IsSelected="True"/>
-                <ComboBoxItem Content="以字母开头"/>
-                <ComboBoxItem Content="以数字开头"/>
-                <ComboBoxItem Content="包含特殊字符"/>
+                <ComboBoxItem Content="全部单词" IsSelected="True" />
+                <ComboBoxItem Content="以字母开头" />
+                <ComboBoxItem Content="以数字开头" />
+                <ComboBoxItem Content="包含特殊字符" />
             </ComboBox>
-            <Button Content="重置" Click="ResetFilterButton_Click" Margin="10"/>
+            <Button Content="重置" Click="ResetFilterButton_Click" Margin="10" />
         </StackPanel>
 
         <!-- Main Operations -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-            <Button Content="词库管理" Click="WordlistManagementButton_Click" Width="120" Height="40" Margin="10"/>
-            <Button Content="批量翻译" Click="BatchTranslateButton_Click" Width="120" Height="40" Margin="10"/>
-            <Button Content="开始听写" Click="StartDictationButton_Click" Width="120" Height="40" Margin="10"/>
-            <Button Content="开始背单词" Click="StartMemorizeButton_Click" Width="120" Height="40" Margin="10"/>
-            <Button Content="追加到词库末尾" Click="AppendToWordlistButton_Click" Width="150" Height="40" Margin="10"/>
-            <Button Content="刷新" Click="RefreshButton_Click" Width="80" Height="40" Margin="10"/>
+            <Button Content="词库管理" Click="WordlistManagementButton_Click" Width="120" Height="40" Margin="10" />
+            <Button Content="批量翻译" Click="BatchTranslateButton_Click" Width="120" Height="40" Margin="10" />
+            <Button Content="开始听写" Click="StartDictationButton_Click" Width="120" Height="40" Margin="10" />
+            <Button Content="开始背单词" Click="StartMemorizeButton_Click" Width="120" Height="40" Margin="10" />
+            <Button Content="追加到词库末尾" Click="AppendToWordlistButton_Click" Width="150" Height="40" Margin="10" />
+            <Button Content="刷新" Click="RefreshButton_Click" Width="80" Height="40" Margin="10" />
         </StackPanel>
 
         <!-- Word Operations -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-            <TextBox x:Name="WordInput" Width="200" PlaceholderText="输入单词" Margin="5" KeyDown="WordInput_KeyDown"/>
-            <Button Content="添加单词" Click="AddWordButton_Click" Width="100" Height="35" Margin="5"/>
-            <Button Content="删除选中" Click="DeleteSelectedButton_Click" Width="100" Height="35" Margin="5"/>
-            <Button Content="清空列表" Click="ClearButton_Click" Width="100" Height="35" Margin="5"/>
+            <TextBox x:Name="WordInput" Width="200" PlaceholderText="输入单词" Margin="5" KeyDown="WordInput_KeyDown" />
+            <Button Content="添加单词" Click="AddWordButton_Click" Width="100" Height="35" Margin="5" />
+            <Button Content="删除选中" Click="DeleteSelectedButton_Click" Width="100" Height="35" Margin="5" />
+            <Button Content="清空列表" Click="ClearButton_Click" Width="100" Height="35" Margin="5" />
         </StackPanel>
 
         <!-- Word List -->
         <Grid Grid.Row="4" Margin="10">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <!-- Select All Checkbox and Word Count -->
             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10,5">
-                <CheckBox x:Name="SelectAllCheckBox" 
-                          Content="全选/全不选" 
+                <CheckBox x:Name="SelectAllCheckBox"
+                          Content="全选/全不选"
                           Click="SelectAllCheckBox_Click"
-                          Margin="10,0"/>
-                <TextBlock x:Name="WordCountTextBlock" Text="单词数量: 0" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666666"/>
-                <ProgressRing x:Name="LoadingProgressRing" IsActive="False" Visibility="Collapsed" Width="20" Height="20" Margin="10,0,0,0" Foreground="{ThemeResource SystemAccentColor}"/>
-                <TextBlock x:Name="LoadingStatusText" Text="" VerticalAlignment="Center" Margin="5,0,0,0" Foreground="#666666" FontSize="12"/>
+                          Margin="10,0" />
+                <TextBlock x:Name="WordCountTextBlock" Text="单词数量: 0" VerticalAlignment="Center" Margin="20,0,0,0"
+                           Foreground="#666666" />
+                <ProgressRing x:Name="LoadingProgressRing" IsActive="False" Visibility="Collapsed" Width="20"
+                              Height="20" Margin="10,0,0,0" Foreground="{ThemeResource SystemAccentColor}" />
+                <TextBlock x:Name="LoadingStatusText" Text="" VerticalAlignment="Center" Margin="5,0,0,0"
+                           Foreground="#666666" FontSize="12" />
             </StackPanel>
 
             <ListBox x:Name="WordsListBox" Grid.Row="1"
@@ -86,13 +89,15 @@
                     <DataTemplate>
                         <Grid Width="600">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="5" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Word}" Margin="10" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="2" Text="{Binding Translation}" Margin="10" VerticalAlignment="Center" Foreground="#666666"/>
+                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="5"
+                                      VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Word}" Margin="10" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="{Binding Translation}" Margin="10"
+                                       VerticalAlignment="Center" Foreground="#666666" />
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -100,9 +105,6 @@
         </Grid>
 
         <!-- Hidden controls for code compatibility -->
-        <ListBox x:Name="WordlistListBox" Visibility="Collapsed" SelectionChanged="WordlistListBox_SelectionChanged"/>
-
-        <!-- Footer Buttons -->
-        <!-- 保存按钮已删除，改为自动保存机制 -->
+        <ListBox x:Name="WordlistListBox" Visibility="Collapsed" SelectionChanged="WordlistListBox_SelectionChanged" />
     </Grid>
 </Page>

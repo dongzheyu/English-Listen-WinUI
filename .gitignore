@@ -365,3 +365,6 @@ FodyWeavers.xsd
 # Secret configuration files
 config/secret.json
 config/redeem_codes.json
+
+# Development certificate
+devcert.pfx

@@ -1,9 +1,11 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Windows.Storage;
 
 namespace English_Listen_WinUI.Services
 {
@@ -20,7 +22,7 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                return Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, SECRET_DIR_NAME);
+                return Path.Combine(ApplicationData.Current.LocalFolder.Path, SECRET_DIR_NAME);
             }
             catch
             {
@@ -39,7 +41,7 @@ namespace English_Listen_WinUI.Services
             var localSecret = LoadLocalEncryptedSecret();
             if (localSecret != null)
             {
-                System.Diagnostics.Debug.WriteLine("[SecretStorage] 从本地加密文件加载密钥");
+                Debug.WriteLine("[SecretStorage] 从本地加密文件加载密钥");
                 return localSecret;
             }
 
@@ -47,7 +49,7 @@ namespace English_Listen_WinUI.Services
             var legacySecret = LoadLegacyPlaintextSecret();
             if (legacySecret != null)
             {
-                System.Diagnostics.Debug.WriteLine("[SecretStorage] 从旧版明文文件迁移密钥");
+                Debug.WriteLine("[SecretStorage] 从旧版明文文件迁移密钥");
                 MigrateToEncrypted(legacySecret);
                 return legacySecret;
             }
@@ -56,12 +58,12 @@ namespace English_Listen_WinUI.Services
             var embeddedSecret = LoadEmbeddedEncryptedSecret();
             if (embeddedSecret != null)
             {
-                System.Diagnostics.Debug.WriteLine("[SecretStorage] 从嵌入加密资源迁移密钥");
+                Debug.WriteLine("[SecretStorage] 从嵌入加密资源迁移密钥");
                 MigrateToEncrypted(embeddedSecret);
                 return embeddedSecret;
             }
 
-            System.Diagnostics.Debug.WriteLine("[SecretStorage] 未找到任何密钥配置");
+            Debug.WriteLine("[SecretStorage] 未找到任何密钥配置");
             return null;
         }
 
@@ -81,7 +83,7 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SecretStorage] 本地解密失败: {ex.Message}");
+                Debug.WriteLine($"[SecretStorage] 本地解密失败: {ex.Message}");
                 return null;
             }
         }
@@ -93,7 +95,8 @@ namespace English_Listen_WinUI.Services
                 string configPath;
                 try
                 {
-                    configPath = Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "config", LEGACY_SECRET_FILE_NAME);
+                    configPath = Path.Combine(ApplicationData.Current.LocalFolder.Path, "config",
+                        LEGACY_SECRET_FILE_NAME);
                 }
                 catch
                 {
@@ -127,7 +130,7 @@ namespace English_Listen_WinUI.Services
                 if (stream == null) return null;
 
                 var encrypted = new byte[stream.Length];
-                stream.Read(encrypted, 0, encrypted.Length);
+                stream.ReadExactly(encrypted);
 
                 // Decrypt with LocalMachine scope (CI/CD encrypted for any user on this machine)
                 var decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.LocalMachine);
@@ -149,7 +152,7 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SecretStorage] 嵌入加密资源解密失败: {ex.Message}");
+                Debug.WriteLine($"[SecretStorage] 嵌入加密资源解密失败: {ex.Message}");
                 return null;
             }
         }
@@ -177,13 +180,14 @@ namespace English_Listen_WinUI.Services
                 {
                     File.Delete(path);
                 }
+
                 File.Move(tempPath, path);
 
-                System.Diagnostics.Debug.WriteLine($"[SecretStorage] 密钥已加密保存: AppId={config.AppId}");
+                Debug.WriteLine($"[SecretStorage] 密钥已加密保存: AppId={config.AppId}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SecretStorage] 保存密钥失败: {ex.Message}");
+                Debug.WriteLine($"[SecretStorage] 保存密钥失败: {ex.Message}");
                 throw;
             }
         }
@@ -193,11 +197,11 @@ namespace English_Listen_WinUI.Services
             try
             {
                 SaveSecret(config);
-                System.Diagnostics.Debug.WriteLine("[SecretStorage] 密钥已迁移至 DPAPI 加密存储");
+                Debug.WriteLine("[SecretStorage] 密钥已迁移至 DPAPI 加密存储");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SecretStorage] 密钥迁移失败: {ex.Message}");
+                Debug.WriteLine($"[SecretStorage] 密钥迁移失败: {ex.Message}");
             }
         }
     }

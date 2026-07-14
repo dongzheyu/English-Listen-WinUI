@@ -1,29 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Speech.Synthesis;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Speech.Synthesis;
+using System.Timers;
+using Microsoft.UI.Dispatching;
+using Timer = System.Timers.Timer;
 
 namespace English_Listen_WinUI.Services
 {
     public class ModernDictationService : IDisposable
     {
-        private SpeechSynthesizer? _speechService;
-        private string _currentVoice = "";
-        private string _currentChineseVoice = "";
-        private List<WordTranslationPair> _wordList;
-        private int _currentIndex;
-        private int _readInterval;
-        private bool _isRandomOrder;
-        private bool _isPaused;
-        private bool _isTesting;
-        private System.Timers.Timer? _countdownTimer;
-        private int _currentCountdown;
-        private bool _hasAudioDevice = false;
-        private readonly SemaphoreSlim _operationLock = new SemaphoreSlim(1, 1);
-        private readonly SemaphoreSlim _speechLock = new SemaphoreSlim(1, 1);
-        private bool _disposed;
-
         public enum SpeechState
         {
             Idle,
@@ -32,21 +20,22 @@ namespace English_Listen_WinUI.Services
             Completed
         }
 
-        public event Action<string, string, int, int, bool>? WordChanged;
-        public event Action<int>? CountdownChanged;
-        public event Action<bool, bool>? TestStateChanged;
-        public event Action<bool>? SpeechStatusChanged;
-        public event Action? TestCompleted;
-
-        public class WordTranslationPair
-        {
-            public required string Word { get; set; }
-            public required string Translation { get; set; }
-        }
-
-        public bool HasAudioDevice => _hasAudioDevice;
-
-        public string AudioDeviceStatus => _hasAudioDevice ? "音频设备正常" : "未检测到音频设备";
+        private readonly SemaphoreSlim _operationLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _speechLock = new SemaphoreSlim(1, 1);
+        private Timer? _countdownTimer;
+        private string _currentChineseVoice = "";
+        private int _currentCountdown;
+        private int _currentIndex;
+        private string _currentVoice = "";
+        private bool _disposed;
+        private bool _hasAudioDevice = false;
+        private bool _isPaused;
+        private bool _isRandomOrder;
+        private bool _isTesting;
+        private int _readInterval;
+        private int _speechGeneration = 0;
+        private SpeechSynthesizer? _speechService;
+        private List<WordTranslationPair> _wordList;
 
         public ModernDictationService()
         {
@@ -57,19 +46,19 @@ namespace English_Listen_WinUI.Services
                 {
                     _speechService.SetOutputToDefaultAudioDevice();
                     _hasAudioDevice = true;
-                    System.Diagnostics.Debug.WriteLine("ModernDictationService: 音频设备初始化成功");
+                    Debug.WriteLine("ModernDictationService: 音频设备初始化成功");
                 }
                 catch (Exception ex)
                 {
                     _hasAudioDevice = false;
-                    System.Diagnostics.Debug.WriteLine($"ModernDictationService SetOutputToDefaultAudioDevice 失败: {ex.Message}");
+                    Debug.WriteLine($"ModernDictationService SetOutputToDefaultAudioDevice 失败: {ex.Message}");
                     _speechService?.Dispose();
                     _speechService = null;
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"ModernDictationService SpeechSynthesizer 初始化失败: {ex.Message}");
+                Debug.WriteLine($"ModernDictationService SpeechSynthesizer 初始化失败: {ex.Message}");
                 _speechService = null;
                 _hasAudioDevice = false;
             }
@@ -83,15 +72,42 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                _countdownTimer = new System.Timers.Timer(1000);
+                _countdownTimer = new Timer(1000);
                 _countdownTimer.Elapsed += OnCountdownTimerElapsed;
                 _countdownTimer.AutoReset = false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"ModernDictationService Timer 初始化失败: {ex.Message}");
+                Debug.WriteLine($"ModernDictationService Timer 初始化失败: {ex.Message}");
             }
         }
+
+        public bool HasAudioDevice => _hasAudioDevice;
+
+        public string AudioDeviceStatus => _hasAudioDevice ? "音频设备正常" : "未检测到音频设备";
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (_countdownTimer != null)
+            {
+                _countdownTimer.Stop();
+                _countdownTimer.Elapsed -= OnCountdownTimerElapsed;
+                _countdownTimer.Dispose();
+            }
+
+            _speechService?.Dispose();
+            _operationLock?.Dispose();
+            _speechLock?.Dispose();
+        }
+
+        public event Action<string, string, int, int, bool>? WordChanged;
+        public event Action<int>? CountdownChanged;
+        public event Action<bool, bool>? TestStateChanged;
+        public event Action<bool>? SpeechStatusChanged;
+        public event Action? TestCompleted;
 
         public bool CheckAudioDeviceAvailable()
         {
@@ -163,7 +179,9 @@ namespace English_Listen_WinUI.Services
                 {
                     _speechService.SelectVoice(voiceName);
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }
 
@@ -249,6 +267,11 @@ namespace English_Listen_WinUI.Services
                 if (!_isTesting || _currentIndex >= _wordList.Count - 1)
                     return;
 
+                // ponytail: stop countdown + speech before switching
+                _countdownTimer?.Stop();
+                _speechService?.SpeakAsyncCancelAll();
+                _speechGeneration++;
+
                 _currentIndex++;
                 _ = SpeakCurrentWordAsyncSafe();
             }
@@ -265,6 +288,10 @@ namespace English_Listen_WinUI.Services
             {
                 if (!_isTesting || _currentIndex <= 0)
                     return;
+
+                _countdownTimer?.Stop();
+                _speechService?.SpeakAsyncCancelAll();
+                _speechGeneration++;
 
                 _currentIndex--;
                 _ = SpeakCurrentWordAsyncSafe();
@@ -283,6 +310,10 @@ namespace English_Listen_WinUI.Services
                 if (!_isTesting)
                     return;
 
+                _countdownTimer?.Stop();
+                _speechService?.SpeakAsyncCancelAll();
+                _speechGeneration++;
+
                 _ = SpeakCurrentWordAsyncSafe();
             }
             finally
@@ -300,7 +331,7 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"SpeakCurrentWordAsyncSafe 异常: {ex.Message}");
+                Debug.WriteLine($"SpeakCurrentWordAsyncSafe 异常: {ex.Message}");
             }
             finally
             {
@@ -313,11 +344,13 @@ namespace English_Listen_WinUI.Services
             if (_currentIndex >= _wordList.Count)
                 return;
 
+            var myGeneration = _speechGeneration; // ponytail: stale-gen guard
             var wordPair = _wordList[_currentIndex];
             var word = wordPair.Word;
             var translation = wordPair.Translation;
             var isLastWord = _currentIndex == _wordList.Count - 1;
-            await InvokeOnUIThread(() => WordChanged?.Invoke(word, translation, _currentIndex + 1, _wordList.Count, isLastWord));
+            await InvokeOnUIThread(() =>
+                WordChanged?.Invoke(word, translation, _currentIndex + 1, _wordList.Count, isLastWord));
 
             await InvokeOnUIThread(() => CountdownChanged?.Invoke(-1));
             await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(true));
@@ -334,13 +367,17 @@ namespace English_Listen_WinUI.Services
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"英文朗读异常: {ex.Message}");
+                            Debug.WriteLine($"英文朗读异常: {ex.Message}");
                         }
                     });
+
+                    // ponytail: check gen before continuing — stale call bails out
+                    if (_speechGeneration != myGeneration) return;
 
                     if (!string.IsNullOrEmpty(translation))
                     {
                         await Task.Delay(500);
+                        if (_speechGeneration != myGeneration) return;
 
                         if (!string.IsNullOrEmpty(_currentChineseVoice))
                         {
@@ -350,7 +387,7 @@ namespace English_Listen_WinUI.Services
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"设置中文语音失败: {ex.Message}");
+                                Debug.WriteLine($"设置中文语音失败: {ex.Message}");
                             }
                         }
 
@@ -362,9 +399,11 @@ namespace English_Listen_WinUI.Services
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"中文朗读异常: {ex.Message}");
+                                Debug.WriteLine($"中文朗读异常: {ex.Message}");
                             }
                         });
+
+                        if (_speechGeneration != myGeneration) return;
 
                         if (!string.IsNullOrEmpty(_currentVoice))
                         {
@@ -374,7 +413,7 @@ namespace English_Listen_WinUI.Services
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"恢复英文语音失败: {ex.Message}");
+                                Debug.WriteLine($"恢复英文语音失败: {ex.Message}");
                             }
                         }
                     }
@@ -382,19 +421,23 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"朗读异常: {ex.Message}");
+                Debug.WriteLine($"朗读异常: {ex.Message}");
             }
             finally
             {
                 await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(false));
 
-                if (isLastWord)
+                // ponytail: only fire events if this gen is still current
+                if (_speechGeneration == myGeneration)
                 {
-                    await InvokeOnUIThread(() => TestCompleted?.Invoke());
-                }
-                else
-                {
-                    StartCountdown();
+                    if (isLastWord)
+                    {
+                        await InvokeOnUIThread(() => TestCompleted?.Invoke());
+                    }
+                    else
+                    {
+                        StartCountdown();
+                    }
                 }
             }
         }
@@ -410,7 +453,7 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        private async void OnCountdownTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+        private async void OnCountdownTimerElapsed(object? sender, ElapsedEventArgs e)
         {
             if (_isPaused)
                 return;
@@ -426,6 +469,8 @@ namespace English_Listen_WinUI.Services
 
                     if (_currentIndex < _wordList.Count - 1)
                     {
+                        _speechService?.SpeakAsyncCancelAll();
+                        _speechGeneration++;
                         _currentIndex++;
                         _ = SpeakCurrentWordAsyncSafe();
                     }
@@ -441,7 +486,7 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"OnCountdownTimerElapsed 异常: {ex.Message}");
+                Debug.WriteLine($"OnCountdownTimerElapsed 异常: {ex.Message}");
             }
             finally
             {
@@ -453,8 +498,8 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-                
+                var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+
                 if (dispatcherQueue != null)
                 {
                     var tcs = new TaskCompletionSource();
@@ -470,7 +515,7 @@ namespace English_Listen_WinUI.Services
                             tcs.TrySetException(ex);
                         }
                     });
-                    
+
                     if (result)
                     {
                         await tcs.Task;
@@ -487,14 +532,14 @@ namespace English_Listen_WinUI.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"UI thread dispatch failed: {ex.Message}");
+                Debug.WriteLine($"UI thread dispatch failed: {ex.Message}");
                 try
                 {
                     action();
                 }
                 catch (Exception ex2)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Direct action execution also failed: {ex2.Message}");
+                    Debug.WriteLine($"Direct action execution also failed: {ex2.Message}");
                 }
             }
         }
@@ -511,20 +556,10 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        public void Dispose()
+        public class WordTranslationPair
         {
-            if (_disposed) return;
-            _disposed = true;
-
-            if (_countdownTimer != null)
-            {
-                _countdownTimer.Stop();
-                _countdownTimer.Elapsed -= OnCountdownTimerElapsed;
-                _countdownTimer.Dispose();
-            }
-            _speechService?.Dispose();
-            _operationLock?.Dispose();
-            _speechLock?.Dispose();
+            public required string Word { get; set; }
+            public required string Translation { get; set; }
         }
     }
 }
