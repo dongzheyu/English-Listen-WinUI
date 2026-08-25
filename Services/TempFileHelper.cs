@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.Storage;
 
 namespace English_Listen_WinUI.Services
 {
@@ -12,9 +13,23 @@ namespace English_Listen_WinUI.Services
     {
         private const int MaxWords = 10000;
         private const int MaxWordLength = 256;
-        private static readonly string TempDirectory = Path.Combine(Path.GetTempPath(), "English-Listen-WinUI");
+        private const long MaxFileBytes = 2 * 1024 * 1024;
+        private static readonly string TempDirectory = GetTempDirectory();
         private static readonly string TempFilePath = Path.Combine(TempDirectory, "words.txt");
+        private static readonly string LegacyTempFilePath = Path.Combine(Path.GetTempPath(), "english_listen_temp.txt");
         private static readonly SemaphoreSlim _lock = new(1, 1);
+
+        private static string GetTempDirectory()
+        {
+            try
+            {
+                return Path.Combine(ApplicationData.Current.LocalFolder.Path, "temp");
+            }
+            catch
+            {
+                return Path.Combine(AppContext.BaseDirectory, "temp");
+            }
+        }
 
         public static async Task<List<string>> ReadWordsAsync()
         {
@@ -25,7 +40,7 @@ namespace English_Listen_WinUI.Services
                     return new List<string>();
 
                 var info = new FileInfo(TempFilePath);
-                if (info.Length > 2 * 1024 * 1024)
+                if (info.Length > MaxFileBytes || (File.GetAttributes(TempFilePath) & FileAttributes.ReparsePoint) != 0)
                     return new List<string>();
 
                 var content = await File.ReadAllTextAsync(TempFilePath);
@@ -62,9 +77,21 @@ namespace English_Listen_WinUI.Services
             try
             {
                 Directory.CreateDirectory(TempDirectory);
+                if ((File.GetAttributes(TempDirectory) & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("拒绝使用重解析点临时目录。");
+
                 var tempPath = Path.Combine(TempDirectory, $"words.{Guid.NewGuid():N}.tmp");
                 await File.WriteAllLinesAsync(tempPath, safeWords);
                 File.Move(tempPath, TempFilePath, true);
+
+                try
+                {
+                    if (File.Exists(LegacyTempFilePath))
+                        File.Delete(LegacyTempFilePath);
+                }
+                catch
+                {
+                }
             }
             catch (Exception ex)
             {
@@ -83,6 +110,8 @@ namespace English_Listen_WinUI.Services
             {
                 if (File.Exists(TempFilePath))
                     File.Delete(TempFilePath);
+                if (File.Exists(LegacyTempFilePath))
+                    File.Delete(LegacyTempFilePath);
             }
             catch
             {
