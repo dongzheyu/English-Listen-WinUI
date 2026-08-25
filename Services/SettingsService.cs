@@ -15,8 +15,13 @@ namespace English_Listen_WinUI.Services
         private const int MaxUsernameLength = 64;
         private const long MaxJsonFileBytes = 10 * 1024 * 1024;
         private const long MaxWordlistFileBytes = 2 * 1024 * 1024;
+        private const long MaxWordlistGroupsFileBytes = 2 * 1024 * 1024;
         private const int MaxWordCount = 10000;
         private const int MaxWordLength = 256;
+        private const int MaxGroupCount = 1000;
+        private const int MaxWordsPerGroup = 1000;
+        private const int MaxGroupItemLength = 128;
+        private const int MaxUserCount = 1000;
 
         private readonly string AppDataPath;
         private readonly string ConfigPath;
@@ -50,7 +55,6 @@ namespace English_Listen_WinUI.Services
             UserDataPath = Path.Combine(ConfigPath, "users");
             SettingsFilePath = Path.Combine(ConfigPath, "settings.json");
             WordlistGroupsFilePath = Path.Combine(ConfigPath, "wordlist_groups.ini");
-
             EnsureDirectoryExists();
         }
 
@@ -63,8 +67,17 @@ namespace English_Listen_WinUI.Services
         private void EnsureDirectoryExists()
         {
             Directory.CreateDirectory(ConfigPath);
+            if (IsReparsePoint(ConfigPath))
+                throw new IOException("拒绝使用重解析点配置目录。");
+
             Directory.CreateDirectory(UserDataPath);
-            Directory.CreateDirectory(Path.Combine(AppDataPath, "wordlist"));
+            if (IsReparsePoint(UserDataPath))
+                throw new IOException("拒绝使用重解析点用户目录。");
+
+            var wordlistPath = Path.Combine(AppDataPath, "wordlist");
+            Directory.CreateDirectory(wordlistPath);
+            if (IsReparsePoint(wordlistPath))
+                throw new IOException("拒绝使用重解析点词库目录。");
         }
 
         private static bool IsSafeUsername(string? username)
@@ -83,7 +96,8 @@ namespace English_Listen_WinUI.Services
 
             var baseName = username.TrimEnd('.', ' ').ToUpperInvariant();
             return baseName is not ("CON" or "PRN" or "AUX" or "NUL") &&
-                   !baseName.StartsWith("COM") && !baseName.StartsWith("LPT");
+                   !baseName.StartsWith("COM", StringComparison.Ordinal) &&
+                   !baseName.StartsWith("LPT", StringComparison.Ordinal);
         }
 
         private static void EnsureUsername(string username)
@@ -128,6 +142,9 @@ namespace English_Listen_WinUI.Services
                 throw new ArgumentException("词库文件名非法。", nameof(fileName));
 
             var root = WordlistRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (IsReparsePoint(WordlistRoot))
+                throw new IOException("拒绝使用重解析点词库目录。");
+
             var fullPath = Path.GetFullPath(Path.Combine(root, fileName));
             if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("词库路径越界。", nameof(fileName));
@@ -139,7 +156,10 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                return File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+                if (!File.Exists(path) && !Directory.Exists(path))
+                    return false;
+
+                return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
             }
             catch
             {
@@ -173,7 +193,7 @@ namespace English_Listen_WinUI.Services
             try
             {
                 var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
-                var tempPath = SettingsFilePath + ".tmp";
+                var tempPath = SettingsFilePath + $".{Guid.NewGuid():N}.tmp";
                 await File.WriteAllTextAsync(tempPath, json);
                 File.Move(tempPath, SettingsFilePath, true);
             }
@@ -191,12 +211,22 @@ namespace English_Listen_WinUI.Services
                 if (!File.Exists(WordlistGroupsFilePath))
                     return groups;
 
-                var lines = await File.ReadAllLinesAsync(WordlistGroupsFilePath);
+                var info = new FileInfo(WordlistGroupsFilePath);
+                if (info.Length > MaxWordlistGroupsFileBytes)
+                    return groups;
+
+                using var reader = new StreamReader(WordlistGroupsFilePath);
                 WordListGroup? current = null;
-                foreach (var line in lines)
+                var wordsInCurrentGroup = 0;
+
+                while (!reader.EndOfStream && groups.Count < MaxGroupCount)
                 {
+                    var line = await reader.ReadLineAsync();
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
+
                     var trimmed = line.Trim();
-                    if (trimmed.Length == 0)
+                    if (trimmed.Length > MaxGroupItemLength)
                         continue;
 
                     if (trimmed.StartsWith('[') && trimmed.EndsWith(']'))
@@ -205,14 +235,16 @@ namespace English_Listen_WinUI.Services
                             groups.Add(current);
 
                         current = new WordListGroup { Name = trimmed[1..^1] };
+                        wordsInCurrentGroup = 0;
                     }
-                    else if (current != null)
+                    else if (current != null && wordsInCurrentGroup < MaxWordsPerGroup)
                     {
                         current.WordListNames.Add(trimmed);
+                        wordsInCurrentGroup++;
                     }
                 }
 
-                if (current != null)
+                if (current != null && groups.Count < MaxGroupCount)
                     groups.Add(current);
             }
             catch
@@ -224,18 +256,35 @@ namespace English_Listen_WinUI.Services
 
         public async Task SaveWordlistGroupsAsync(List<WordListGroup> groups)
         {
+            if (groups == null)
+                throw new ArgumentNullException(nameof(groups));
+
             await _fileLock.WaitAsync();
             try
             {
                 var lines = new List<string>();
-                foreach (var group in groups)
+                foreach (var group in groups.Take(MaxGroupCount))
                 {
-                    lines.Add($"[{group.Name.Replace("[", "").Replace("]", "")}]");
-                    lines.AddRange(group.WordListNames.Select(name => name.Replace("\r", "").Replace("\n", "")));
+                    var groupName = new string((group.Name ?? string.Empty)
+                        .Where(c => c != '\r' && c != '\n' && c != '[' && c != ']' && !char.IsControl(c))
+                        .Take(MaxGroupItemLength)
+                        .ToArray());
+                    lines.Add($"[{groupName}]");
+
+                    foreach (var name in group.WordListNames.Take(MaxWordsPerGroup))
+                    {
+                        var safeName = new string((name ?? string.Empty)
+                            .Where(c => c != '\r' && c != '\n' && !char.IsControl(c))
+                            .Take(MaxGroupItemLength)
+                            .ToArray());
+                        if (safeName.Length > 0)
+                            lines.Add(safeName);
+                    }
+
                     lines.Add(string.Empty);
                 }
 
-                var tempPath = WordlistGroupsFilePath + ".tmp";
+                var tempPath = WordlistGroupsFilePath + $".{Guid.NewGuid():N}.tmp";
                 await File.WriteAllLinesAsync(tempPath, lines);
                 File.Move(tempPath, WordlistGroupsFilePath, true);
             }
@@ -276,17 +325,22 @@ namespace English_Listen_WinUI.Services
         public async Task SaveTestHistoryAsync(string username, List<TestResult> history)
         {
             EnsureUsername(username);
+            if (history == null)
+                throw new ArgumentNullException(nameof(history));
+
             await _fileLock.WaitAsync();
             try
             {
                 var userDir = GetUserDataPath(username);
                 Directory.CreateDirectory(userDir);
+                if (IsReparsePoint(userDir))
+                    throw new IOException("拒绝使用重解析点用户目录。");
 
                 var json = JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true });
                 if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
                     throw new InvalidDataException("测试历史数据过大。");
 
-                var tempPath = GetUserTestHistoryPath(username) + ".tmp";
+                var tempPath = GetUserTestHistoryPath(username) + $".{Guid.NewGuid():N}.tmp";
                 await File.WriteAllTextAsync(tempPath, json);
                 File.Move(tempPath, GetUserTestHistoryPath(username), true);
             }
@@ -310,6 +364,9 @@ namespace English_Listen_WinUI.Services
             try
             {
                 var root = WordlistRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                if (IsReparsePoint(WordlistRoot))
+                    return new List<string>();
+
                 var fullPath = Path.GetFullPath(filePath);
                 if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase) || IsReparsePoint(fullPath))
                     return new List<string>();
@@ -339,6 +396,9 @@ namespace English_Listen_WinUI.Services
                 throw new ArgumentNullException(nameof(words));
 
             var root = WordlistRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (IsReparsePoint(WordlistRoot))
+                throw new IOException("拒绝使用重解析点词库目录。");
+
             var fullPath = Path.GetFullPath(filePath);
             if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("词库路径越界。", nameof(filePath));
@@ -402,7 +462,6 @@ namespace English_Listen_WinUI.Services
         }
 
         public string GetUserSettingsPath(string username) => Path.Combine(GetUserDataPath(username), "settings.json");
-
         public string GetUserTestHistoryPath(string username) => Path.Combine(GetUserDataPath(username), "test_history.json");
 
         public async Task<List<UserData>> LoadUsersAsync()
@@ -410,11 +469,14 @@ namespace English_Listen_WinUI.Services
             var users = new List<UserData>();
             try
             {
-                if (!Directory.Exists(UserDataPath))
+                if (!Directory.Exists(UserDataPath) || IsReparsePoint(UserDataPath))
                     return users;
 
-                foreach (var userDir in Directory.GetDirectories(UserDataPath))
+                foreach (var userDir in Directory.GetDirectories(UserDataPath).Take(MaxUserCount))
                 {
+                    if (IsReparsePoint(userDir))
+                        continue;
+
                     var username = Path.GetFileName(userDir);
                     if (!IsSafeUsername(username))
                         continue;
@@ -437,18 +499,26 @@ namespace English_Listen_WinUI.Services
 
         public async Task SaveUsersAsync(List<UserData> users)
         {
+            if (users == null)
+                throw new ArgumentNullException(nameof(users));
+
             await _fileLock.WaitAsync();
             try
             {
-                foreach (var user in users)
+                foreach (var user in users.Take(MaxUserCount))
                 {
                     EnsureUsername(user.Username);
                     var userDir = GetUserDataPath(user.Username);
                     Directory.CreateDirectory(userDir);
+                    if (IsReparsePoint(userDir))
+                        throw new IOException("拒绝使用重解析点用户目录。");
 
                     var json = JsonSerializer.Serialize(user, new JsonSerializerOptions { WriteIndented = true });
+                    if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
+                        throw new InvalidDataException("用户数据过大。");
+
                     var path = GetUserSettingsPath(user.Username);
-                    var tempPath = path + ".tmp";
+                    var tempPath = path + $".{Guid.NewGuid():N}.tmp";
                     await File.WriteAllTextAsync(tempPath, json);
                     File.Move(tempPath, path, true);
                 }
@@ -494,10 +564,13 @@ namespace English_Listen_WinUI.Services
                 if (user == null)
                     return false;
 
+                var userDir = GetUserDataPath(username);
+                if (IsReparsePoint(userDir))
+                    return false;
+
                 users.Remove(user);
                 await SaveUsersAsync(users);
 
-                var userDir = GetUserDataPath(username);
                 if (Directory.Exists(userDir))
                     Directory.Delete(userDir, true);
 
@@ -558,17 +631,21 @@ namespace English_Listen_WinUI.Services
                 if (oldUsers == null || oldUsers.Count == 0)
                     return;
 
-                await SaveUsersAsync(oldUsers.Where(user => IsSafeUsername(user.Username)).ToList());
+                var safeUsers = oldUsers
+                    .Where(user => IsSafeUsername(user.Username))
+                    .Take(MaxUserCount)
+                    .ToList();
+                await SaveUsersAsync(safeUsers);
 
                 var oldHistoryPath = Path.Combine(AppDataPath, "test_history.json");
-                if (File.Exists(oldHistoryPath) && oldUsers.Any(user => IsSafeUsername(user.Username)))
+                if (File.Exists(oldHistoryPath) && safeUsers.Count > 0)
                 {
                     var historyJson = await ReadJsonFileAsync(oldHistoryPath);
                     var oldHistory = string.IsNullOrWhiteSpace(historyJson)
                         ? null
                         : JsonSerializer.Deserialize<List<TestResult>>(historyJson);
                     if (oldHistory != null)
-                        await SaveTestHistoryAsync(oldUsers.First(user => IsSafeUsername(user.Username)).Username, oldHistory);
+                        await SaveTestHistoryAsync(safeUsers[0].Username, oldHistory);
                 }
             }
             catch
