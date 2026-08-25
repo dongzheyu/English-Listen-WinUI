@@ -17,11 +17,15 @@ namespace English_Listen_WinUI.Services
     {
         private const string API_URL = "https://fanyi-api.baidu.com/api/trans/vip/translate";
         public const int DAILY_LIMIT = 1000;
-        private const int MAX_CACHE_ENTRIES = 10000;
-        private const int MAX_DAILY_HISTORY_DAYS = 7;
-        private const int MAX_TEXT_LENGTH = 5000;
+        private const int MaxCacheEntries = 10000;
+        private const int MaxDailyHistoryDays = 7;
+        private const int MaxTextLength = 5000;
+        private const int MaxBatchWords = 1000;
+        private const int MaxCredentialLength = 256;
+        private const int MaxLanguageLength = 20;
+        private const int MaxResponseBytes = 1024 * 1024;
 
-        private static readonly HttpClient _sharedHttpClient = new()
+        private static readonly HttpClient SharedHttpClient = new()
         {
             Timeout = TimeSpan.FromSeconds(10)
         };
@@ -29,8 +33,6 @@ namespace English_Listen_WinUI.Services
         private readonly object _cacheLock = new();
         private readonly string _limitCachePath;
         private readonly string _translationCachePath;
-        private readonly Random _random = new();
-
         private string _apiKey = string.Empty;
         private string _appId = string.Empty;
         private string _currentDate;
@@ -66,12 +68,18 @@ namespace English_Listen_WinUI.Services
         {
         }
 
+        private static bool IsValidCredential(string value) =>
+            !string.IsNullOrWhiteSpace(value) && value.Length <= MaxCredentialLength && !value.Any(char.IsControl);
+
+        private static bool IsValidLanguage(string value) =>
+            !string.IsNullOrWhiteSpace(value) && value.Length <= MaxLanguageLength && value.All(c => char.IsLetter(c) || c == '-');
+
         private void LoadConfig()
         {
             try
             {
                 var secret = SecretStorageService.LoadSecret();
-                if (secret != null && !string.IsNullOrWhiteSpace(secret.AppId) && !string.IsNullOrWhiteSpace(secret.ApiKey))
+                if (secret != null && IsValidCredential(secret.AppId) && IsValidCredential(secret.ApiKey))
                 {
                     _appId = secret.AppId.Trim();
                     _apiKey = secret.ApiKey.Trim();
@@ -121,7 +129,7 @@ namespace English_Listen_WinUI.Services
                     return null;
 
                 var info = new FileInfo(settingsPath);
-                if (info.Length > 2 * 1024 * 1024)
+                if (info.Length <= 0 || info.Length > 2 * 1024 * 1024)
                     return null;
 
                 using var doc = JsonDocument.Parse(File.ReadAllText(settingsPath));
@@ -129,11 +137,11 @@ namespace English_Listen_WinUI.Services
                     return null;
 
                 var value = element.GetString();
-                if (string.IsNullOrWhiteSpace(value))
+                if (string.IsNullOrWhiteSpace(value) || value.Length > MaxCredentialLength * 2 + 1)
                     return null;
 
                 var parts = value.Split(':', 2);
-                if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+                if (parts.Length != 2 || !IsValidCredential(parts[0]) || !IsValidCredential(parts[1]))
                     return null;
 
                 return new BaiduSecretConfig { AppId = parts[0].Trim(), ApiKey = parts[1].Trim() };
@@ -163,15 +171,15 @@ namespace English_Listen_WinUI.Services
                     return null;
 
                 var info = new FileInfo(configPath);
-                if (info.Length > 2 * 1024 * 1024)
+                if (info.Length <= 0 || info.Length > 2 * 1024 * 1024)
                     return null;
 
                 var config = JsonSerializer.Deserialize<SecretConfig>(File.ReadAllText(configPath),
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 return config?.BaiduTranslate != null &&
-                       !string.IsNullOrWhiteSpace(config.BaiduTranslate.AppId) &&
-                       !string.IsNullOrWhiteSpace(config.BaiduTranslate.ApiKey)
+                       IsValidCredential(config.BaiduTranslate.AppId) &&
+                       IsValidCredential(config.BaiduTranslate.ApiKey)
                     ? config
                     : null;
             }
@@ -188,8 +196,8 @@ namespace English_Listen_WinUI.Services
 
         public void SetCustomApiKey(string appId, string apiKey)
         {
-            if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(apiKey))
-                throw new ArgumentException("百度翻译 API 凭据不能为空。");
+            if (!IsValidCredential(appId) || !IsValidCredential(apiKey))
+                throw new ArgumentException("百度翻译 API 凭据无效或长度超限。");
 
             _appId = appId.Trim();
             _apiKey = apiKey.Trim();
@@ -228,7 +236,7 @@ namespace English_Listen_WinUI.Services
                             var cache = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(_limitCachePath));
                             if (cache != null)
                             {
-                                var cutoffDate = DateTime.Now.AddDays(-MAX_DAILY_HISTORY_DAYS).ToString("yyyy-MM-dd");
+                                var cutoffDate = DateTime.Now.AddDays(-MaxDailyHistoryDays).ToString("yyyy-MM-dd");
                                 _dailyLimitCache = cache
                                     .Where(item => string.CompareOrdinal(item.Key, cutoffDate) >= 0)
                                     .ToDictionary(item => item.Key, item => Math.Clamp(item.Value, 0, DAILY_LIMIT));
@@ -247,10 +255,10 @@ namespace English_Listen_WinUI.Services
 
         private static Dictionary<string, string> TrimCache(Dictionary<string, string> cache)
         {
-            if (cache.Count <= MAX_CACHE_ENTRIES)
+            if (cache.Count <= MaxCacheEntries)
                 return cache;
 
-            return cache.Skip(cache.Count - MAX_CACHE_ENTRIES)
+            return cache.Skip(cache.Count - MaxCacheEntries)
                 .ToDictionary(item => item.Key, item => item.Value);
         }
 
@@ -267,12 +275,35 @@ namespace English_Listen_WinUI.Services
 
             try
             {
-                File.WriteAllText(_translationCachePath, JsonSerializer.Serialize(translationSnapshot));
-                File.WriteAllText(_limitCachePath, JsonSerializer.Serialize(limitSnapshot));
+                WriteAtomic(_translationCachePath, JsonSerializer.Serialize(translationSnapshot));
+                WriteAtomic(_limitCachePath, JsonSerializer.Serialize(limitSnapshot));
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"保存翻译缓存失败: {ex.Message}");
+            }
+        }
+
+        private static void WriteAtomic(string path, string content)
+        {
+            var directory = Path.GetDirectoryName(path) ?? throw new IOException("缓存目录无效。");
+            Directory.CreateDirectory(directory);
+            var tempPath = Path.Combine(directory, $"{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+            try
+            {
+                File.WriteAllText(tempPath, content, Encoding.UTF8);
+                File.Move(tempPath, path, true);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                }
+                catch
+                {
+                }
             }
         }
 
@@ -290,7 +321,7 @@ namespace English_Listen_WinUI.Services
             CheckDate();
             lock (_cacheLock)
             {
-                _dailyLimitCache[_currentDate] = 0;
+                _dailyLimitCache[_currentDate] = Math.Clamp(newLimit, 0, DAILY_LIMIT);
             }
             SaveCache();
         }
@@ -330,35 +361,58 @@ namespace English_Listen_WinUI.Services
             }
         }
 
+        private static async Task<string> ReadResponseBodyAsync(HttpContent content)
+        {
+            if (content.Headers.ContentLength is > MaxResponseBytes)
+                throw new InvalidDataException("翻译服务响应过大。");
+
+            await using var stream = await content.ReadAsStreamAsync().ConfigureAwait(false);
+            using var memory = new MemoryStream();
+            var buffer = new byte[16 * 1024];
+            while (true)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length)).ConfigureAwait(false);
+                if (read == 0)
+                    break;
+
+                if (memory.Length + read > MaxResponseBytes)
+                    throw new InvalidDataException("翻译服务响应过大。");
+
+                memory.Write(buffer, 0, read);
+            }
+
+            return Encoding.UTF8.GetString(memory.ToArray());
+        }
+
         public async Task<string> TranslateAsync(string text, string from = "auto", string to = "zh")
         {
-            if (string.IsNullOrWhiteSpace(_appId) || string.IsNullOrWhiteSpace(_apiKey))
-                throw new InvalidOperationException("未配置百度翻译 API 密钥，请在设置页面中配置。");
+            if (!IsValidCredential(_appId) || !IsValidCredential(_apiKey))
+                throw new InvalidOperationException("未配置有效的百度翻译 API 密钥，请在设置页面中配置。");
 
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentException("待翻译文本不能为空。", nameof(text));
 
-            if (text.Length > MAX_TEXT_LENGTH)
-                throw new ArgumentException($"待翻译文本不能超过 {MAX_TEXT_LENGTH} 个字符。", nameof(text));
+            if (text.Length > MaxTextLength)
+                throw new ArgumentException($"待翻译文本不能超过 {MaxTextLength} 个字符。", nameof(text));
 
-            if (!TryConsumeLimit())
-                throw new InvalidOperationException($"每日翻译限额已用完，最多只能翻译 {DAILY_LIMIT} 次。");
+            if (!IsValidLanguage(from) || !IsValidLanguage(to))
+                throw new ArgumentException("翻译语言参数无效。", nameof(from));
 
             var cacheKey = $"{from}:{to}:{text}";
             lock (_cacheLock)
             {
                 if (_translationCache.TryGetValue(cacheKey, out var cachedResult))
-                {
-                    RefundLimit();
                     return cachedResult;
-                }
             }
+
+            if (!TryConsumeLimit())
+                throw new InvalidOperationException($"每日翻译限额已用完，最多只能翻译 {DAILY_LIMIT} 次。");
 
             try
             {
-                var salt = _random.Next(100000, 999999).ToString();
+                var salt = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
                 var sign = GenerateSign(text, salt);
-                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                using var content = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     ["q"] = text,
                     ["from"] = from,
@@ -368,9 +422,9 @@ namespace English_Listen_WinUI.Services
                     ["sign"] = sign
                 });
 
-                using var response = await _sharedHttpClient.PostAsync(API_URL, content).ConfigureAwait(false);
+                using var response = await SharedHttpClient.PostAsync(API_URL, content).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var json = await ReadResponseBodyAsync(response.Content).ConfigureAwait(false);
                 var result = JsonSerializer.Deserialize<BaiduTranslateResponse>(json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -381,8 +435,8 @@ namespace English_Listen_WinUI.Services
                     throw new InvalidOperationException($"API错误 [{result.ErrorCode}]: {GetErrorMessage(result.ErrorCode, result.ErrorMsg)}");
 
                 var translation = result.TransResult?.FirstOrDefault()?.Dst;
-                if (string.IsNullOrWhiteSpace(translation))
-                    throw new InvalidOperationException("翻译结果为空。");
+                if (string.IsNullOrWhiteSpace(translation) || translation.Length > MaxTextLength)
+                    throw new InvalidDataException("翻译结果无效或过大。");
 
                 lock (_cacheLock)
                 {
@@ -427,6 +481,9 @@ namespace English_Listen_WinUI.Services
         {
             if (words == null)
                 throw new ArgumentNullException(nameof(words));
+
+            if (words.Count > MaxBatchWords)
+                throw new ArgumentException($"批量翻译最多支持 {MaxBatchWords} 个词。", nameof(words));
 
             var results = new List<TranslationResultItem>(words.Count);
             foreach (var word in words)
