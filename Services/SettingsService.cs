@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -237,7 +238,7 @@ namespace English_Listen_WinUI.Services
                         current = new WordListGroup { Name = trimmed[1..^1] };
                         wordsInCurrentGroup = 0;
                     }
-                    else if (current != null && wordsInCurrentGroup < MaxWordsPerGroup)
+                    else if (current != null && wordsInCurrentGroup < MaxWordsPerGroup && IsSafeWordlistFileName(trimmed))
                     {
                         current.WordListNames.Add(trimmed);
                         wordsInCurrentGroup++;
@@ -273,19 +274,20 @@ namespace English_Listen_WinUI.Services
 
                     foreach (var name in group.WordListNames.Take(MaxWordsPerGroup))
                     {
-                        var safeName = new string((name ?? string.Empty)
-                            .Where(c => c != '\r' && c != '\n' && !char.IsControl(c))
-                            .Take(MaxGroupItemLength)
-                            .ToArray());
-                        if (safeName.Length > 0)
+                        var safeName = name?.Trim() ?? string.Empty;
+                        if (IsSafeWordlistFileName(safeName))
                             lines.Add(safeName);
                     }
 
                     lines.Add(string.Empty);
                 }
 
+                var content = string.Join(Environment.NewLine, lines);
+                if (Encoding.UTF8.GetByteCount(content) > MaxWordlistGroupsFileBytes)
+                    throw new InvalidDataException("词库分组数据过大。");
+
                 var tempPath = WordlistGroupsFilePath + $".{Guid.NewGuid():N}.tmp";
-                await File.WriteAllLinesAsync(tempPath, lines);
+                await File.WriteAllTextAsync(tempPath, content, Encoding.UTF8);
                 File.Move(tempPath, WordlistGroupsFilePath, true);
             }
             finally
@@ -337,7 +339,7 @@ namespace English_Listen_WinUI.Services
                     throw new IOException("拒绝使用重解析点用户目录。");
 
                 var json = JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true });
-                if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
+                if (Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
                     throw new InvalidDataException("测试历史数据过大。");
 
                 var tempPath = GetUserTestHistoryPath(username) + $".{Guid.NewGuid():N}.tmp";
@@ -452,7 +454,6 @@ namespace English_Listen_WinUI.Services
         }
 
         public string GetWordlistDirectory() => WordlistRoot;
-
         public string GetWordlistFilePath(string fileName) => GetValidatedWordlistPath(fileName);
 
         public string GetUserDataPath(string username)
@@ -514,7 +515,7 @@ namespace English_Listen_WinUI.Services
                         throw new IOException("拒绝使用重解析点用户目录。");
 
                     var json = JsonSerializer.Serialize(user, new JsonSerializerOptions { WriteIndented = true });
-                    if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
+                    if (Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
                         throw new InvalidDataException("用户数据过大。");
 
                     var path = GetUserSettingsPath(user.Username);
@@ -655,7 +656,6 @@ namespace English_Listen_WinUI.Services
 
         public void Dispose()
         {
-            _fileLock.Dispose();
         }
     }
 }
