@@ -76,7 +76,7 @@ namespace English_Listen_WinUI
                     window.Closed -= OnWindowClosed;
 
                 SharedViewModel?.Cleanup();
-                MainWindow?.GetType().GetMethod("CleanupStaticState", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.Invoke(null, null);
+                global::English_Listen_WinUI.MainWindow.CleanupStaticState();
                 await TempFileHelper.ClearAsync();
                 SharedViewModel = null;
                 _window = null;
