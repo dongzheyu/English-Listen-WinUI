@@ -40,7 +40,7 @@ namespace English_Listen_WinUI.Services
                     return new List<string>();
 
                 var info = new FileInfo(TempFilePath);
-                if (info.Length > MaxFileBytes || (File.GetAttributes(TempFilePath) & FileAttributes.ReparsePoint) != 0)
+                if (info.Length > MaxFileBytes || (File.GetAttributes(TempFilePath) & System.IO.FileAttributes.ReparsePoint) != 0)
                     return new List<string>();
 
                 var content = await File.ReadAllTextAsync(TempFilePath);
@@ -77,7 +77,7 @@ namespace English_Listen_WinUI.Services
             try
             {
                 Directory.CreateDirectory(TempDirectory);
-                if ((File.GetAttributes(TempDirectory) & FileAttributes.ReparsePoint) != 0)
+                if ((File.GetAttributes(TempDirectory) & System.IO.FileAttributes.ReparsePoint) != 0)
                     throw new IOException("拒绝使用重解析点临时目录。");
 
                 var tempPath = Path.Combine(TempDirectory, $"words.{Guid.NewGuid():N}.tmp");
