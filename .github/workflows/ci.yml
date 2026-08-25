@@ -36,12 +36,14 @@ jobs:
       - name: Build
         run: dotnet build English-Listen-WinUI.slnx --configuration Release --no-restore --verbosity minimal -p:GenerateAppxPackageOnBuild=false
 
-      - name: Check tracked source for revoked credentials
+      - name: Check tracked source for credential-shaped values
         shell: pwsh
         run: |
-          $blocked = @(
-            'CV5ogmfsAmHALHF9goY5',
-            '20260316002574195'
+          $patterns = @(
+            'BaiduTranslateApiKey\s*["'']?\s*[:=]\s*["'']?[^\s"'']{20,}',
+            'ApiKey\s*["'']?\s*[:=]\s*["'']?[^\s"'']{20,}',
+            'PackageCertificatePassword\s*["'']?\s*[:=]',
+            'devcert\.pfx'
           )
 
           $extensions = @('.cs', '.csproj', '.props', '.targets', '.json', '.xml', '.yml', '.yaml', '.md', '.txt', '.ini')
@@ -49,14 +51,23 @@ jobs:
 
           foreach ($file in (git ls-files)) {
             if ($extensions -notcontains [IO.Path]::GetExtension($file).ToLowerInvariant()) { continue }
-            foreach ($value in $blocked) {
-              if (Select-String -Path $file -Pattern $value -SimpleMatch -Quiet -ErrorAction SilentlyContinue) {
-                $violations += "$file contains a revoked credential"
+            foreach ($pattern in $patterns) {
+              if (Select-String -Path $file -Pattern $pattern -Quiet -ErrorAction SilentlyContinue) {
+                $violations += "$file matches blocked credential pattern: $pattern"
               }
             }
           }
 
           if ($violations.Count -gt 0) {
             $violations | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
+      - name: Check vulnerable packages
+        shell: pwsh
+        run: |
+          $output = dotnet list English-Listen-WinUI.slnx package --vulnerable --include-transitive
+          $output | Tee-Object -Variable packageAudit
+          if ($packageAudit -match 'has the following vulnerable packages') {
             exit 1
           }
