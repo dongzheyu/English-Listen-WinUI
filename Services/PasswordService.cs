@@ -14,12 +14,7 @@ namespace English_Listen_WinUI.Services
         {
             if (password == null) throw new ArgumentNullException(nameof(password));
 
-            byte[] salt = new byte[SaltSize];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(salt);
-            }
-
+            byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
             byte[] hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, HashSize);
 
             return $"{Convert.ToBase64String(salt)}{Separator}{Convert.ToBase64String(hash)}";
@@ -27,10 +22,8 @@ namespace English_Listen_WinUI.Services
 
         public static bool VerifyPassword(string password, string passwordHash)
         {
-            if (string.IsNullOrEmpty(passwordHash))
+            if (string.IsNullOrEmpty(passwordHash) || password == null)
                 return false;
-
-            if (password == null) return false;
 
             var parts = passwordHash.Split(Separator);
             if (parts.Length != 2)
@@ -41,11 +34,17 @@ namespace English_Listen_WinUI.Services
                 byte[] salt = Convert.FromBase64String(parts[0]);
                 byte[] storedHash = Convert.FromBase64String(parts[1]);
 
-                byte[] computedHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256,
-                    storedHash.Length);
+                if (salt.Length != SaltSize || storedHash.Length != HashSize)
+                    return false;
+
+                byte[] computedHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, HashSize);
                 return CryptographicOperations.FixedTimeEquals(computedHash, storedHash);
             }
-            catch
+            catch (FormatException)
+            {
+                return false;
+            }
+            catch (CryptographicException)
             {
                 return false;
             }
@@ -63,9 +62,10 @@ namespace English_Listen_WinUI.Services
             try
             {
                 byte[] salt = Convert.FromBase64String(parts[0]);
-                return salt.Length != SaltSize;
+                byte[] hash = Convert.FromBase64String(parts[1]);
+                return salt.Length != SaltSize || hash.Length != HashSize;
             }
-            catch
+            catch (FormatException)
             {
                 return true;
             }
