@@ -5,7 +5,6 @@ namespace English_Listen_WinUI
         internal static void CleanupStaticState()
         {
             _notificationTimer?.Stop();
-            _notificationTimer?.Dispose();
             _notificationTimer = null;
             _currentInstance = null;
             _isToastHovered = false;
