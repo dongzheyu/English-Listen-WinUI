@@ -6,20 +6,21 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using English_Listen_WinUI.Models;
-using English_Listen_WinUI.Services;
+using Windows.Storage;
 
 namespace English_Listen_WinUI.Services
 {
-    public class SettingsService
+    public class SettingsService : IDisposable
     {
+        private const int MaxUsernameLength = 64;
+        private const long MaxJsonFileBytes = 10 * 1024 * 1024;
+
         private readonly string AppDataPath;
         private readonly string ConfigPath;
         private readonly string UserDataPath;
-
         private readonly string SettingsFilePath;
         private readonly string WordlistGroupsFilePath;
-
-        private readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _fileLock = new(1, 1);
 
         private AppSettings _settings = new();
         private string? _currentPassword;
@@ -35,7 +36,7 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                AppDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                AppDataPath = ApplicationData.Current.LocalFolder.Path;
             }
             catch
             {
@@ -48,53 +49,56 @@ namespace English_Listen_WinUI.Services
             WordlistGroupsFilePath = Path.Combine(ConfigPath, "wordlist_groups.ini");
 
             EnsureDirectoryExists();
-            _ = InitializeAsync().ContinueWith(t =>
-            {
-                if (t.Exception != null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"初始化失败: {t.Exception.Message}");
-                }
-            });
         }
 
-        private async Task InitializeAsync()
+        public async Task InitializeAsync()
         {
-            try
-            {
-                await LoadSettingsAsync(); // Load settings first
-                await MigrateOldDataAsync(); // Then migrate old data
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"初始化失败: {ex.Message}");
-            }
+            await LoadSettingsAsync();
+            await MigrateOldDataAsync();
         }
 
         private void EnsureDirectoryExists()
         {
-            // Ensure main directory exists
-            if (!Directory.Exists(AppDataPath))
-            {
-                Directory.CreateDirectory(AppDataPath);
-            }
-            
-            // Ensure config directory exists
-            if (!Directory.Exists(ConfigPath))
-            {
-                Directory.CreateDirectory(ConfigPath);
-            }
-            
-            // Ensure user data directory exists
-            if (!Directory.Exists(UserDataPath))
-            {
-                Directory.CreateDirectory(UserDataPath);
-            }
-            
-            var wordlistDir = Path.Combine(AppDataPath, "wordlist");
-            if (!Directory.Exists(wordlistDir))
-            {
-                Directory.CreateDirectory(wordlistDir);
-            }
+            Directory.CreateDirectory(ConfigPath);
+            Directory.CreateDirectory(UserDataPath);
+            Directory.CreateDirectory(Path.Combine(AppDataPath, "wordlist"));
+        }
+
+        private static bool IsSafeUsername(string? username)
+        {
+            if (string.IsNullOrWhiteSpace(username) || username.Length > MaxUsernameLength)
+                return false;
+
+            if (username == "." || username == ".." || username.EndsWith(' ') || username.EndsWith('.'))
+                return false;
+
+            if (username.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                return false;
+
+            if (username.Any(char.IsControl))
+                return false;
+
+            var baseName = username.TrimEnd('.', ' ').ToUpperInvariant();
+            return baseName is not ("CON" or "PRN" or "AUX" or "NUL") &&
+                   !baseName.StartsWith("COM") && !baseName.StartsWith("LPT");
+        }
+
+        private static void EnsureUsername(string username)
+        {
+            if (!IsSafeUsername(username))
+                throw new ArgumentException("用户名包含非法路径字符或长度超限。", nameof(username));
+        }
+
+        private static async Task<string?> ReadJsonFileAsync(string path)
+        {
+            if (!File.Exists(path))
+                return null;
+
+            var info = new FileInfo(path);
+            if (info.Length > MaxJsonFileBytes)
+                throw new InvalidDataException($"数据文件过大: {path}");
+
+            return await File.ReadAllTextAsync(path);
         }
 
         public async Task LoadSettingsAsync()
@@ -102,19 +106,13 @@ namespace English_Listen_WinUI.Services
             await _fileLock.WaitAsync();
             try
             {
-                if (File.Exists(SettingsFilePath))
-                {
-                    var json = await File.ReadAllTextAsync(SettingsFilePath);
-                    _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-                }
-                else
-                {
-                    _settings = new AppSettings();
-                }
+                var json = await ReadJsonFileAsync(SettingsFilePath);
+                _settings = string.IsNullOrWhiteSpace(json)
+                    ? new AppSettings()
+                    : JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
             }
-            catch (Exception ex)
+            catch
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
                 _settings = new AppSettings();
             }
             finally
@@ -129,19 +127,9 @@ namespace English_Listen_WinUI.Services
             try
             {
                 var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
-                // Atomic write: write to temp then move
                 var tempPath = SettingsFilePath + ".tmp";
                 await File.WriteAllTextAsync(tempPath, json);
-                if (File.Exists(SettingsFilePath))
-                {
-                    File.Delete(SettingsFilePath);
-                }
-                File.Move(tempPath, SettingsFilePath);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
-                throw;
+                File.Move(tempPath, SettingsFilePath, true);
             }
             finally
             {
@@ -149,47 +137,42 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-
-
         public async Task<List<WordListGroup>> LoadWordlistGroupsAsync()
         {
             var groups = new List<WordListGroup>();
             try
             {
-                if (File.Exists(WordlistGroupsFilePath))
+                if (!File.Exists(WordlistGroupsFilePath))
+                    return groups;
+
+                var lines = await File.ReadAllLinesAsync(WordlistGroupsFilePath);
+                WordListGroup? current = null;
+                foreach (var line in lines)
                 {
-                    var lines = await File.ReadAllLinesAsync(WordlistGroupsFilePath);
-                    WordListGroup? currentGroup = null;
+                    var trimmed = line.Trim();
+                    if (trimmed.Length == 0)
+                        continue;
 
-                    foreach (var line in lines)
+                    if (trimmed.StartsWith('[') && trimmed.EndsWith(']'))
                     {
-                        var trimmed = line.Trim();
-                        if (string.IsNullOrEmpty(trimmed)) continue;
+                        if (current != null)
+                            groups.Add(current);
 
-                        if (trimmed.StartsWith("[") && trimmed.EndsWith("]"))
-                        {
-                            if (currentGroup != null)
-                            {
-                                groups.Add(currentGroup);
-                            }
-                            currentGroup = new WordListGroup
-                            {
-                                Name = trimmed.Trim('[', ']')
-                            };
-                        }
-                        else if (currentGroup != null)
-                        {
-                            currentGroup.WordListNames.Add(trimmed);
-                        }
+                        current = new WordListGroup { Name = trimmed[1..^1] };
                     }
-
-                    if (currentGroup != null)
+                    else if (current != null)
                     {
-                        groups.Add(currentGroup);
+                        current.WordListNames.Add(trimmed);
                     }
                 }
+
+                if (current != null)
+                    groups.Add(current);
             }
-            catch { }
+            catch
+            {
+            }
+
             return groups;
         }
 
@@ -201,16 +184,15 @@ namespace English_Listen_WinUI.Services
                 var lines = new List<string>();
                 foreach (var group in groups)
                 {
-                    lines.Add($"[{group.Name}]");
-                    foreach (var name in group.WordListNames)
-                    {
-                        lines.Add(name);
-                    }
-                    lines.Add("");
+                    lines.Add($"[{group.Name.Replace("[", "").Replace("]", "")}]");
+                    lines.AddRange(group.WordListNames.Select(name => name.Replace("\r", "").Replace("\n", "")));
+                    lines.Add(string.Empty);
                 }
-                await File.WriteAllLinesAsync(WordlistGroupsFilePath, lines);
+
+                var tempPath = WordlistGroupsFilePath + ".tmp";
+                await File.WriteAllLinesAsync(tempPath, lines);
+                File.Move(tempPath, WordlistGroupsFilePath, true);
             }
-            catch { }
             finally
             {
                 _fileLock.Release();
@@ -220,18 +202,19 @@ namespace English_Listen_WinUI.Services
         public async Task<List<TestResult>> LoadTestHistoryAsync(string username)
         {
             var history = new List<TestResult>();
+            if (!IsSafeUsername(username))
+                return history;
+
             try
             {
-                if (string.IsNullOrEmpty(username)) return history;
-                
-                var testHistoryPath = GetUserTestHistoryPath(username);
-                if (File.Exists(testHistoryPath))
-                {
-                    var json = await File.ReadAllTextAsync(testHistoryPath);
+                var json = await ReadJsonFileAsync(GetUserTestHistoryPath(username));
+                if (!string.IsNullOrWhiteSpace(json))
                     history = JsonSerializer.Deserialize<List<TestResult>>(json) ?? new List<TestResult>();
-                }
             }
-            catch { }
+            catch
+            {
+            }
+
             return history;
         }
 
@@ -240,29 +223,24 @@ namespace English_Listen_WinUI.Services
             if (!VerifyOwnership(currentUser, targetUser, "查看测试历史"))
                 return false;
 
-            var history = await LoadTestHistoryAsync(targetUser);
-            onSuccess(history);
+            onSuccess(await LoadTestHistoryAsync(targetUser));
             return true;
         }
 
         public async Task SaveTestHistoryAsync(string username, List<TestResult> history)
         {
+            EnsureUsername(username);
             await _fileLock.WaitAsync();
             try
             {
-                if (string.IsNullOrEmpty(username)) return;
-                
                 var userDir = GetUserDataPath(username);
-                if (!Directory.Exists(userDir))
-                {
-                    Directory.CreateDirectory(userDir);
-                }
-                
-                var testHistoryPath = GetUserTestHistoryPath(username);
+                Directory.CreateDirectory(userDir);
+
                 var json = JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(testHistoryPath, json);
+                var tempPath = GetUserTestHistoryPath(username) + ".tmp";
+                await File.WriteAllTextAsync(tempPath, json);
+                File.Move(tempPath, GetUserTestHistoryPath(username), true);
             }
-            catch { }
             finally
             {
                 _fileLock.Release();
@@ -280,24 +258,24 @@ namespace English_Listen_WinUI.Services
 
         public async Task<List<string>> LoadWordsFromFileAsync(string filePath)
         {
-            var words = new List<string>();
             try
             {
-                if (File.Exists(filePath))
-                {
-                    var lines = await File.ReadAllLinesAsync(filePath);
-                    foreach (var line in lines)
-                    {
-                        var trimmed = line.Trim();
-                        if (!string.IsNullOrEmpty(trimmed))
-                        {
-                            words.Add(trimmed);
-                        }
-                    }
-                }
+                if (!File.Exists(filePath))
+                    return new List<string>();
+
+                var info = new FileInfo(filePath);
+                if (info.Length > MaxJsonFileBytes)
+                    return new List<string>();
+
+                return (await File.ReadAllLinesAsync(filePath))
+                    .Select(line => line.Trim())
+                    .Where(line => line.Length > 0)
+                    .ToList();
             }
-            catch { }
-            return words;
+            catch
+            {
+                return new List<string>();
+            }
         }
 
         public async Task SaveWordsToFileAsync(string filePath, List<string> words)
@@ -305,9 +283,12 @@ namespace English_Listen_WinUI.Services
             await _fileLock.WaitAsync();
             try
             {
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
+
                 await File.WriteAllLinesAsync(filePath, words);
             }
-            catch { }
             finally
             {
                 _fileLock.Release();
@@ -316,67 +297,59 @@ namespace English_Listen_WinUI.Services
 
         public async Task<List<string>> GetWordlistFilesAsync()
         {
-            var files = new List<string>();
             try
             {
-                var wordlistDir = Path.Combine(AppDataPath, "wordlist");
-                if (Directory.Exists(wordlistDir))
-                {
-                    var txtFiles = Directory.GetFiles(wordlistDir, "*.txt");
-                    files.AddRange(txtFiles);
-                }
+                var wordlistDir = GetWordlistDirectory();
+                if (!Directory.Exists(wordlistDir))
+                    return new List<string>();
+
+                return Directory.GetFiles(wordlistDir, "*.txt", SearchOption.TopDirectoryOnly).ToList();
             }
-            catch { }
-            return files;
+            catch
+            {
+                return new List<string>();
+            }
         }
 
-        public string GetWordlistDirectory()
-        {
-            return Path.Combine(AppDataPath, "wordlist");
-        }
+        public string GetWordlistDirectory() => Path.Combine(AppDataPath, "wordlist");
 
         public string GetUserDataPath(string username)
         {
+            EnsureUsername(username);
             return Path.Combine(UserDataPath, username);
         }
 
-        public string GetUserSettingsPath(string username)
-        {
-            return Path.Combine(GetUserDataPath(username), "settings.json");
-        }
+        public string GetUserSettingsPath(string username) => Path.Combine(GetUserDataPath(username), "settings.json");
 
-        public string GetUserTestHistoryPath(string username)
-        {
-            return Path.Combine(GetUserDataPath(username), "test_history.json");
-        }
-
-
+        public string GetUserTestHistoryPath(string username) => Path.Combine(GetUserDataPath(username), "test_history.json");
 
         public async Task<List<UserData>> LoadUsersAsync()
         {
             var users = new List<UserData>();
             try
             {
-                if (!Directory.Exists(UserDataPath)) return users;
-                
-                var userDirs = Directory.GetDirectories(UserDataPath);
-                foreach (var userDir in userDirs)
+                if (!Directory.Exists(UserDataPath))
+                    return users;
+
+                foreach (var userDir in Directory.GetDirectories(UserDataPath))
                 {
                     var username = Path.GetFileName(userDir);
-                    var userSettingsPath = GetUserSettingsPath(username);
-                    
-                    if (File.Exists(userSettingsPath))
+                    if (!IsSafeUsername(username))
+                        continue;
+
+                    var json = await ReadJsonFileAsync(GetUserSettingsPath(username));
+                    if (!string.IsNullOrWhiteSpace(json))
                     {
-                        var json = await File.ReadAllTextAsync(userSettingsPath);
-                        var userData = JsonSerializer.Deserialize<UserData>(json);
-                        if (userData != null)
-                        {
-                            users.Add(userData);
-                        }
+                        var user = JsonSerializer.Deserialize<UserData>(json);
+                        if (user != null && user.Username == username)
+                            users.Add(user);
                     }
                 }
             }
-            catch { }
+            catch
+            {
+            }
+
             return users;
         }
 
@@ -387,18 +360,17 @@ namespace English_Listen_WinUI.Services
             {
                 foreach (var user in users)
                 {
+                    EnsureUsername(user.Username);
                     var userDir = GetUserDataPath(user.Username);
-                    if (!Directory.Exists(userDir))
-                    {
-                        Directory.CreateDirectory(userDir);
-                    }
-                    
-                    var userSettingsPath = GetUserSettingsPath(user.Username);
+                    Directory.CreateDirectory(userDir);
+
                     var json = JsonSerializer.Serialize(user, new JsonSerializerOptions { WriteIndented = true });
-                    await File.WriteAllTextAsync(userSettingsPath, json);
+                    var path = GetUserSettingsPath(user.Username);
+                    var tempPath = path + ".tmp";
+                    await File.WriteAllTextAsync(tempPath, json);
+                    File.Move(tempPath, path, true);
                 }
             }
-            catch { }
             finally
             {
                 _fileLock.Release();
@@ -407,15 +379,14 @@ namespace English_Listen_WinUI.Services
 
         public async Task<bool> CreateUserAsync(string username, string nickname, string password)
         {
-            var users = await LoadUsersAsync();
-            
-            // Check if user already exists
-            if (users.Any(u => u.Username == username))
-            {
+            if (!IsSafeUsername(username))
                 return false;
-            }
 
-            var newUser = new UserData
+            var users = await LoadUsersAsync();
+            if (users.Any(u => string.Equals(u.Username, username, StringComparison.Ordinal)))
+                return false;
+
+            users.Add(new UserData
             {
                 Username = username,
                 Nickname = nickname,
@@ -423,51 +394,35 @@ namespace English_Listen_WinUI.Services
                 CreatedTime = DateTime.Now,
                 LastLoginTime = DateTime.Now,
                 IsActive = true
-            };
+            });
 
-            users.Add(newUser);
             await SaveUsersAsync(users);
             return true;
         }
 
         private async Task<bool> DeleteUserAsync(string username)
         {
+            if (!IsSafeUsername(username))
+                return false;
+
             try
             {
                 var users = await LoadUsersAsync();
-                var userToDelete = users.FirstOrDefault(u => u.Username == username);
-                
-                if (userToDelete == null)
-                {
+                var user = users.FirstOrDefault(u => u.Username == username);
+                if (user == null)
                     return false;
-                }
 
-                // Remove user from list
-                users.Remove(userToDelete);
-                
-                // Save updated user list
+                users.Remove(user);
                 await SaveUsersAsync(users);
-                
-                // Delete user directory and files
+
                 var userDir = GetUserDataPath(username);
-                if (System.IO.Directory.Exists(userDir))
-                {
-                    try
-                    {
-                        System.IO.Directory.Delete(userDir, true);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"删除用户目录失败: {ex.Message}");
-                        return false;
-                    }
-                }
-                
+                if (Directory.Exists(userDir))
+                    Directory.Delete(userDir, true);
+
                 return true;
             }
-            catch (Exception ex)
+            catch
             {
-                System.Diagnostics.Debug.WriteLine($"删除用户失败: {ex.Message}");
                 return false;
             }
         }
@@ -480,95 +435,68 @@ namespace English_Listen_WinUI.Services
             return await DeleteUserAsync(targetUser);
         }
 
-        private bool VerifyOwnership(string? currentUser, string targetUser, string operation)
+        private static bool VerifyOwnership(string? currentUser, string targetUser, string operation)
         {
-            if (string.IsNullOrEmpty(currentUser))
-            {
-                System.Diagnostics.Debug.WriteLine($"[Security] {operation} 拒绝: 未登录用户");
+            if (!IsSafeUsername(currentUser) || !IsSafeUsername(targetUser))
                 return false;
-            }
 
-            if (currentUser != targetUser)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Security] {operation} 拒绝: 用户 '{currentUser}' 尝试操作 '{targetUser}' 的数据");
-                return false;
-            }
-
-            return true;
+            return string.Equals(currentUser, targetUser, StringComparison.Ordinal);
         }
-
-
 
         public async Task<bool> VerifyUserPasswordAsync(string username, string password)
         {
-            var users = await LoadUsersAsync();
-            var user = users.FirstOrDefault(u => u.Username == username);
-            
-            if (user == null || !user.IsActive)
-            {
+            if (!IsSafeUsername(username))
                 return false;
-            }
 
-            return PasswordService.VerifyPassword(password, user.PasswordHash);
+            var user = (await LoadUsersAsync()).FirstOrDefault(u => u.Username == username);
+            return user != null && user.IsActive && PasswordService.VerifyPassword(password, user.PasswordHash);
         }
-
-
-
-
 
         public async Task MigrateOldDataAsync()
         {
             try
             {
-                // Migrate old settings.json if it exists in app root
                 var oldSettingsPath = Path.Combine(AppDataPath, "settings.json");
                 if (File.Exists(oldSettingsPath) && !File.Exists(SettingsFilePath))
-                {
-                    var settingsJson = await File.ReadAllTextAsync(oldSettingsPath);
-                    await File.WriteAllTextAsync(SettingsFilePath, settingsJson);
-                    // Optionally delete old file after migration
-                    // File.Delete(oldSettingsPath);
-                }
+                    File.Copy(oldSettingsPath, SettingsFilePath);
 
-                // Migrate old wordlist_groups.ini if it exists in app root
                 var oldGroupsPath = Path.Combine(AppDataPath, "wordlist_groups.ini");
                 if (File.Exists(oldGroupsPath) && !File.Exists(WordlistGroupsFilePath))
-                {
-                    var groupsContent = await File.ReadAllTextAsync(oldGroupsPath);
-                    await File.WriteAllTextAsync(WordlistGroupsFilePath, groupsContent);
-                    // File.Delete(oldGroupsPath);
-                }
+                    File.Copy(oldGroupsPath, WordlistGroupsFilePath);
 
-                // Migrate old users.json if it exists
                 var oldUsersPath = Path.Combine(AppDataPath, "users.json");
-                if (File.Exists(oldUsersPath))
+                if (!File.Exists(oldUsersPath))
+                    return;
+
+                var usersJson = await ReadJsonFileAsync(oldUsersPath);
+                var oldUsers = string.IsNullOrWhiteSpace(usersJson)
+                    ? null
+                    : JsonSerializer.Deserialize<List<UserData>>(usersJson);
+
+                if (oldUsers == null || oldUsers.Count == 0)
+                    return;
+
+                await SaveUsersAsync(oldUsers.Where(user => IsSafeUsername(user.Username)).ToList());
+
+                var oldHistoryPath = Path.Combine(AppDataPath, "test_history.json");
+                if (File.Exists(oldHistoryPath) && oldUsers.Any(user => IsSafeUsername(user.Username)))
                 {
-                    var usersJson = await File.ReadAllTextAsync(oldUsersPath);
-                    var oldUsers = JsonSerializer.Deserialize<List<UserData>>(usersJson);
-                    if (oldUsers != null && oldUsers.Count > 0)
-                    {
-                        await SaveUsersAsync(oldUsers);
-                        // Migrate test history for each user
-                        var oldHistoryPath = Path.Combine(AppDataPath, "test_history.json");
-                        if (File.Exists(oldHistoryPath))
-                        {
-                            var historyJson = await File.ReadAllTextAsync(oldHistoryPath);
-                            var oldHistory = JsonSerializer.Deserialize<List<TestResult>>(historyJson);
-                            if (oldHistory != null && oldHistory.Count > 0)
-                            {
-                                // For simplicity, assign all old history to the first user
-                                var firstUser = oldUsers.First();
-                                await SaveTestHistoryAsync(firstUser.Username, oldHistory);
-                            }
-                            // File.Delete(oldHistoryPath);
-                        }
-                        // File.Delete(oldUsersPath);
-                    }
+                    var historyJson = await ReadJsonFileAsync(oldHistoryPath);
+                    var oldHistory = string.IsNullOrWhiteSpace(historyJson)
+                        ? null
+                        : JsonSerializer.Deserialize<List<TestResult>>(historyJson);
+                    if (oldHistory != null)
+                        await SaveTestHistoryAsync(oldUsers.First(user => IsSafeUsername(user.Username)).Username, oldHistory);
                 }
             }
-            catch { }
+            catch
+            {
+            }
         }
 
-
+        public void Dispose()
+        {
+            _fileLock.Dispose();
+        }
     }
 }
