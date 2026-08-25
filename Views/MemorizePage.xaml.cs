@@ -49,50 +49,34 @@ namespace English_Listen_WinUI.Views
 
     public sealed partial class MemorizePage : Page
     {
+        private const int MaxWordCount = 10000;
+        private const int MaxWordLength = 256;
+        private const int MaxTranslationLength = 2048;
+        private const int MaxWordlistFileCount = 1000;
+        private const long MaxWordlistFileBytes = 2 * 1024 * 1024;
+
         private static readonly List<DailyQuote> _quotes = new()
         {
-            new("Persistence is the hard work you do after you get tired of doing the hard work you already did.",
-                "Newt Gingrich", "坚持就是在你厌倦了已经付出的辛苦之后，仍然继续努力。"),
-            new("It does not matter how slowly you go as long as you do not stop.", "Confucius",
-                "不在乎你走得多慢，只要你不停下来。"),
-            new("The secret of getting ahead is getting started.", "Mark Twain",
-                "领先的秘诀就是开始行动。"),
-            new("Success is the sum of small efforts, repeated day in and day out.", "Robert Collier",
-                "成功是日复一日的小努力的积累。"),
-            new("A journey of a thousand miles begins with a single step.", "Lao Tzu",
-                "千里之行，始于足下。"),
-            new("The difference between ordinary and extraordinary is that little extra.",
-                "Jimmy Johnson", "平凡与非凡之间的区别就在于那一点点额外的付出。"),
-            new("Don't watch the clock; do what it does. Keep going.", "Sam Levenson",
-                "不要盯着时钟看，要像它一样不停地走。"),
-            new("Learning is not attained by chance, it must be sought for with ardor and attended to with diligence.",
-                "Abigail Adams", "学问不是靠偶然获得的，必须以热情去追求，以勤奋去维护。"),
-            new(
-                "The more that you read, the more things you will know. The more that you learn, the more places you'll go.",
-                "Dr. Seuss", "你读得越多，知道的就越多。你学得越多，能去的地方就越多。"),
-            new(
-                "Knowledge is power. Information is liberating. Education is the premise of progress, in every society, in every family.",
-                "Kofi Annan", "知识就是力量。信息带来解放。教育是每个社会、每个家庭进步的前提。"),
-            new("Live as if you were to die tomorrow. Learn as if you were to live forever.",
-                "Mahatma Gandhi", "像明天就会死去一样生活，像永远会活着一样学习。"),
-            new("Education is the passport to the future, for tomorrow belongs to those who prepare for it today.",
-                "Malcolm X", "教育是通向未来的通行证，因为明天属于今天为之做准备的人。"),
-            new("The beautiful thing about learning is that no one can take it away from you.",
-                "B.B. King", "学习的美好之处在于，没有人能把它从你身上夺走。"),
-            new("An investment in knowledge pays the best interest.", "Benjamin Franklin",
-                "对知识的投资回报率最高。"),
-            new("Your attitude, not your aptitude, will determine your altitude.", "Zig Ziglar",
-                "决定你高度的不是能力，而是你的态度。"),
-            new("There are no shortcuts to any place worth going.", "Beverly Sills",
-                "任何值得去的地方都没有捷径。"),
-            new("Success is not final, failure is not fatal: it is the courage to continue that counts.",
-                "Winston Churchill", "成功不是终点，失败也不是致命的，重要的是继续前进的勇气。"),
-            new("The only way to do great work is to love what you do.", "Steve Jobs",
-                "做出伟大工作的唯一方法就是热爱你所做的事情。"),
-            new("Believe you can and you're halfway there.", "Theodore Roosevelt",
-                "相信你能做到，你就已经成功了一半。"),
-            new("I have not failed. I've just found 10,000 ways that won't work.", "Thomas Edison",
-                "我没有失败，我只是发现了一万种行不通的方法。"),
+            new("Persistence is the hard work you do after you get tired of doing the hard work you already did.", "Newt Gingrich", "坚持就是在你厌倦了已经付出的辛苦之后，仍然继续努力。"),
+            new("It does not matter how slowly you go as long as you do not stop.", "Confucius", "不在乎你走得多慢，只要你不停下来。"),
+            new("The secret of getting ahead is getting started.", "Mark Twain", "领先的秘诀就是开始行动。"),
+            new("Success is the sum of small efforts, repeated day in and day out.", "Robert Collier", "成功是日复一日的小努力的积累。"),
+            new("A journey of a thousand miles begins with a single step.", "Lao Tzu", "千里之行，始于足下。"),
+            new("The difference between ordinary and extraordinary is that little extra.", "Jimmy Johnson", "平凡与非凡之间的区别就在于那一点点额外的付出。"),
+            new("Don't watch the clock; do what it does. Keep going.", "Sam Levenson", "不要盯着时钟看，要像它一样不停地走。"),
+            new("Learning is not attained by chance, it must be sought for with ardor and attended to with diligence.", "Abigail Adams", "学问不是靠偶然获得的，必须以热情去追求，以勤奋去维护。"),
+            new("The more that you read, the more things you will know. The more that you learn, the more places you'll go.", "Dr. Seuss", "你读得越多，知道的就越多。你学得越多，能去的地方就越多。"),
+            new("Knowledge is power. Information is liberating. Education is the premise of progress, in every society, in every family.", "Kofi Annan", "知识就是力量。信息带来解放。教育是每个社会、每个家庭进步的前提。"),
+            new("Live as if you were to die tomorrow. Learn as if you were to live forever.", "Mahatma Gandhi", "像明天就会死去一样生活，像永远会活着一样学习。"),
+            new("Education is the passport to the future, for tomorrow belongs to those who prepare for it today.", "Malcolm X", "教育是通向未来的通行证，因为明天属于今天为之做准备的人。"),
+            new("The beautiful thing about learning is that no one can take it away from you.", "B.B. King", "学习的美好之处在于，没有人能把它从你身上夺走。"),
+            new("An investment in knowledge pays the best interest.", "Benjamin Franklin", "对知识的投资回报率最高。"),
+            new("Your attitude, not your aptitude, will determine your altitude.", "Zig Ziglar", "决定你高度的不是能力，而是你的态度。"),
+            new("There are no shortcuts to any place worth going.", "Beverly Sills", "任何值得去的地方都没有捷径。"),
+            new("Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill", "成功不是终点，失败也不是致命的，重要的是继续前进的勇气。"),
+            new("The only way to do great work is to love what you do.", "Steve Jobs", "做出伟大工作的唯一方法就是热爱你所做的事情。"),
+            new("Believe you can and you're halfway there.", "Theodore Roosevelt", "相信你能做到，你就已经成功了一半。"),
+            new("I have not failed. I've just found 10,000 ways that won't work.", "Thomas Edison", "我没有失败，我只是发现了一万种行不通的方法。"),
         };
 
         private readonly HashSet<string> _readWords = new();
@@ -140,8 +124,15 @@ namespace English_Listen_WinUI.Views
 
             if (e.Parameter is List<DictationTestPage.WordTranslationPair> wordListParam)
             {
-                // 从外部传入单词列表，直接进入背单词模式
-                _studyWords = wordListParam;
+                _studyWords = wordListParam
+                    .Take(MaxWordCount)
+                    .Where(pair => pair != null && !string.IsNullOrWhiteSpace(pair.Word) && pair.Word.Trim().Length <= MaxWordLength && (pair.Translation?.Length ?? 0) <= MaxTranslationLength)
+                    .Select(pair => new DictationTestPage.WordTranslationPair
+                    {
+                        Word = pair.Word.Trim(),
+                        Translation = pair.Translation?.Trim() ?? string.Empty
+                    })
+                    .ToList();
                 _totalWords = _studyWords.Count;
                 _currentIndex = 0;
                 ConfigPanel.Visibility = Visibility.Collapsed;
@@ -157,22 +148,8 @@ namespace English_Listen_WinUI.Views
 
             if (_synthesizer != null)
             {
-                try
-                {
-                    _synthesizer.SpeakAsyncCancelAll();
-                }
-                catch
-                {
-                }
-
-                try
-                {
-                    _synthesizer.Dispose();
-                }
-                catch
-                {
-                }
-
+                try { _synthesizer.SpeakAsyncCancelAll(); } catch { }
+                try { _synthesizer.Dispose(); } catch { }
                 _synthesizer = null;
             }
 
@@ -190,14 +167,11 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                var selected = _wordList.Where(w => w.IsSelected).Select(w => w.Word).ToList();
+                var selected = _wordList.Where(w => w.IsSelected).Select(w => w.Word).Take(MaxWordCount).ToList();
                 _viewModel.StudyPlan.SelectedWords = selected;
-
-                // 合并本次朗读过的单词到 LearnedWords
                 var learned = new HashSet<string>(_viewModel.StudyPlan.LearnedWords ?? new());
-                learned.UnionWith(_readWords);
-                _viewModel.StudyPlan.LearnedWords = learned.ToList();
-
+                learned.UnionWith(_readWords.Take(MaxWordCount));
+                _viewModel.StudyPlan.LearnedWords = learned.Take(MaxWordCount).ToList();
                 await _viewModel.SaveStudyPlanAsync();
                 UpdateWordsListBox();
             }
@@ -213,43 +187,36 @@ namespace English_Listen_WinUI.Views
             try
             {
                 PopulateWordBookList();
-
                 var plan = _viewModel.StudyPlan;
                 DailyWordCountBox.Value = Math.Clamp(plan.DailyWordCount, 5, 200);
                 RandomOrderToggle.IsOn = plan.RandomOrder;
 
-                // 向后兼容：旧数据只有 SelectedWordList（单个文件）
                 if (plan.SelectedWordLists.Count == 0 && !string.IsNullOrEmpty(plan.SelectedWordList))
-                {
                     plan.SelectedWordLists.Add(plan.SelectedWordList);
-                }
 
-                // 如果词书已锁定，禁用列表并显示更改按钮
+                plan.SelectedWordLists = plan.SelectedWordLists
+                    .Where(IsSafeWordlistName)
+                    .Take(MaxWordlistFileCount)
+                    .ToList();
+
                 if (plan.IsWordListLocked && plan.SelectedWordLists.Count > 0)
                 {
                     WordBookItemsControl.IsEnabled = false;
                     LoadWordlistButton.Visibility = Visibility.Collapsed;
                     ChangeWordListButton.Visibility = Visibility.Visible;
-
                     foreach (var file in plan.SelectedWordLists)
-                    {
                         SetWordBookChecked(file, true);
-                    }
                 }
 
                 if (plan.SelectedWordLists.Count > 0)
                 {
                     await LoadWordlistAsync(plan.SelectedWordLists);
-
-                    // 恢复选中状态
                     if (plan.SelectedWords?.Count > 0)
                     {
+                        var selectedWords = new HashSet<string>(plan.SelectedWords.Take(MaxWordCount));
                         foreach (var item in _wordList)
-                        {
-                            item.IsSelected = plan.SelectedWords.Contains(item.Word);
-                        }
+                            item.IsSelected = selectedWords.Contains(item.Word);
                     }
-
                     UpdateWordsListBox();
                 }
 
@@ -266,29 +233,53 @@ namespace English_Listen_WinUI.Views
             WordBookItemsControl.Items.Clear();
             foreach (var file in _viewModel.WordListFiles)
             {
-                WordBookItemsControl.Items.Add(file);
+                if (IsSafeWordlistName(file))
+                    WordBookItemsControl.Items.Add(file);
             }
         }
 
-        /// <summary>
-        /// 加载词库文件，支持多文件合并，与 WordsPage 分组加载逻辑一致
-        /// </summary>
         private async Task LoadWordlistAsync(IEnumerable<string> fileNames)
         {
-            var wordDir = _viewModel.Settings.GetWordlistDirectory();
+            var settings = _viewModel.Settings;
+            var names = fileNames
+                .Where(IsSafeWordlistName)
+                .Take(MaxWordlistFileCount)
+                .ToList();
+
             var wordItems = await Task.Run(() =>
             {
-                var allWords = new List<string>();
-                foreach (var fileName in fileNames)
+                var allWords = new List<string>(Math.Min(MaxWordCount, names.Count * 100));
+                foreach (var fileName in names)
                 {
-                    var filePath = Path.Combine(wordDir, fileName);
-                    if (!File.Exists(filePath)) continue;
+                    if (allWords.Count >= MaxWordCount)
+                        break;
 
-                    var lines = File.ReadAllLines(filePath);
-                    allWords.AddRange(lines
-                        .Where(line => !string.IsNullOrWhiteSpace(line))
-                        .Select(line => line.Trim())
-                        .Where(w => !string.IsNullOrEmpty(w)));
+                    try
+                    {
+                        var filePath = settings.GetWordlistFilePath(fileName);
+                        if (!File.Exists(filePath) || (File.GetAttributes(filePath) & FileAttributes.ReparsePoint) != 0)
+                            continue;
+
+                        var info = new FileInfo(filePath);
+                        if (info.Length > MaxWordlistFileBytes)
+                            continue;
+
+                        foreach (var line in File.ReadLines(filePath).Take(MaxWordCount - allWords.Count))
+                        {
+                            if (string.IsNullOrWhiteSpace(line))
+                                continue;
+
+                            var word = line.Trim();
+                            if (word.Length == 0 || word.Length > MaxWordLength)
+                                continue;
+
+                            allWords.Add(word);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"加载词库失败: {ex.Message}");
+                    }
                 }
 
                 return allWords
@@ -297,6 +288,7 @@ namespace English_Listen_WinUI.Views
                         Word = w,
                         Translation = _translationLibrary.GetTranslation(w) ?? ""
                     })
+                    .Take(MaxWordCount)
                     .ToList();
             });
 
@@ -305,13 +297,22 @@ namespace English_Listen_WinUI.Views
             UpdateWordsListBox();
         }
 
+        private static bool IsSafeWordlistName(string? fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 128)
+                return false;
+            if (!fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || fileName.Any(char.IsControl))
+                return false;
+            return string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal);
+        }
+
         private void UpdateWordsListBox()
         {
             var learnedWords = new HashSet<string>(_viewModel.StudyPlan.LearnedWords ?? new());
             foreach (var item in _wordList)
-            {
                 item.LearnedStatus = learnedWords.Contains(item.Word) ? "已学习" : "";
-            }
 
             WordsListBox.ItemsSource = null;
             WordsListBox.ItemsSource = _wordList;
@@ -328,11 +329,12 @@ namespace English_Listen_WinUI.Views
             QuoteAuthorBlock.Text = $"- {quote.Author}";
         }
 
-        // ========== 词库加载和选择（与 WordsPage 相同逻辑）==========
-
         private async void LoadWordlistButton_Click(object sender, RoutedEventArgs e)
         {
-            var checkedBooks = GetCheckedWordBooks();
+            var checkedBooks = GetCheckedWordBooks()
+                .Where(IsSafeWordlistName)
+                .Take(MaxWordlistFileCount)
+                .ToList();
             if (checkedBooks.Count == 0)
             {
                 MainWindow.ShowNotification("请先选择词库");
@@ -364,7 +366,6 @@ namespace English_Listen_WinUI.Views
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
-                // 解锁词书选择
                 _viewModel.StudyPlan.IsWordListLocked = false;
                 _viewModel.StudyPlan.SelectedWordLists.Clear();
                 await _viewModel.SaveStudyPlanAsync();
@@ -385,9 +386,7 @@ namespace English_Listen_WinUI.Views
                 if (container == null) continue;
                 var checkBox = FindCheckBox(container);
                 if (checkBox?.IsChecked == true)
-                {
                     checkedBooks.Add(item?.ToString() ?? "");
-                }
             }
 
             return checkedBooks;
@@ -456,15 +455,13 @@ namespace English_Listen_WinUI.Views
             ApplyFilter();
         }
 
-        /// <summary>
-        /// 搜索过滤逻辑，与 WordsPage 保持一致
-        /// </summary>
         private void ApplyFilter()
         {
             var searchText = SearchTextBox.Text;
             if (string.IsNullOrEmpty(searchText))
             {
                 _wordList = _originalWordList
+                    .Take(MaxWordCount)
                     .Select(w => new MemorizeWordItem
                     {
                         Word = w.Word,
@@ -477,6 +474,7 @@ namespace English_Listen_WinUI.Views
             {
                 _wordList = _originalWordList
                     .Where(w => w.Word.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    .Take(MaxWordCount)
                     .Select(w => new MemorizeWordItem
                     {
                         Word = w.Word,
@@ -493,11 +491,8 @@ namespace English_Listen_WinUI.Views
         {
             var selectAll = SelectAllCheckBox.IsChecked ?? false;
             foreach (var item in _wordList)
-            {
                 item.IsSelected = selectAll;
-            }
 
-            // 同步原始列表
             foreach (var original in _originalWordList)
             {
                 var match = _wordList.FirstOrDefault(w => w.Word == original.Word);
@@ -507,8 +502,6 @@ namespace English_Listen_WinUI.Views
 
             TriggerAutoSave();
         }
-
-        // ========== 实时保存 ==========
 
         private async void DailyWordCountBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
         {
@@ -536,10 +529,7 @@ namespace English_Listen_WinUI.Views
         private async void AutoSaveTimer_Tick(object? sender, object e)
         {
             if (_autoSaveTimer != null)
-            {
                 _autoSaveTimer.Stop();
-            }
-
             await SaveCurrentState();
         }
 
@@ -570,15 +560,11 @@ namespace English_Listen_WinUI.Views
             MainWindow.ShowNotification($"已清除 {selected.Count} 个单词的学习状态");
         }
 
-        // ========== 开始背单词 ==========
-
         private async void StartMemorizeButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectedWords = _wordList.Where(w => w.IsSelected).ToList();
+            var selectedWords = _wordList.Where(w => w.IsSelected).Take(MaxWordCount).ToList();
             if (selectedWords.Count == 0)
-            {
-                selectedWords = _originalWordList.Where(w => w.IsSelected).ToList();
-            }
+                selectedWords = _originalWordList.Where(w => w.IsSelected).Take(MaxWordCount).ToList();
 
             if (selectedWords.Count == 0)
             {
@@ -586,7 +572,6 @@ namespace English_Listen_WinUI.Views
                 return;
             }
 
-            // 过滤掉已学习的单词
             var learnedWords = new HashSet<string>(_viewModel.StudyPlan.LearnedWords ?? new());
             selectedWords = selectedWords.Where(w => !learnedWords.Contains(w.Word)).ToList();
             if (selectedWords.Count == 0)
@@ -595,7 +580,6 @@ namespace English_Listen_WinUI.Views
                 return;
             }
 
-            // 限制每日数量
             int dailyCount = (int)Math.Clamp(DailyWordCountBox.Value, 5, 200);
             var studyList = selectedWords.Take(dailyCount).ToList();
 
@@ -614,18 +598,14 @@ namespace English_Listen_WinUI.Views
             _totalWords = _studyWords.Count;
             _currentIndex = 0;
 
-            // 更新学习统计（同一天不重复增加天数）
             var today = DateTime.Now.Date;
             if (_viewModel.StudyPlan.LastStudyDate.Date != today)
-            {
                 _viewModel.StudyPlan.CompletedDays++;
-            }
 
             _viewModel.StudyPlan.LastStudyDate = DateTime.Now;
-            _viewModel.StudyPlan.TotalLearnedWords += _totalWords;
+            _viewModel.StudyPlan.TotalLearnedWords = Math.Min(int.MaxValue, _viewModel.StudyPlan.TotalLearnedWords + _totalWords);
             await _viewModel.SaveStudyPlanAsync();
 
-            // 切换面板
             ConfigPanel.Visibility = Visibility.Collapsed;
             StudyPanel.Visibility = Visibility.Visible;
             (App.MainWindow as MainWindow)?.SetSidebarVisibility(false);
@@ -639,11 +619,9 @@ namespace English_Listen_WinUI.Views
             (App.MainWindow as MainWindow)?.SetSidebarVisibility(true);
         }
 
-        // ========== 背单词逻辑（保留原有功能）==========
-
         private void ShowCurrentWord()
         {
-            if (_studyWords.Count == 0) return;
+            if (_studyWords.Count == 0 || _currentIndex < 0 || _currentIndex >= _studyWords.Count) return;
 
             var pair = _studyWords[_currentIndex];
             WordText.Text = pair.Word;
@@ -692,7 +670,6 @@ namespace English_Listen_WinUI.Views
                 return;
             }
 
-            // ponytail: 学习完成后写入 TestHistory，保存单词列表以便后续复习听考
             await SaveStudyRecordAsync();
 
             var dialog = new ContentDialog
@@ -725,7 +702,6 @@ namespace English_Listen_WinUI.Views
             }
         }
 
-        // ponytail: 学习完成写入一条 TestHistory 记录，Words 字段供后续复习选择
         private async Task SaveStudyRecordAsync()
         {
             try
@@ -738,9 +714,7 @@ namespace English_Listen_WinUI.Views
                 }
 
                 await settingsService.LoadSettingsAsync();
-
                 var currentUser = settingsService.Settings.CurrentUser ?? "";
-
                 var testHistory = await settingsService.LoadTestHistoryAsync(currentUser);
                 if (_studyWords.Count == 0)
                 {
@@ -754,24 +728,20 @@ namespace English_Listen_WinUI.Views
                     TotalWords = _studyWords.Count,
                     CorrectCount = _studyWords.Count,
                     Accuracy = 100.0,
-                    WordListName = string.Join(", ", _viewModel!.StudyPlan.SelectedWordLists ?? new()),
-                    Words = _studyWords.Select(w => new WordTranslationPair
-                        { Word = w.Word, Translation = w.Translation }).ToList(),
+                    WordListName = string.Join(", ", (_viewModel!.StudyPlan.SelectedWordLists ?? new()).Take(MaxWordlistFileCount)),
+                    Words = _studyWords.Take(MaxWordCount).Select(w => new WordTranslationPair { Word = w.Word, Translation = w.Translation }).ToList(),
                     RecordType = "learning"
                 };
                 testHistory.Add(record);
                 await settingsService.SaveTestHistoryAsync(currentUser, testHistory);
-
-                // 同步到 ViewModel
                 _viewModel.TestHistory = testHistory;
                 _viewModel.TestHistoryViewModels.Clear();
                 foreach (var r in testHistory)
                     _viewModel.TestHistoryViewModels.Add(new TestResultViewModel { Result = r });
 
-                // 标记朗读过的单词为已学习
                 var learned = new HashSet<string>(_viewModel.StudyPlan.LearnedWords ?? new());
-                learned.UnionWith(_readWords);
-                _viewModel.StudyPlan.LearnedWords = learned.ToList();
+                learned.UnionWith(_readWords.Take(MaxWordCount));
+                _viewModel.StudyPlan.LearnedWords = learned.Take(MaxWordCount).ToList();
                 await _viewModel.SaveStudyPlanAsync();
 
                 MainWindow.ShowNotification($"学习记录已保存 ({_studyWords.Count} 个单词)");
@@ -793,7 +763,6 @@ namespace English_Listen_WinUI.Views
             };
 
             var stackPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0), Spacing = 10 };
-
             var modeStackPanel = new StackPanel { Spacing = 5 };
             var onlineModeRadio = new RadioButton { Content = "在线听写", IsChecked = true, GroupName = "DictationMode" };
             var paperModeRadio = new RadioButton { Content = "纸笔听写", GroupName = "DictationMode" };
@@ -801,21 +770,17 @@ namespace English_Listen_WinUI.Views
             modeStackPanel.Children.Add(paperModeRadio);
             stackPanel.Children.Add(modeStackPanel);
 
-            var randomOrderSwitch = new ToggleSwitch
-                { Header = "随机顺序", IsOn = false, OffContent = "关闭", OnContent = "开启" };
+            var randomOrderSwitch = new ToggleSwitch { Header = "随机顺序", IsOn = false, OffContent = "关闭", OnContent = "开启" };
             stackPanel.Children.Add(randomOrderSwitch);
-
-            var readTranslationSwitch = new ToggleSwitch
-                { Header = "朗读翻译", IsOn = false, OffContent = "关闭", OnContent = "开启" };
+            var readTranslationSwitch = new ToggleSwitch { Header = "朗读翻译", IsOn = false, OffContent = "关闭", OnContent = "开启" };
             stackPanel.Children.Add(readTranslationSwitch);
-
             dialog.Content = stackPanel;
 
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
                 var testParams = new WordsPage.DictationTestParamsWithTranslations(
-                    _studyWords,
+                    _studyWords.Take(MaxWordCount).ToList(),
                     randomOrderSwitch.IsOn,
                     readTranslationSwitch.IsOn,
                     paperModeRadio.IsChecked ?? false);
@@ -828,7 +793,6 @@ namespace English_Listen_WinUI.Views
             SpeakCurrentWord();
         }
 
-
         private async void SpeakCurrentWord()
         {
             if (_synthesizer == null || _studyWords.Count == 0) return;
@@ -837,38 +801,22 @@ namespace English_Listen_WinUI.Views
             {
                 _synthesizer.SpeakAsyncCancelAll();
                 var word = _studyWords[_currentIndex].Word;
-
                 var englishVoiceName = _viewModel.Settings?.Settings?.WindowsTtsEnglishVoiceName;
                 if (!string.IsNullOrEmpty(englishVoiceName))
                 {
-                    try
-                    {
-                        _synthesizer.SelectVoice(englishVoiceName);
-                    }
-                    catch
-                    {
-                    }
+                    try { _synthesizer.SelectVoice(englishVoiceName); } catch { }
                 }
 
                 _synthesizer.SpeakAsync(word);
-
                 var translation = _studyWords[_currentIndex].Translation;
                 if (!string.IsNullOrEmpty(translation))
                 {
                     await Task.Delay(500);
-
                     var chineseVoiceName = _viewModel.Settings?.Settings?.WindowsTtsChineseVoiceName;
                     if (!string.IsNullOrEmpty(chineseVoiceName))
                     {
-                        try
-                        {
-                            _synthesizer.SelectVoice(chineseVoiceName);
-                        }
-                        catch
-                        {
-                        }
+                        try { _synthesizer.SelectVoice(chineseVoiceName); } catch { }
                     }
-
                     _synthesizer.SpeakAsync(translation);
                 }
             }
