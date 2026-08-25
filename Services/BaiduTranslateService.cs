@@ -19,20 +19,20 @@ namespace English_Listen_WinUI.Services
         public const int DAILY_LIMIT = 1000;
         private const int MAX_CACHE_ENTRIES = 10000;
         private const int MAX_DAILY_HISTORY_DAYS = 7;
+        private const int MAX_TEXT_LENGTH = 5000;
 
-        private static readonly HttpClient _sharedHttpClient = new HttpClient
+        private static readonly HttpClient _sharedHttpClient = new()
         {
             Timeout = TimeSpan.FromSeconds(10)
         };
 
-        private readonly object _cacheLock = new object();
+        private readonly object _cacheLock = new();
         private readonly string _limitCachePath;
-
+        private readonly string _translationCachePath;
         private readonly Random _random = new();
 
-        private readonly string _translationCachePath;
-        private string _apiKey = null!;
-        private string _appId = null!;
+        private string _apiKey = string.Empty;
+        private string _appId = string.Empty;
         private string _currentDate;
         private Dictionary<string, int> _dailyLimitCache;
         private Dictionary<string, string> _translationCache;
@@ -46,88 +46,61 @@ namespace English_Listen_WinUI.Services
             }
             catch
             {
-                appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                appDataPath = AppContext.BaseDirectory;
             }
 
             var cacheDir = Path.Combine(appDataPath, "cache");
-            if (!Directory.Exists(cacheDir))
-            {
-                try
-                {
-                    Directory.CreateDirectory(cacheDir);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"创建缓存目录失败: {ex.Message}");
-                }
-            }
+            Directory.CreateDirectory(cacheDir);
 
             _translationCachePath = Path.Combine(cacheDir, "translation_cache.json");
             _limitCachePath = Path.Combine(cacheDir, "translation_limit.json");
             _currentDate = DateTime.Now.ToString("yyyy-MM-dd");
-
             _translationCache = new Dictionary<string, string>();
-            _dailyLimitCache = new Dictionary<string, int> { { _currentDate, 0 } };
+            _dailyLimitCache = new Dictionary<string, int> { [_currentDate] = 0 };
 
-            try
-            {
-                LoadConfig();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"加载配置失败: {ex.Message}");
-            }
-
+            LoadConfig();
             LoadCache();
         }
 
         public void Dispose()
         {
-            // _sharedHttpClient is static, do not dispose
         }
 
         private void LoadConfig()
         {
-            // Priority 1: DPAPI encrypted storage
-            var secret = SecretStorageService.LoadSecret();
-            if (secret != null && !string.IsNullOrEmpty(secret.AppId) && !string.IsNullOrEmpty(secret.ApiKey))
+            try
             {
-                _appId = secret.AppId;
-                _apiKey = secret.ApiKey;
-                Debug.WriteLine($"从加密存储加载配置: AppId={_appId}");
-                return;
-            }
-
-            // Priority 2: Legacy plaintext config file
-            var legacyConfig = LoadConfigFromFile();
-            if (legacyConfig != null)
-            {
-                SecretStorageService.SaveSecret(new BaiduSecretConfig
+                var secret = SecretStorageService.LoadSecret();
+                if (secret != null && !string.IsNullOrWhiteSpace(secret.AppId) && !string.IsNullOrWhiteSpace(secret.ApiKey))
                 {
-                    AppId = legacyConfig.BaiduTranslate.AppId,
-                    ApiKey = legacyConfig.BaiduTranslate.ApiKey
-                });
-                _appId = legacyConfig.BaiduTranslate.AppId;
-                _apiKey = legacyConfig.BaiduTranslate.ApiKey;
-                Debug.WriteLine($"从旧版文件迁移配置: AppId={_appId}");
-                return;
-            }
+                    _appId = secret.AppId.Trim();
+                    _apiKey = secret.ApiKey.Trim();
+                    return;
+                }
 
-            // Priority 3: Old BaiduTranslateApiKey field in settings.json (format: "appId:apiKey")
-            var settingsApiKey = LoadFromSettingsJson();
-            if (settingsApiKey != null)
+                var legacyConfig = LoadConfigFromFile();
+                if (legacyConfig != null)
+                {
+                    _appId = legacyConfig.BaiduTranslate.AppId.Trim();
+                    _apiKey = legacyConfig.BaiduTranslate.ApiKey.Trim();
+                    SecretStorageService.SaveSecret(new BaiduSecretConfig { AppId = _appId, ApiKey = _apiKey });
+                    return;
+                }
+
+                var settingsApiKey = LoadFromSettingsJson();
+                if (settingsApiKey != null)
+                {
+                    _appId = settingsApiKey.AppId.Trim();
+                    _apiKey = settingsApiKey.ApiKey.Trim();
+                    SecretStorageService.SaveSecret(settingsApiKey);
+                }
+            }
+            catch (Exception ex)
             {
-                SecretStorageService.SaveSecret(settingsApiKey);
-                _appId = settingsApiKey.AppId;
-                _apiKey = settingsApiKey.ApiKey;
-                Debug.WriteLine($"从 settings.json 旧字段迁移配置: AppId={_appId}");
-                return;
+                Debug.WriteLine($"加载翻译配置失败: {ex.Message}");
+                _appId = string.Empty;
+                _apiKey = string.Empty;
             }
-
-            // Priority 4: Built-in default (user's personal API key)
-            _appId = "20260316002574195";
-            _apiKey = "CV5ogmfsAmHALHF9goY5";
-            Debug.WriteLine($"使用默认配置: AppId={_appId}");
         }
 
         private BaiduSecretConfig? LoadFromSettingsJson()
@@ -137,41 +110,36 @@ namespace English_Listen_WinUI.Services
                 string settingsPath;
                 try
                 {
-                    settingsPath = Path.Combine(
-                        ApplicationData.Current.LocalFolder.Path,
-                        "config", "settings.json");
+                    settingsPath = Path.Combine(ApplicationData.Current.LocalFolder.Path, "config", "settings.json");
                 }
                 catch
                 {
                     settingsPath = Path.Combine(AppContext.BaseDirectory, "config", "settings.json");
                 }
 
-                if (!File.Exists(settingsPath)) return null;
+                if (!File.Exists(settingsPath))
+                    return null;
 
-                var json = File.ReadAllText(settingsPath);
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
+                var info = new FileInfo(settingsPath);
+                if (info.Length > 2 * 1024 * 1024)
+                    return null;
 
-                if (root.TryGetProperty("BaiduTranslateApiKey", out var apiKeyElement))
-                {
-                    var apiKeyStr = apiKeyElement.GetString();
-                    if (!string.IsNullOrEmpty(apiKeyStr) && apiKeyStr.Contains(':'))
-                    {
-                        var parts = apiKeyStr.Split(':', 2);
-                        var appId = parts[0].Trim();
-                        var apiKey = parts[1].Trim();
-                        if (!string.IsNullOrEmpty(appId) && !string.IsNullOrEmpty(apiKey))
-                        {
-                            return new BaiduSecretConfig { AppId = appId, ApiKey = apiKey };
-                        }
-                    }
-                }
+                using var doc = JsonDocument.Parse(File.ReadAllText(settingsPath));
+                if (!doc.RootElement.TryGetProperty("BaiduTranslateApiKey", out var element))
+                    return null;
 
-                return null;
+                var value = element.GetString();
+                if (string.IsNullOrWhiteSpace(value))
+                    return null;
+
+                var parts = value.Split(':', 2);
+                if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+                    return null;
+
+                return new BaiduSecretConfig { AppId = parts[0].Trim(), ApiKey = parts[1].Trim() };
             }
-            catch (Exception ex)
+            catch
             {
-                Debug.WriteLine($"[SecretStorage] 读取 settings.json 失败: {ex.Message}");
                 return null;
             }
         }
@@ -187,26 +155,25 @@ namespace English_Listen_WinUI.Services
                 }
                 catch
                 {
-                    appDataPath = AppDomain.CurrentDomain.BaseDirectory;
+                    appDataPath = AppContext.BaseDirectory;
                 }
 
                 var configPath = Path.Combine(appDataPath, "config", "secret.json");
-
                 if (!File.Exists(configPath))
                     return null;
 
-                var json = File.ReadAllText(configPath);
-                var config = JsonSerializer.Deserialize<SecretConfig>(json,
+                var info = new FileInfo(configPath);
+                if (info.Length > 2 * 1024 * 1024)
+                    return null;
+
+                var config = JsonSerializer.Deserialize<SecretConfig>(File.ReadAllText(configPath),
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-                if (config?.BaiduTranslate == null)
-                    return null;
-
-                if (string.IsNullOrEmpty(config.BaiduTranslate.AppId) ||
-                    string.IsNullOrEmpty(config.BaiduTranslate.ApiKey))
-                    return null;
-
-                return config;
+                return config?.BaiduTranslate != null &&
+                       !string.IsNullOrWhiteSpace(config.BaiduTranslate.AppId) &&
+                       !string.IsNullOrWhiteSpace(config.BaiduTranslate.ApiKey)
+                    ? config
+                    : null;
             }
             catch
             {
@@ -221,31 +188,28 @@ namespace English_Listen_WinUI.Services
 
         public void SetCustomApiKey(string appId, string apiKey)
         {
-            _appId = appId;
-            _apiKey = apiKey;
-            SecretStorageService.SaveSecret(new BaiduSecretConfig { AppId = appId, ApiKey = apiKey });
-            Debug.WriteLine($"已设置自定义API并持久化: AppId={_appId}");
+            if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(apiKey))
+                throw new ArgumentException("百度翻译 API 凭据不能为空。");
+
+            _appId = appId.Trim();
+            _apiKey = apiKey.Trim();
+            SecretStorageService.SaveSecret(new BaiduSecretConfig { AppId = _appId, ApiKey = _apiKey });
         }
 
         private void LoadCache()
         {
-            var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-
-            if (File.Exists(_translationCachePath))
+            lock (_cacheLock)
             {
                 try
                 {
-                    var json = File.ReadAllText(_translationCachePath);
-                    _translationCache = JsonSerializer.Deserialize<Dictionary<string, string>>(json, jsonOptions) ??
-                                        new Dictionary<string, string>();
-
-                    if (_translationCache.Count > MAX_CACHE_ENTRIES)
+                    if (File.Exists(_translationCachePath))
                     {
-                        var excess = _translationCache.Count - MAX_CACHE_ENTRIES;
-                        var keysToRemove = _translationCache.Keys.Take(excess).ToList();
-                        foreach (var key in keysToRemove)
+                        var info = new FileInfo(_translationCachePath);
+                        if (info.Length <= 10 * 1024 * 1024)
                         {
-                            _translationCache.Remove(key);
+                            var cache = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(_translationCachePath));
+                            if (cache != null)
+                                _translationCache = TrimCache(cache);
                         }
                     }
                 }
@@ -253,128 +217,139 @@ namespace English_Listen_WinUI.Services
                 {
                     _translationCache = new Dictionary<string, string>();
                 }
-            }
 
-            if (File.Exists(_limitCachePath))
-            {
                 try
                 {
-                    var json = File.ReadAllText(_limitCachePath);
-                    var cache = JsonSerializer.Deserialize<Dictionary<string, int>>(json, jsonOptions) ??
-                                new Dictionary<string, int>();
-
-                    var cutoffDate = DateTime.Now.AddDays(-MAX_DAILY_HISTORY_DAYS).ToString("yyyy-MM-dd");
-                    var staleKeys = cache.Keys.Where(k => string.Compare(k, cutoffDate, StringComparison.Ordinal) < 0)
-                        .ToList();
-                    foreach (var key in staleKeys)
+                    if (File.Exists(_limitCachePath))
                     {
-                        cache.Remove(key);
-                    }
-
-                    if (cache.TryGetValue(_currentDate, out var count))
-                    {
-                        _dailyLimitCache[_currentDate] = count;
+                        var info = new FileInfo(_limitCachePath);
+                        if (info.Length <= 1024 * 1024)
+                        {
+                            var cache = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(_limitCachePath));
+                            if (cache != null)
+                            {
+                                var cutoffDate = DateTime.Now.AddDays(-MAX_DAILY_HISTORY_DAYS).ToString("yyyy-MM-dd");
+                                _dailyLimitCache = cache
+                                    .Where(item => string.CompareOrdinal(item.Key, cutoffDate) >= 0)
+                                    .ToDictionary(item => item.Key, item => Math.Clamp(item.Value, 0, DAILY_LIMIT));
+                            }
+                        }
                     }
                 }
                 catch
                 {
-                    _dailyLimitCache[_currentDate] = 0;
+                    _dailyLimitCache = new Dictionary<string, int>();
                 }
+
+                _dailyLimitCache.TryAdd(_currentDate, 0);
             }
+        }
+
+        private static Dictionary<string, string> TrimCache(Dictionary<string, string> cache)
+        {
+            if (cache.Count <= MAX_CACHE_ENTRIES)
+                return cache;
+
+            return cache.Skip(cache.Count - MAX_CACHE_ENTRIES)
+                .ToDictionary(item => item.Key, item => item.Value);
         }
 
         private void SaveCache()
         {
+            Dictionary<string, string> translationSnapshot;
+            Dictionary<string, int> limitSnapshot;
             lock (_cacheLock)
             {
-                try
-                {
-                    if (_translationCache.Count > MAX_CACHE_ENTRIES)
-                    {
-                        var excess = _translationCache.Count - MAX_CACHE_ENTRIES;
-                        var keysToRemove = _translationCache.Keys.Take(excess).ToList();
-                        foreach (var key in keysToRemove)
-                        {
-                            _translationCache.Remove(key);
-                        }
-                    }
+                _translationCache = TrimCache(_translationCache);
+                translationSnapshot = new Dictionary<string, string>(_translationCache);
+                limitSnapshot = new Dictionary<string, int>(_dailyLimitCache);
+            }
 
-                    var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-
-                    var translationJson = JsonSerializer.Serialize(_translationCache, jsonOptions);
-                    File.WriteAllText(_translationCachePath, translationJson);
-
-                    var limitJson = JsonSerializer.Serialize(_dailyLimitCache, jsonOptions);
-                    File.WriteAllText(_limitCachePath, limitJson);
-                }
-                catch
-                {
-                }
+            try
+            {
+                File.WriteAllText(_translationCachePath, JsonSerializer.Serialize(translationSnapshot));
+                File.WriteAllText(_limitCachePath, JsonSerializer.Serialize(limitSnapshot));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"保存翻译缓存失败: {ex.Message}");
             }
         }
 
         public int GetRemainingLimit()
         {
             CheckDate();
-            return DAILY_LIMIT - _dailyLimitCache[_currentDate];
+            lock (_cacheLock)
+            {
+                return Math.Max(0, DAILY_LIMIT - _dailyLimitCache[_currentDate]);
+            }
         }
 
         public void ResetDailyLimit(int newLimit)
         {
             CheckDate();
-            _dailyLimitCache[_currentDate] = 0;
+            lock (_cacheLock)
+            {
+                _dailyLimitCache[_currentDate] = 0;
+            }
             SaveCache();
-            Debug.WriteLine($"已重置当日限额为: {newLimit}");
         }
 
         private void CheckDate()
         {
+            var today = DateTime.Now.ToString("yyyy-MM-dd");
             lock (_cacheLock)
             {
-                var today = DateTime.Now.ToString("yyyy-MM-dd");
-                if (today != _currentDate)
-                {
-                    _currentDate = today;
-                    _dailyLimitCache[_currentDate] = 0;
-                    SaveCache();
-                }
+                if (today == _currentDate)
+                    return;
+
+                _currentDate = today;
+                _dailyLimitCache[_currentDate] = 0;
             }
         }
 
-        private bool CheckLimit()
+        private bool TryConsumeLimit()
         {
             CheckDate();
-            return _dailyLimitCache[_currentDate] < DAILY_LIMIT;
+            lock (_cacheLock)
+            {
+                if (_dailyLimitCache[_currentDate] >= DAILY_LIMIT)
+                    return false;
+
+                _dailyLimitCache[_currentDate]++;
+                return true;
+            }
         }
 
-        private void IncrementLimit()
+        private void RefundLimit()
         {
             lock (_cacheLock)
             {
-                CheckDate();
-                _dailyLimitCache[_currentDate]++;
-                SaveCache();
+                if (_dailyLimitCache.TryGetValue(_currentDate, out var count) && count > 0)
+                    _dailyLimitCache[_currentDate] = count - 1;
             }
         }
 
         public async Task<string> TranslateAsync(string text, string from = "auto", string to = "zh")
         {
-            if (string.IsNullOrEmpty(_appId) || string.IsNullOrEmpty(_apiKey))
-            {
+            if (string.IsNullOrWhiteSpace(_appId) || string.IsNullOrWhiteSpace(_apiKey))
                 throw new InvalidOperationException("未配置百度翻译 API 密钥，请在设置页面中配置。");
-            }
 
-            if (!CheckLimit())
-            {
-                throw new Exception($"每日翻译限额已用完，最多只能翻译{DAILY_LIMIT}个单词");
-            }
+            if (string.IsNullOrWhiteSpace(text))
+                throw new ArgumentException("待翻译文本不能为空。", nameof(text));
+
+            if (text.Length > MAX_TEXT_LENGTH)
+                throw new ArgumentException($"待翻译文本不能超过 {MAX_TEXT_LENGTH} 个字符。", nameof(text));
+
+            if (!TryConsumeLimit())
+                throw new InvalidOperationException($"每日翻译限额已用完，最多只能翻译 {DAILY_LIMIT} 次。");
 
             var cacheKey = $"{from}:{to}:{text}";
-
             lock (_cacheLock)
             {
                 if (_translationCache.TryGetValue(cacheKey, out var cachedResult))
                 {
+                    RefundLimit();
                     return cachedResult;
                 }
             }
@@ -383,85 +358,77 @@ namespace English_Listen_WinUI.Services
             {
                 var salt = _random.Next(100000, 999999).ToString();
                 var sign = GenerateSign(text, salt);
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["q"] = text,
+                    ["from"] = from,
+                    ["to"] = to,
+                    ["appid"] = _appId,
+                    ["salt"] = salt,
+                    ["sign"] = sign
+                });
 
-                var requestUrl =
-                    $"{API_URL}?q={Uri.EscapeDataString(text)}&from={from}&to={to}&appid={_appId}&salt={salt}&sign={sign}";
-
-                var response = await _sharedHttpClient.GetAsync(requestUrl);
-                var json = await response.Content.ReadAsStringAsync();
-
+                using var response = await _sharedHttpClient.PostAsync(API_URL, content).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 var result = JsonSerializer.Deserialize<BaiduTranslateResponse>(json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 if (result == null)
-                {
-                    throw new Exception("翻译响应解析失败");
-                }
+                    throw new InvalidOperationException("翻译响应解析失败。");
 
                 if (!string.IsNullOrEmpty(result.ErrorCode) && result.ErrorCode != "0")
+                    throw new InvalidOperationException($"API错误 [{result.ErrorCode}]: {GetErrorMessage(result.ErrorCode, result.ErrorMsg)}");
+
+                var translation = result.TransResult?.FirstOrDefault()?.Dst;
+                if (string.IsNullOrWhiteSpace(translation))
+                    throw new InvalidOperationException("翻译结果为空。");
+
+                lock (_cacheLock)
                 {
-                    var errorMsg = GetErrorMessage(result.ErrorCode, result.ErrorMsg);
-                    throw new Exception($"API错误 [{result.ErrorCode}]: {errorMsg}");
+                    _translationCache[cacheKey] = translation;
                 }
-
-                if (result.TransResult != null && result.TransResult.Length > 0)
-                {
-                    var translation = result.TransResult[0].Dst;
-
-                    lock (_cacheLock)
-                    {
-                        _translationCache[cacheKey] = translation;
-                        IncrementLimit();
-                        SaveCache();
-                    }
-
-                    return translation;
-                }
-
-                throw new Exception("翻译结果为空");
+                SaveCache();
+                return translation;
             }
-            catch (Exception ex)
+            catch
             {
-                throw new Exception($"翻译失败: {ex.Message}");
+                RefundLimit();
+                SaveCache();
+                throw;
             }
         }
 
         private string GenerateSign(string text, string salt)
         {
             var signStr = _appId + text + salt + _apiKey;
-            return GetMD5(signStr);
+            return Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(signStr))).ToLowerInvariant();
         }
 
-        private string GetMD5(string input)
-        {
-            var bytes = Encoding.UTF8.GetBytes(input);
-            var hash = MD5.HashData(bytes);
-            return Convert.ToHexString(hash).ToLowerInvariant();
-        }
-
-        private string GetErrorMessage(string errorCode, string defaultMsg)
+        private static string GetErrorMessage(string errorCode, string defaultMsg)
         {
             return errorCode switch
             {
                 "52001" => "请求超时，请检查网络连接",
                 "52002" => "系统错误，请稍后重试",
-                "52003" => "未授权用户，请检查APP ID和密钥是否正确",
+                "52003" => "未授权用户，请检查 APP ID 和密钥是否正确",
                 "54003" => "访问频率受限，请降低请求频率",
                 "54004" => "账户余额不足",
-                "54005" => "长query请求频繁",
-                "58000" => "客户端IP非法",
+                "54005" => "长 query 请求频繁",
+                "58000" => "客户端 IP 非法",
                 "58001" => "不支持的语言类型",
                 "58002" => "服务当前已关闭",
                 "90107" => "认证未通过或未生效",
-                _ => string.IsNullOrEmpty(defaultMsg) ? "未知错误" : defaultMsg
+                _ => string.IsNullOrWhiteSpace(defaultMsg) ? "未知错误" : defaultMsg
             };
         }
 
-        public async Task<List<TranslationResultItem>> BatchTranslateAsync(List<string> words, string from = "auto",
-            string to = "zh")
+        public async Task<List<TranslationResultItem>> BatchTranslateAsync(List<string> words, string from = "auto", string to = "zh")
         {
-            var results = new List<TranslationResultItem>();
+            if (words == null)
+                throw new ArgumentNullException(nameof(words));
 
+            var results = new List<TranslationResultItem>(words.Count);
             foreach (var word in words)
             {
                 try
@@ -481,34 +448,44 @@ namespace English_Listen_WinUI.Services
 
     public class SecretConfig
     {
-        [JsonPropertyName("BaiduTranslate")] public required BaiduTranslateConfig BaiduTranslate { get; set; }
+        [JsonPropertyName("BaiduTranslate")]
+        public required BaiduTranslateConfig BaiduTranslate { get; set; }
     }
 
     public class BaiduTranslateConfig
     {
-        [JsonPropertyName("AppId")] public required string AppId { get; set; }
+        [JsonPropertyName("AppId")]
+        public required string AppId { get; set; }
 
-        [JsonPropertyName("ApiKey")] public required string ApiKey { get; set; }
+        [JsonPropertyName("ApiKey")]
+        public required string ApiKey { get; set; }
     }
 
     public class BaiduTranslateResponse
     {
-        [JsonPropertyName("from")] public string From { get; set; } = string.Empty;
+        [JsonPropertyName("from")]
+        public string From { get; set; } = string.Empty;
 
-        [JsonPropertyName("to")] public string To { get; set; } = string.Empty;
+        [JsonPropertyName("to")]
+        public string To { get; set; } = string.Empty;
 
-        [JsonPropertyName("trans_result")] public TransResult[] TransResult { get; set; } = Array.Empty<TransResult>();
+        [JsonPropertyName("trans_result")]
+        public TransResult[] TransResult { get; set; } = Array.Empty<TransResult>();
 
-        [JsonPropertyName("error_code")] public string ErrorCode { get; set; } = string.Empty;
+        [JsonPropertyName("error_code")]
+        public string ErrorCode { get; set; } = string.Empty;
 
-        [JsonPropertyName("error_msg")] public string ErrorMsg { get; set; } = string.Empty;
+        [JsonPropertyName("error_msg")]
+        public string ErrorMsg { get; set; } = string.Empty;
     }
 
     public class TransResult
     {
-        [JsonPropertyName("src")] public string Src { get; set; } = string.Empty;
+        [JsonPropertyName("src")]
+        public string Src { get; set; } = string.Empty;
 
-        [JsonPropertyName("dst")] public string Dst { get; set; } = string.Empty;
+        [JsonPropertyName("dst")]
+        public string Dst { get; set; } = string.Empty;
     }
 
     public class TranslationResultItem
