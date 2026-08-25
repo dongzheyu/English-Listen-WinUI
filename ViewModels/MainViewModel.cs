@@ -47,27 +47,18 @@ namespace English_Listen_WinUI.ViewModels
 
         public MainViewModel()
         {
-            try
+            NavigateCommand = new RelayCommand<string>(Navigate);
+            ToggleThemeCommand = new RelayCommand(ToggleTheme);
+            SaveWordsCommand = new RelayCommand(async () =>
             {
-                NavigateCommand = new RelayCommand<string>(Navigate);
-                ToggleThemeCommand = new RelayCommand(ToggleTheme);
-                SaveWordsCommand = new RelayCommand(async () =>
-                {
-                    try { await SaveWordsAsync(); }
-                    catch (Exception ex) { Debug.WriteLine($"SaveWordsAsync 异常: {ex.Message}"); }
-                });
-                LoadWordsCommand = new RelayCommand<string>(async file =>
-                {
-                    try { await LoadWordsAsync(file); }
-                    catch (Exception ex) { Debug.WriteLine($"LoadWordsAsync 异常: {ex.Message}"); }
-                });
-                _ = InitializeAsync();
-            }
-            catch (Exception ex)
+                try { await SaveWordsAsync(); }
+                catch (Exception ex) { Debug.WriteLine($"SaveWordsAsync 异常: {ex.Message}"); }
+            });
+            LoadWordsCommand = new RelayCommand<string>(async file =>
             {
-                Debug.WriteLine($"[MainViewModel] Constructor error: {ex.Message}");
-                Debug.WriteLine($"[MainViewModel] Stack trace: {ex.StackTrace}");
-            }
+                try { await LoadWordsAsync(file); }
+                catch (Exception ex) { Debug.WriteLine($"LoadWordsAsync 异常: {ex.Message}"); }
+            });
         }
 
         public SpeechService SpeechService => _speechService;
@@ -144,10 +135,9 @@ namespace English_Listen_WinUI.ViewModels
 
         private void UpdateCurrentWordsFromText()
         {
-            if (string.IsNullOrEmpty(WordsText))
-                CurrentWords = new List<string>();
-            else
-                CurrentWords = WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            CurrentWords = string.IsNullOrEmpty(WordsText)
+                ? new List<string>()
+                : WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(w => w.Trim())
                     .Where(w => !string.IsNullOrEmpty(w) && w.Length <= 256)
                     .Take(10000)
