@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore English-Listen-WinUI.slnx
+
+      - name: Build
+        run: dotnet build English-Listen-WinUI.slnx --configuration Release --no-restore --verbosity minimal -p:GenerateAppxPackageOnBuild=false
+
+      - name: Check tracked source for revoked credentials
+        shell: pwsh
+        run: |
+          $blocked = @(
+            'CV5ogmfsAmHALHF9goY5',
+            '20260316002574195'
+          )
+
+          $extensions = @('.cs', '.csproj', '.props', '.targets', '.json', '.xml', '.yml', '.yaml', '.md', '.txt', '.ini')
+          $violations = @()
+
+          foreach ($file in (git ls-files)) {
+            if ($extensions -notcontains [IO.Path]::GetExtension($file).ToLowerInvariant()) { continue }
+            foreach ($value in $blocked) {
+              if (Select-String -Path $file -Pattern $value -SimpleMatch -Quiet -ErrorAction SilentlyContinue) {
+                $violations += "$file contains a revoked credential"
+              }
+            }
+          }
+
+          if ($violations.Count -gt 0) {
+            $violations | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
