@@ -109,7 +109,7 @@ namespace English_Listen_WinUI.Services
 
         private static async Task<string?> ReadJsonFileAsync(string path)
         {
-            if (!File.Exists(path))
+            if (!File.Exists(path) || IsReparsePoint(path))
                 return null;
 
             var info = new FileInfo(path);
@@ -193,6 +193,9 @@ namespace English_Listen_WinUI.Services
             await _fileLock.WaitAsync();
             try
             {
+                if (IsReparsePoint(SettingsFilePath))
+                    throw new IOException("拒绝覆盖重解析点设置文件。");
+
                 var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
                 var tempPath = SettingsFilePath + $".{Guid.NewGuid():N}.tmp";
                 await File.WriteAllTextAsync(tempPath, json);
@@ -209,7 +212,7 @@ namespace English_Listen_WinUI.Services
             var groups = new List<WordListGroup>();
             try
             {
-                if (!File.Exists(WordlistGroupsFilePath))
+                if (!File.Exists(WordlistGroupsFilePath) || IsReparsePoint(WordlistGroupsFilePath))
                     return groups;
 
                 var info = new FileInfo(WordlistGroupsFilePath);
@@ -263,6 +266,9 @@ namespace English_Listen_WinUI.Services
             await _fileLock.WaitAsync();
             try
             {
+                if (IsReparsePoint(WordlistGroupsFilePath))
+                    throw new IOException("拒绝覆盖重解析点分组文件。");
+
                 var lines = new List<string>();
                 foreach (var group in groups.Take(MaxGroupCount))
                 {
@@ -335,8 +341,8 @@ namespace English_Listen_WinUI.Services
             {
                 var userDir = GetUserDataPath(username);
                 Directory.CreateDirectory(userDir);
-                if (IsReparsePoint(userDir))
-                    throw new IOException("拒绝使用重解析点用户目录。");
+                if (IsReparsePoint(userDir) || IsReparsePoint(GetUserTestHistoryPath(username)))
+                    throw new IOException("拒绝使用重解析点用户数据路径。");
 
                 var json = JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true });
                 if (Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
@@ -511,8 +517,8 @@ namespace English_Listen_WinUI.Services
                     EnsureUsername(user.Username);
                     var userDir = GetUserDataPath(user.Username);
                     Directory.CreateDirectory(userDir);
-                    if (IsReparsePoint(userDir))
-                        throw new IOException("拒绝使用重解析点用户目录。");
+                    if (IsReparsePoint(userDir) || IsReparsePoint(GetUserSettingsPath(user.Username)))
+                        throw new IOException("拒绝使用重解析点用户数据路径。");
 
                     var json = JsonSerializer.Serialize(user, new JsonSerializerOptions { WriteIndented = true });
                     if (Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
