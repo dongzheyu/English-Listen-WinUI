@@ -33,71 +33,309 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
-# Visual Studio cache
+# Visual Studio 2015/2017 cache/options directory
 .vs/
+# Uncomment if you have tasks that create the project's static files in wwwroot
+#wwwroot/
+
+# Visual Studio 2017 auto generated files
 Generated\ Files/
 
-# Test and profiler output
+# MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
+
+# NUnit
+*.VisualState.xml
 TestResult.xml
 nunit-*.xml
-*.coverage
-*.coveragexml
-*.dotCover
-OpenCover/
 
-# Compiler and build artifacts
+# Build Results of an ATL Project
+[Dd]ebugPS/
+[Rr]eleasePS/
+dlldata.c
+
+# Benchmark Results
+BenchmarkDotNet.Artifacts/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# StyleCop
+StyleCopReport.xml
+
+# Files built by Visual Studio
+*_i.c
+*_p.c
+*_h.h
+*.ilk
+*.meta
 *.obj
+*.iobj
+*.pch
 *.pdb
 *.ipdb
+*.pgc
 *.pgd
-*.ilk
-*.binlog
-*.cachefile
 *.rsp
-artifacts/
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Chutzpah Test files
+_Chutzpah*
+
+# Visual C++ cache files
+ipch/
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# Visual Studio profiler
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# Visual Studio Trace Files
+*.e2e
+
+# TFS 2012 Local Workspace
+$tf/
+
+# Guidance Automation Toolkit
+*.gpState
+
+# ReSharper is a code analysis tool
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# TeamCity is a build add-in
+_TeamCity*
+
+# DotCover is a Code Coverage Tool
+*.dotCover
+
+# AxoCover is a code coverage tool
+.axoCover/*
+!.axoCover/settings.json
+
+# Coverlet is a code coverage tool
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Visual Studio code coverage results
+*.coverage
+*.coveragexml
+
+# NCrunch
+_NCrunch_*
+.*crunch*.local.xml
+nCrunchTemp_*
+
+# MightyMoose
+*.mm.*
+AutoTest.Net/
+
+# Web workbench
+.sass-cache/
+
+# Installshield output
+[Ee]xpress/
+
+# DocProject buildhelp
+DocProject/buildhelp/
+DocProject/Help/*.HxT
+DocProject/Help/*.HxC
+DocProject/Help/*.hhc
+DocProject/Help/*.hhk
+DocProject/Help/*.hhp
+DocProject/Help/Html2
+DocProject/Help/html
+
+# Click-Once directory
 publish/
 
-# NuGet
+# Publish Web Output
+*.[Pp]ublish.xml
+*.azurePubxml
+*.pubxml
+*.publishproj
+PublishScripts/
+
+# NuGet Packages
 *.nupkg
 *.snupkg
 **/[Pp]ackages/*
 !**/[Pp]ackages/build/
-project.lock.json
-project.fragment.lock.json
 *.nuget.props
 *.nuget.targets
 
-# IDE/project tooling
-.idea/
-_ReSharper*/
-*.[Rr]e[Ss]harper
-.localhistory/
-.ionide/
-.cr/personal
-node_modules/
+# Microsoft Azure Build Output
+csx/
+*.build.csdef
+ecf/
+rcf/
 
-# Publishing and signing
-*.pubxml
-*.publishproj
-PublishScripts/
+# Windows Store app package directories and files
+AppPackages/
+BundleArtifacts/
 Package.StoreAssociation.xml
 _pkginfo.txt
 *.appx
 *.appxbundle
 *.appxupload
-*.publishsettings
-*.pfx
 
-# Generated/source conversion output
+# Visual Studio cache files
+*.[Cc]ache
+!?*.[Cc]ache/
+
+# Others
+ClientBin/
+~$*
+*~
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+*.publishsettings
+orleans.codegen.cs
+
+# Strong name files
+#*.snk
+
+# RIA/Silverlight
 Generated_Code/
-MigrationBackup/
+
+# Backup & report files
+_UpgradeReport_Files/
 Backup*/
 UpgradeLog*.XML
 UpgradeLog*.htm
+ServiceFabricBackup/
+*.rptproj.bak
 
-# Local data and caches
+# SQL Server
+*.mdf
+*.ldf
+*.ndf
+
+# Business Intelligence
+*.rdl.data
+*.bim.layout
+*.bim_*.settings
+*.rptproj.rsuser
+*- [Bb]ackup.rdl
+*- [Bb]ackup ([0-9]).rdl
+*- [Bb]ackup ([0-9][0-9]).rdl
+
+# Microsoft Fakes
+FakesAssemblies/
+
+# GhostDoc
+*.GhostDoc.xml
+
+# Node.js Tools for Visual Studio
+.ntvs_analysis.dat
+node_modules/
+
+# Visual Studio 6
+*.plg
+*.opt
+*.vbw
+
+# Visual Studio LightSwitch
+**/*.HTMLClient/GeneratedArtifacts
+**/*.DesktopClient/GeneratedArtifacts
+**/*.DesktopClient/ModelManifest.xml
+**/*.Server/GeneratedArtifacts
+**/*.Server/ModelManifest.xml
+_Pvt_Extensions
+
+# Paket
+.paket/paket.exe
+paket-files/
+
+# FAKE
+.fake/
+
+# CodeRush
+.cr/personal
+
+# Python
+__pycache__/
+*.pyc
+
+# Cake
+#tools/**
+#!tools/packages.config
+
+# Tabs Studio
+*.tss
+
+# Telerik JustMock
+*.jmconfig
+
+# BizTalk
+*.btp.cs
+*.btm.cs
+*.odx.cs
+*.xsd.cs
+
+# OpenCover
+OpenCover/
+
+# Azure Stream Analytics
+ASALocalRun/
+
+# MSBuild Binary and Structured Log
+*.binlog
+
+# NVIDIA Nsight
+*.nvuser
+
+# MFractors
+.mfractor/
+
+# Local History
+.localhistory/
+
+# BeatPulse
+healthchecksdb
+
+# Backup folder
+MigrationBackup/
+
+# Ionide
+.ionide/
+
+# Fody
+FodyWeavers.xsd
+
+# Secret configuration files
 config/secret.json
 config/settings.json
 config/redeem_codes.json
