@@ -8,11 +8,14 @@ namespace English_Listen_WinUI.Services
         private const int SaltSize = 16;
         private const int HashSize = 32;
         private const int Iterations = 100_000;
+        private const int MaxPasswordLength = 1024;
         private const char Separator = ':';
 
         public static string HashPassword(string password)
         {
             if (password == null) throw new ArgumentNullException(nameof(password));
+            if (password.Length > MaxPasswordLength)
+                throw new ArgumentException($"密码长度不能超过 {MaxPasswordLength} 个字符。", nameof(password));
 
             byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
             byte[] hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, HashSize);
@@ -22,7 +25,7 @@ namespace English_Listen_WinUI.Services
 
         public static bool VerifyPassword(string password, string passwordHash)
         {
-            if (string.IsNullOrEmpty(passwordHash) || password == null)
+            if (string.IsNullOrEmpty(passwordHash) || password == null || password.Length > MaxPasswordLength)
                 return false;
 
             var parts = passwordHash.Split(Separator);
