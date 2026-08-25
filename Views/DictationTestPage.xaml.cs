@@ -20,6 +20,11 @@ namespace English_Listen_WinUI.Views
 {
     public sealed partial class DictationTestPage : Page, IDisposable
     {
+        private const long MaxWordlistFileBytes = 2 * 1024 * 1024;
+        private const int MaxWordCount = 10000;
+        private const int MaxWordLength = 256;
+        private const int MaxTranslationLength = 2048;
+
         private readonly object _disposalLock = new object();
         private readonly object _synthesisLock = new object();
 
@@ -221,10 +226,8 @@ namespace English_Listen_WinUI.Views
 
             try
             {
-                // 重新初始化音频设备（Dispose 销毁了 synthesizer，返回到此页时需要重建）
                 InitializeAudioDevices();
 
-                // 检查音频设备是否可用
                 if (!_hasAudioDevice)
                 {
                     Debug.WriteLine("DictationTestPage: 未检测到音频设备，显示警告");
@@ -232,10 +235,8 @@ namespace English_Listen_WinUI.Views
                     return;
                 }
 
-                // 从共享的ViewModel获取设置，而不是创建新的SettingsService实例
-                countdownSeconds = App.SharedViewModel?.Settings?.Settings?.ReadInterval ?? 5;
+                countdownSeconds = Math.Clamp(App.SharedViewModel?.Settings?.Settings?.ReadInterval ?? 5, 1, 60);
 
-                // 同步设置到UI控件（OnNavigatedTo 在 UI 线程上调用，可以直接设置）
                 if (CountdownSetter != null)
                 {
                     CountdownSetter.Value = countdownSeconds;
@@ -250,7 +251,19 @@ namespace English_Listen_WinUI.Views
                 }
                 else if (e.Parameter is WordsPage.DictationTestParamsWithTranslations testParamsWithTranslations)
                 {
-                    wordList = testParamsWithTranslations.WordList;
+                    wordList = testParamsWithTranslations.WordList?
+                        .Take(MaxWordCount)
+                        .Where(pair => pair != null &&
+                                       !string.IsNullOrWhiteSpace(pair.Word) &&
+                                       pair.Word.Trim().Length <= MaxWordLength &&
+                                       (pair.Translation?.Length ?? 0) <= MaxTranslationLength)
+                        .Select(pair => new WordTranslationPair
+                        {
+                            Word = pair.Word.Trim(),
+                            Translation = pair.Translation?.Trim() ?? string.Empty
+                        })
+                        .ToList() ?? new List<WordTranslationPair>();
+
                     if (testParamsWithTranslations.RandomOrder)
                     {
                         ShuffleWordList();
@@ -277,7 +290,6 @@ namespace English_Listen_WinUI.Views
                     return;
                 }
 
-                // 在UI加载完成后设置焦点
                 if (InputTextBox != null)
                 {
                     _ = InputTextBox.Focus(FocusState.Programmatic);
@@ -295,71 +307,77 @@ namespace English_Listen_WinUI.Views
             speakTaskSource?.TrySetResult(true);
         }
 
-
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-
-            // 清理资源
             Dispose();
         }
 
         private void LoadWordList(string filePath, bool randomOrder)
         {
-            // 判断是否为完整路径，如果不是则拼接词库目录
+            if (string.IsNullOrWhiteSpace(filePath) || Path.IsPathRooted(filePath))
+            {
+                _ = ShowErrorDialogAsync("词库文件路径非法。");
+                return;
+            }
+
             string fullPath;
-            if (Path.IsPathRooted(filePath))
+            try
             {
-                fullPath = filePath;
-            }
-            else
-            {
-                string appDataPath;
-                try
+                var settings = App.SharedViewModel?.Settings;
+                if (settings == null)
                 {
-                    appDataPath = ApplicationData.Current.LocalFolder.Path;
-                }
-                catch
-                {
-                    appDataPath = AppContext.BaseDirectory;
+                    _ = ShowErrorDialogAsync("设置服务不可用。");
+                    return;
                 }
 
-                string folderPath = Path.Combine(appDataPath, "wordlist");
-                fullPath = Path.Combine(folderPath, filePath);
-            }
+                fullPath = settings.GetWordlistFilePath(filePath);
+                if (!File.Exists(fullPath) || (File.GetAttributes(fullPath) & FileAttributes.ReparsePoint) != 0)
+                {
+                    _ = ShowErrorDialogAsync("词库文件不存在或路径无效。");
+                    return;
+                }
 
-            if (!File.Exists(fullPath))
+                var info = new FileInfo(fullPath);
+                if (info.Length > MaxWordlistFileBytes)
+                {
+                    _ = ShowErrorDialogAsync("词库文件过大。");
+                    return;
+                }
+            }
+            catch (Exception ex)
             {
-                _ = ShowErrorDialogAsync("词库文件不存在。");
+                Debug.WriteLine($"校验词库路径失败: {ex.Message}");
+                _ = ShowErrorDialogAsync("词库文件路径无效。");
                 return;
             }
 
             try
             {
                 var lines = File.ReadAllLines(fullPath);
-                wordList = lines.Where(line => !string.IsNullOrWhiteSpace(line))
+                wordList = lines
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
                     .Select(line => line.Trim())
+                    .Take(MaxWordCount)
                     .Select(line =>
                     {
-                        // 尝试解析单词和翻译（格式：单词|翻译）
-                        var parts = line.Split('|');
-                        if (parts.Length >= 2)
+                        var separator = line.IndexOf('|');
+                        if (separator > 0)
                         {
                             return new WordTranslationPair
                             {
-                                Word = parts[0].Trim(),
-                                Translation = parts[1].Trim()
+                                Word = line[..separator].Trim(),
+                                Translation = line[(separator + 1)..].Trim()
                             };
                         }
-                        else
+
+                        return new WordTranslationPair
                         {
-                            return new WordTranslationPair
-                            {
-                                Word = line,
-                                Translation = ""
-                            };
-                        }
+                            Word = line,
+                            Translation = string.Empty
+                        };
                     })
+                    .Where(pair => pair.Word.Length > 0 && pair.Word.Length <= MaxWordLength && pair.Translation.Length <= MaxTranslationLength)
                     .ToList();
             }
             catch (Exception ex)
@@ -458,10 +476,8 @@ namespace English_Listen_WinUI.Views
 
             try
             {
-                // 实时检查并显示翻译
                 if (string.IsNullOrEmpty(translation) && _readTranslation)
                 {
-                    // 自动翻译
                     try
                     {
                         _translateService ??= new BaiduTranslateService();
@@ -470,7 +486,6 @@ namespace English_Listen_WinUI.Views
                         {
                             wordPair.Translation = translation;
                             TranslationText.Text = $"翻译: {translation}";
-                            // 保存翻译到翻译库
                             _translationLibraryService ??= new TranslationLibraryService();
                             _translationLibraryService.SaveTranslation(word, translation);
                             _translationLibraryService.SaveToFile();
@@ -483,7 +498,6 @@ namespace English_Listen_WinUI.Views
                 }
                 else if (!string.IsNullOrEmpty(translation))
                 {
-                    // 如果已有翻译，立即显示
                     TranslationText.Text = $"翻译: {translation}";
                 }
 
@@ -492,10 +506,7 @@ namespace English_Listen_WinUI.Views
 
                 try
                 {
-                    // 第一步：英文朗读 - 使用设置的英文语音模型
                     await SpeakEnglishWordAsync(word);
-
-                    // 第二步：中文朗读 - 使用设置的中文语音模型
                     if (_readTranslation && !string.IsNullOrEmpty(translation))
                     {
                         await SpeakChineseTranslationAsync(translation);
@@ -589,7 +600,7 @@ namespace English_Listen_WinUI.Views
                     }
                 }
 
-                var tcs = speakTaskSource; // 捕获局部引用，防止 Dispose/Submit 并发设为 null
+                var tcs = speakTaskSource;
                 var completedTask = await Task.WhenAny(tcs!.Task, Task.Delay(8000));
                 if (completedTask != tcs.Task)
                 {
@@ -680,7 +691,7 @@ namespace English_Listen_WinUI.Views
                     }
                 }
 
-                var tcs = speakTaskSource; // 捕获局部引用，防止 Dispose/Submit 并发设为 null
+                var tcs = speakTaskSource;
                 var completedTask = await Task.WhenAny(tcs!.Task, Task.Delay(10000));
                 if (completedTask != tcs.Task)
                 {
@@ -761,7 +772,6 @@ namespace English_Listen_WinUI.Views
                 string input = InputTextBox.Text?.Trim() ?? "";
                 string correct = wordList[currentIndex].Word.Trim();
 
-                // ponytail: strip spaces + lowercase — ignore space positions for phrases
                 string normInput = input.Replace(" ", "").ToLowerInvariant();
                 string normCorrect = correct.Replace(" ", "").ToLowerInvariant();
 
@@ -793,7 +803,6 @@ namespace English_Listen_WinUI.Views
             string normInput = input.Replace(" ", "").ToLowerInvariant();
             string normCorrect = correct.Replace(" ", "").ToLowerInvariant();
 
-            // Only increment correctCount if this index hasn't been correctly answered before
             if (normInput.Equals(normCorrect) && !correctIndices.Contains(currentIndex))
             {
                 correctCount++;
@@ -966,7 +975,6 @@ namespace English_Listen_WinUI.Views
 
             if (_isPaperMode)
             {
-                // 纸笔模式：调用对话框让用户输入正确数并保存结果
                 await ShowPaperModeResultDialogAsync();
             }
             else
@@ -1029,7 +1037,6 @@ namespace English_Listen_WinUI.Views
 
             await SaveTestResultAsync(userCorrectCount, accuracy);
 
-            // ponytail: build answer list for paper mode
             var answersPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
             answersPanel.Children.Add(new TextBlock
             {
@@ -1241,7 +1248,6 @@ namespace English_Listen_WinUI.Views
                 var settingsService = App.SharedViewModel?.Settings;
                 if (settingsService == null) return;
 
-                // 确保设置已加载
                 await settingsService.LoadSettingsAsync();
 
                 var currentUser = settingsService.Settings.CurrentUser;
@@ -1274,14 +1280,12 @@ namespace English_Listen_WinUI.Views
         {
             try
             {
-                // 只设置英文语音到 synthesizer
                 var englishVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsEnglishVoiceName;
                 if (!string.IsNullOrEmpty(englishVoiceName))
                 {
                     SetEnglishVoice(englishVoiceName);
                 }
 
-                // 只设置中文语音到 chineseSynthesizer
                 var chineseVoiceName = App.SharedViewModel?.Settings?.Settings?.WindowsTtsChineseVoiceName;
                 if (!string.IsNullOrEmpty(chineseVoiceName))
                 {
@@ -1336,7 +1340,7 @@ namespace English_Listen_WinUI.Views
                     }
                     else
                     {
-                        Debug.WriteLine($"错误：未找到任何英文语音，将使用系统默认语音");
+                        Debug.WriteLine("错误：未找到任何英文语音，将使用系统默认语音");
                     }
                 }
             }
@@ -1392,7 +1396,7 @@ namespace English_Listen_WinUI.Views
                     }
                     else
                     {
-                        Debug.WriteLine($"错误：未找到任何中文语音，将使用系统默认语音");
+                        Debug.WriteLine("错误：未找到任何中文语音，将使用系统默认语音");
                     }
                 }
             }
