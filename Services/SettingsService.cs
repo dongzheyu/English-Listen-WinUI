@@ -14,6 +14,9 @@ namespace English_Listen_WinUI.Services
     {
         private const int MaxUsernameLength = 64;
         private const long MaxJsonFileBytes = 10 * 1024 * 1024;
+        private const long MaxWordlistFileBytes = 2 * 1024 * 1024;
+        private const int MaxWordCount = 10000;
+        private const int MaxWordLength = 256;
 
         private readonly string AppDataPath;
         private readonly string ConfigPath;
@@ -99,6 +102,49 @@ namespace English_Listen_WinUI.Services
                 throw new InvalidDataException($"数据文件过大: {path}");
 
             return await File.ReadAllTextAsync(path);
+        }
+
+        private string WordlistRoot => Path.GetFullPath(Path.Combine(AppDataPath, "wordlist"));
+
+        private static bool IsSafeWordlistFileName(string? fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 128)
+                return false;
+
+            if (!fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (fileName == "." || fileName == ".." ||
+                fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                fileName.Any(char.IsControl))
+                return false;
+
+            return string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal);
+        }
+
+        private string GetValidatedWordlistPath(string fileName)
+        {
+            if (!IsSafeWordlistFileName(fileName))
+                throw new ArgumentException("词库文件名非法。", nameof(fileName));
+
+            var root = WordlistRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var fullPath = Path.GetFullPath(Path.Combine(root, fileName));
+            if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("词库路径越界。", nameof(fileName));
+
+            return fullPath;
+        }
+
+        private static bool IsReparsePoint(string path)
+        {
+            try
+            {
+                return File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            }
+            catch
+            {
+                return true;
+            }
         }
 
         public async Task LoadSettingsAsync()
@@ -237,6 +283,9 @@ namespace English_Listen_WinUI.Services
                 Directory.CreateDirectory(userDir);
 
                 var json = JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true });
+                if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonFileBytes)
+                    throw new InvalidDataException("测试历史数据过大。");
+
                 var tempPath = GetUserTestHistoryPath(username) + ".tmp";
                 await File.WriteAllTextAsync(tempPath, json);
                 File.Move(tempPath, GetUserTestHistoryPath(username), true);
@@ -260,16 +309,22 @@ namespace English_Listen_WinUI.Services
         {
             try
             {
-                if (!File.Exists(filePath))
+                var root = WordlistRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                var fullPath = Path.GetFullPath(filePath);
+                if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase) || IsReparsePoint(fullPath))
                     return new List<string>();
 
-                var info = new FileInfo(filePath);
-                if (info.Length > MaxJsonFileBytes)
+                if (!File.Exists(fullPath))
                     return new List<string>();
 
-                return (await File.ReadAllLinesAsync(filePath))
+                var info = new FileInfo(fullPath);
+                if (info.Length > MaxWordlistFileBytes)
+                    return new List<string>();
+
+                return (await File.ReadAllLinesAsync(fullPath))
                     .Select(line => line.Trim())
-                    .Where(line => line.Length > 0)
+                    .Where(line => line.Length > 0 && line.Length <= MaxWordLength)
+                    .Take(MaxWordCount)
                     .ToList();
             }
             catch
@@ -280,14 +335,35 @@ namespace English_Listen_WinUI.Services
 
         public async Task SaveWordsToFileAsync(string filePath, List<string> words)
         {
+            if (words == null)
+                throw new ArgumentNullException(nameof(words));
+
+            var root = WordlistRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var fullPath = Path.GetFullPath(filePath);
+            if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("词库路径越界。", nameof(filePath));
+
+            var normalizedWords = words
+                .Where(word => !string.IsNullOrWhiteSpace(word))
+                .Select(word => word.Trim())
+                .Where(word => word.Length <= MaxWordLength)
+                .Take(MaxWordCount)
+                .ToList();
+
             await _fileLock.WaitAsync();
             try
             {
-                var directory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(directory))
-                    Directory.CreateDirectory(directory);
+                var directory = Path.GetDirectoryName(fullPath);
+                if (string.IsNullOrEmpty(directory))
+                    throw new ArgumentException("词库目录无效。", nameof(filePath));
 
-                await File.WriteAllLinesAsync(filePath, words);
+                Directory.CreateDirectory(directory);
+                if (IsReparsePoint(directory) || IsReparsePoint(fullPath))
+                    throw new IOException("拒绝操作重解析点路径。");
+
+                var tempPath = fullPath + $".{Guid.NewGuid():N}.tmp";
+                await File.WriteAllLinesAsync(tempPath, normalizedWords);
+                File.Move(tempPath, fullPath, true);
             }
             finally
             {
@@ -300,10 +376,14 @@ namespace English_Listen_WinUI.Services
             try
             {
                 var wordlistDir = GetWordlistDirectory();
-                if (!Directory.Exists(wordlistDir))
+                if (!Directory.Exists(wordlistDir) || IsReparsePoint(wordlistDir))
                     return new List<string>();
 
-                return Directory.GetFiles(wordlistDir, "*.txt", SearchOption.TopDirectoryOnly).ToList();
+                return Directory.GetFiles(wordlistDir, "*.txt", SearchOption.TopDirectoryOnly)
+                    .Where(path => !IsReparsePoint(path))
+                    .Where(path => IsSafeWordlistFileName(Path.GetFileName(path)))
+                    .Take(1000)
+                    .ToList();
             }
             catch
             {
@@ -311,7 +391,9 @@ namespace English_Listen_WinUI.Services
             }
         }
 
-        public string GetWordlistDirectory() => Path.Combine(AppDataPath, "wordlist");
+        public string GetWordlistDirectory() => WordlistRoot;
+
+        public string GetWordlistFilePath(string fileName) => GetValidatedWordlistPath(fileName);
 
         public string GetUserDataPath(string username)
         {
