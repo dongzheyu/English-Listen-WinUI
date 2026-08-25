@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -9,14 +11,17 @@ namespace English_Listen_WinUI.Views
 {
     public sealed partial class AnswersPage : Page
     {
+        private const int MaxWordCount = 10000;
+        private const int MaxWordLength = 256;
+        private const int MaxTranslationLength = 2048;
         private readonly MainViewModel _viewModel;
         private List<DictationTestPage.WordTranslationPair>? _wordList;
 
         public AnswersPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
             _viewModel = App.SharedViewModel!;
-            this.DataContext = _viewModel;
+            DataContext = _viewModel;
             Loaded += AnswersPage_Loaded;
         }
 
@@ -25,7 +30,15 @@ namespace English_Listen_WinUI.Views
             base.OnNavigatedTo(e);
             if (e.Parameter is List<DictationTestPage.WordTranslationPair> wordList)
             {
-                _wordList = wordList;
+                _wordList = wordList
+                    .Take(MaxWordCount)
+                    .Where(pair => pair != null && !string.IsNullOrWhiteSpace(pair.Word) && pair.Word.Trim().Length <= MaxWordLength && (pair.Translation?.Length ?? 0) <= MaxTranslationLength)
+                    .Select(pair => new DictationTestPage.WordTranslationPair
+                    {
+                        Word = pair.Word.Trim(),
+                        Translation = pair.Translation?.Trim() ?? string.Empty
+                    })
+                    .ToList();
             }
         }
 
@@ -36,43 +49,35 @@ namespace English_Listen_WinUI.Views
 
         private void LoadAnswers()
         {
-            var answerText = "";
-            
-            if (_wordList != null && _wordList.Count > 0)
+            var builder = new StringBuilder();
+
+            if (_wordList is { Count: > 0 })
             {
-                // 使用从DictationTestPage传递过来的单词列表
-                for (int i = 0; i < _wordList.Count; i++)
+                for (var i = 0; i < _wordList.Count; i++)
                 {
-                    string translation = !string.IsNullOrEmpty(_wordList[i].Translation) ? $"  ({_wordList[i].Translation})" : "";
-                    answerText += $"{i + 1}. {_wordList[i].Word}{translation}\n";
+                    var pair = _wordList[i];
+                    builder.Append(i + 1).Append(". ").Append(pair.Word);
+                    if (!string.IsNullOrEmpty(pair.Translation))
+                        builder.Append("  (").Append(pair.Translation).Append(')');
+                    builder.AppendLine();
                 }
             }
             else if (_viewModel != null)
             {
-                // 回退到使用ViewModel中的单词列表
-                if (_viewModel.CurrentWords != null && _viewModel.CurrentWords.Count > 0)
+                foreach (var word in (_viewModel.CurrentWords ?? new List<string>()).Take(MaxWordCount))
                 {
-                    foreach (var word in _viewModel.CurrentWords)
-                    {
-                        answerText += $"{_viewModel.CurrentWords.IndexOf(word) + 1}. {word.Trim()}\n";
-                    }
-                }
-                else
-                {
-                    var words = _viewModel.WordsText.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
-                    for (int i = 0; i < words.Length; i++)
-                    {
-                        answerText += $"{i + 1}. {words[i].Trim()}\n";
-                    }
+                    var normalized = word?.Trim() ?? string.Empty;
+                    if (normalized.Length == 0 || normalized.Length > MaxWordLength)
+                        continue;
+                    builder.Append(builder.Length + 1).Append(". ").AppendLine(normalized);
                 }
             }
-            
-            AnswersTextBlock.Text = answerText;
+
+            AnswersTextBlock.Text = builder.ToString();
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            // 返回单词管理界面
             Frame?.Navigate(typeof(WordsPage));
         }
     }
