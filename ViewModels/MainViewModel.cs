@@ -30,6 +30,8 @@ namespace English_Listen_WinUI.ViewModels
 
     public class MainViewModel : ViewModelBase
     {
+        private const int MaxWordCount = 10000;
+        private const int MaxWordLength = 256;
         private readonly SettingsService _settingsService = new();
         private readonly SpeechService _speechService = new();
         private string _currentPage = "Home";
@@ -139,8 +141,8 @@ namespace English_Listen_WinUI.ViewModels
                 ? new List<string>()
                 : WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(w => w.Trim())
-                    .Where(w => !string.IsNullOrEmpty(w) && w.Length <= 256)
-                    .Take(10000)
+                    .Where(w => !string.IsNullOrEmpty(w) && w.Length <= MaxWordLength)
+                    .Take(MaxWordCount)
                     .ToList();
 
             OnPropertyChanged(nameof(CanStartTest));
@@ -191,7 +193,7 @@ namespace English_Listen_WinUI.ViewModels
         public async Task LoadUsersFromListAsync(List<UserData> users)
         {
             Users.Clear();
-            foreach (var user in users)
+            foreach (var user in users.Take(1000))
                 Users.Add(user);
             UserStatus = Users.Count > 0 ? $"已加载 {Users.Count} 个用户" : "未发现用户或用户数据已加密";
         }
@@ -218,8 +220,8 @@ namespace English_Listen_WinUI.ViewModels
             var filePath = _settingsService.GetWordlistFilePath(fileName);
             var words = WordsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(w => w.Trim())
-                .Where(w => !string.IsNullOrEmpty(w) && w.Length <= 256)
-                .Take(10000)
+                .Where(w => !string.IsNullOrEmpty(w) && w.Length <= MaxWordLength)
+                .Take(MaxWordCount)
                 .ToList();
 
             CurrentWordListName = Path.GetFileName(filePath);
@@ -237,9 +239,9 @@ namespace English_Listen_WinUI.ViewModels
             var filePath = _settingsService.GetWordlistFilePath(fileName);
             CurrentWordListName = Path.GetFileName(filePath);
             var words = await _settingsService.LoadWordsFromFileAsync(filePath);
-            CurrentWords = words;
-            WordsText = string.Join(Environment.NewLine, words);
-            await TempFileHelper.WriteWordsAsync(words);
+            CurrentWords = words.Take(MaxWordCount).ToList();
+            WordsText = string.Join(Environment.NewLine, CurrentWords);
+            await TempFileHelper.WriteWordsAsync(CurrentWords);
             OnPropertyChanged(nameof(CanStartTest));
             if (SaveWordsCommand is RelayCommand rc)
                 rc.RaiseCanExecuteChanged();
@@ -248,8 +250,8 @@ namespace English_Listen_WinUI.ViewModels
         public async Task LoadWordsFromTempFileAsync()
         {
             var words = await TempFileHelper.ReadWordsAsync();
-            CurrentWords = words;
-            WordsText = string.Join(Environment.NewLine, words);
+            CurrentWords = words.Take(MaxWordCount).ToList();
+            WordsText = string.Join(Environment.NewLine, CurrentWords);
             CurrentWordListName = "临时词库";
             OnPropertyChanged(nameof(CanStartTest));
             if (SaveWordsCommand is RelayCommand rc)
@@ -260,7 +262,7 @@ namespace English_Listen_WinUI.ViewModels
         {
             WordListFiles.Clear();
             var files = await _settingsService.GetWordlistFilesAsync();
-            foreach (var file in files)
+            foreach (var file in files.Take(1000))
             {
                 var name = Path.GetFileName(file);
                 if (!string.IsNullOrWhiteSpace(name))
@@ -276,7 +278,7 @@ namespace English_Listen_WinUI.ViewModels
             var currentUser = _settingsService.Settings.CurrentUser;
             TestHistory = await _settingsService.LoadTestHistoryAsync(currentUser ?? "");
             TestHistoryViewModels.Clear();
-            foreach (var result in TestHistory.OrderByDescending(h => h.Timestamp))
+            foreach (var result in TestHistory.OrderByDescending(h => h.Timestamp).Take(10000))
                 TestHistoryViewModels.Add(new TestResultViewModel { Result = result });
         }
 
@@ -288,6 +290,9 @@ namespace English_Listen_WinUI.ViewModels
             var sourceInfo = new FileInfo(sourcePath);
             if (sourceInfo.Length > 2 * 1024 * 1024)
                 throw new InvalidDataException("导入词库文件过大。");
+
+            if ((File.GetAttributes(sourcePath) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("不允许导入重解析点文件。");
 
             var fileName = Path.GetFileName(sourcePath);
             var destPath = _settingsService.GetWordlistFilePath(fileName);
