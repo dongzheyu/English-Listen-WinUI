@@ -63,7 +63,7 @@ jobs:
             exit 1
           }
 
-      - name: Check vulnerable packages
+      - name: Check vulnerable packages and transitive dependencies
         shell: pwsh
         run: |
           $output = dotnet list English-Listen-WinUI.slnx package --vulnerable --include-transitive
