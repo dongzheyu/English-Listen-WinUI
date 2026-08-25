@@ -456,18 +456,18 @@ namespace English_Listen_WinUI.Services
             {
                 await InvokeOnUIThread(() => SpeechStatusChanged?.Invoke(false));
 
-                if (_disposed || generation != _speechGeneration || !_isTesting)
-                    return;
-
-                if (isLastWord)
+                if (!(_disposed || generation != _speechGeneration || !_isTesting))
                 {
-                    _isTesting = false;
-                    await InvokeOnUIThread(() => TestCompleted?.Invoke());
-                    await InvokeOnUIThread(() => TestStateChanged?.Invoke(false, false));
-                }
-                else
-                {
-                    StartCountdown();
+                    if (isLastWord)
+                    {
+                        _isTesting = false;
+                        await InvokeOnUIThread(() => TestCompleted?.Invoke());
+                        await InvokeOnUIThread(() => TestStateChanged?.Invoke(false, false));
+                    }
+                    else
+                    {
+                        StartCountdown();
+                    }
                 }
             }
         }
