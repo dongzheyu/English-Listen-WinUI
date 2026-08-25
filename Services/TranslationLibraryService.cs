@@ -86,12 +86,13 @@ namespace English_Listen_WinUI.Services
 
         public string? GetTranslation(string word)
         {
-            if (!IsValidWord(word?.Trim() ?? string.Empty))
+            var trimmedWord = word?.Trim() ?? string.Empty;
+            if (!IsValidWord(trimmedWord))
                 return null;
 
             lock (_lock)
             {
-                return _translations.TryGetValue(word.Trim(), out var translation) ? translation : null;
+                return _translations.TryGetValue(trimmedWord, out var translation) ? translation : null;
             }
         }
 
