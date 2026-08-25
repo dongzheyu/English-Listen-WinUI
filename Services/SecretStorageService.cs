@@ -33,6 +33,21 @@ namespace English_Listen_WinUI.Services
 
         private static string GetSecretFilePath() => Path.Combine(GetSecretDirectory(), SecretFileName);
 
+        private static bool IsReparsePoint(string path)
+        {
+            try
+            {
+                if (!File.Exists(path) && !Directory.Exists(path))
+                    return false;
+
+                return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
         public static BaiduSecretConfig? LoadSecret()
         {
             var localSecret = LoadLocalEncryptedSecret();
@@ -68,7 +83,7 @@ namespace English_Listen_WinUI.Services
             try
             {
                 var path = GetSecretFilePath();
-                if (!File.Exists(path))
+                if (!File.Exists(path) || IsReparsePoint(path) || IsReparsePoint(GetSecretDirectory()))
                     return null;
 
                 var info = new FileInfo(path);
@@ -112,7 +127,7 @@ namespace English_Listen_WinUI.Services
                     configPath = Path.Combine(AppContext.BaseDirectory, "config", LegacySecretFileName);
                 }
 
-                if (!File.Exists(configPath))
+                if (!File.Exists(configPath) || IsReparsePoint(configPath))
                     return null;
 
                 var info = new FileInfo(configPath);
@@ -152,7 +167,7 @@ namespace English_Listen_WinUI.Services
                     configPath = Path.Combine(AppContext.BaseDirectory, "config", LegacySecretFileName);
                 }
 
-                if (File.Exists(configPath))
+                if (File.Exists(configPath) && !IsReparsePoint(configPath))
                     File.Delete(configPath);
             }
             catch (Exception ex)
@@ -175,7 +190,7 @@ namespace English_Listen_WinUI.Services
                     settingsPath = Path.Combine(AppContext.BaseDirectory, "config", "settings.json");
                 }
 
-                if (!File.Exists(settingsPath))
+                if (!File.Exists(settingsPath) || IsReparsePoint(settingsPath))
                     return;
 
                 var info = new FileInfo(settingsPath);
@@ -214,6 +229,8 @@ namespace English_Listen_WinUI.Services
 
             var dir = GetSecretDirectory();
             Directory.CreateDirectory(dir);
+            if (IsReparsePoint(dir))
+                throw new IOException("拒绝使用重解析点密钥目录。");
 
             var normalized = new BaiduSecretConfig
             {
@@ -225,6 +242,9 @@ namespace English_Listen_WinUI.Services
             var encrypted = ProtectedData.Protect(bytes, Entropy, DataProtectionScope.CurrentUser);
 
             var path = GetSecretFilePath();
+            if (IsReparsePoint(path))
+                throw new IOException("拒绝覆盖重解析点密钥文件。");
+
             var tempPath = path + $".{Guid.NewGuid():N}.tmp";
             File.WriteAllBytes(tempPath, encrypted);
 
