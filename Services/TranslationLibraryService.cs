@@ -7,9 +7,14 @@ namespace English_Listen_WinUI.Services
 {
     public class TranslationLibraryService
     {
-        private const int MAX_TRANSLATIONS = 50000;
+        private const int MaxTranslations = 50000;
+        private const int MaxWordLength = 256;
+        private const int MaxTranslationLength = 2048;
+        private const long MaxLibraryFileBytes = 10 * 1024 * 1024;
 
+        private readonly object _lock = new();
         private readonly string _libraryPath;
+        private readonly string _libraryDirectory;
         private Dictionary<string, string> _translations;
         private bool _isDirty;
 
@@ -24,104 +29,133 @@ namespace English_Listen_WinUI.Services
             {
                 appDataPath = AppDomain.CurrentDomain.BaseDirectory;
             }
-            
-            var dataDir = Path.Combine(appDataPath, "data");
-            if (!Directory.Exists(dataDir))
-            {
-                Directory.CreateDirectory(dataDir);
-            }
-            _libraryPath = Path.Combine(dataDir, "translation_library.txt");
+
+            _libraryDirectory = Path.Combine(appDataPath, "data");
+            Directory.CreateDirectory(_libraryDirectory);
+            _libraryPath = Path.Combine(_libraryDirectory, "translation_library.txt");
             _translations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            _isDirty = false;
             LoadLibrary();
         }
 
         private void LoadLibrary()
         {
-            if (!File.Exists(_libraryPath))
-            {
-                return;
-            }
-
             try
             {
-                var lines = File.ReadAllLines(_libraryPath);
-                foreach (var line in lines)
-                {
-                    var trimmedLine = line.Trim();
-                    if (string.IsNullOrEmpty(trimmedLine)) continue;
+                if (!File.Exists(_libraryPath))
+                    return;
 
-                    var separatorIndex = trimmedLine.IndexOf('|');
-                    if (separatorIndex > 0 && separatorIndex < trimmedLine.Length - 1)
-                    {
-                        var word = trimmedLine.Substring(0, separatorIndex).Trim();
-                        var translation = trimmedLine.Substring(separatorIndex + 1).Trim();
-                        if (!string.IsNullOrEmpty(word) && !string.IsNullOrEmpty(translation))
-                        {
-                            _translations[word] = translation;
-                        }
-                    }
+                var info = new FileInfo(_libraryPath);
+                if (info.Length > MaxLibraryFileBytes)
+                    return;
+
+                using var reader = new StreamReader(_libraryPath);
+                while (!reader.EndOfStream && _translations.Count < MaxTranslations)
+                {
+                    var line = reader.ReadLine();
+                    if (string.IsNullOrWhiteSpace(line) || line.Length > MaxTranslationLength + MaxWordLength + 1)
+                        continue;
+
+                    var separatorIndex = line.IndexOf('|');
+                    if (separatorIndex <= 0 || separatorIndex >= line.Length - 1)
+                        continue;
+
+                    var word = line[..separatorIndex].Trim();
+                    var translation = line[(separatorIndex + 1)..].Trim();
+                    if (!IsValidWord(word) || !IsValidTranslation(translation))
+                        continue;
+
+                    _translations[word] = translation;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"加载翻译库失败: {ex.Message}");
+                lock (_lock)
+                {
+                    _translations.Clear();
+                    _isDirty = false;
+                }
             }
         }
 
+        private static bool IsValidWord(string value) =>
+            !string.IsNullOrWhiteSpace(value) && value.Length <= MaxWordLength && !value.Any(char.IsControl);
+
+        private static bool IsValidTranslation(string value) =>
+            !string.IsNullOrWhiteSpace(value) && value.Length <= MaxTranslationLength && !value.Any(char.IsControl);
+
         public string? GetTranslation(string word)
         {
-            if (string.IsNullOrWhiteSpace(word)) return null;
-            
-            var trimmedWord = word.Trim();
-            return _translations.TryGetValue(trimmedWord, out var translation) ? translation : null;
+            if (!IsValidWord(word?.Trim() ?? string.Empty))
+                return null;
+
+            lock (_lock)
+            {
+                return _translations.TryGetValue(word.Trim(), out var translation) ? translation : null;
+            }
         }
 
         public void SaveTranslation(string word, string translation)
         {
-            if (string.IsNullOrWhiteSpace(word) || string.IsNullOrWhiteSpace(translation)) return;
-
-            var trimmedWord = word.Trim();
-            var trimmedTranslation = translation.Trim();
-
-            if (_translations.TryGetValue(trimmedWord, out var existing) && existing == trimmedTranslation)
-            {
+            var trimmedWord = word?.Trim() ?? string.Empty;
+            var trimmedTranslation = translation?.Trim() ?? string.Empty;
+            if (!IsValidWord(trimmedWord) || !IsValidTranslation(trimmedTranslation))
                 return;
-            }
 
-            // Evict oldest entry if at capacity
-            if (_translations.Count >= MAX_TRANSLATIONS && !_translations.ContainsKey(trimmedWord))
+            lock (_lock)
             {
-                var oldestKey = _translations.Keys.First();
-                _translations.Remove(oldestKey);
-            }
+                if (_translations.TryGetValue(trimmedWord, out var existing) && existing == trimmedTranslation)
+                    return;
 
-            _translations[trimmedWord] = trimmedTranslation;
-            _isDirty = true;
+                if (_translations.Count >= MaxTranslations && !_translations.ContainsKey(trimmedWord))
+                {
+                    var oldestKey = _translations.Keys.First();
+                    _translations.Remove(oldestKey);
+                }
+
+                _translations[trimmedWord] = trimmedTranslation;
+                _isDirty = true;
+            }
         }
 
         public void SaveTranslations(IEnumerable<(string Word, string Translation)> translations)
         {
-            foreach (var (word, translation) in translations)
-            {
+            if (translations == null)
+                throw new ArgumentNullException(nameof(translations));
+
+            foreach (var (word, translation) in translations.Take(MaxTranslations))
                 SaveTranslation(word, translation);
-            }
+
             SaveToFile();
         }
 
         public void SaveToFile()
         {
-            if (!_isDirty) return;
+            Dictionary<string, string> snapshot;
+            lock (_lock)
+            {
+                if (!_isDirty)
+                    return;
+
+                snapshot = new Dictionary<string, string>(_translations, StringComparer.OrdinalIgnoreCase);
+            }
 
             try
             {
-                var lines = _translations
-                    .OrderBy(kvp => kvp.Key)
+                Directory.CreateDirectory(_libraryDirectory);
+                var tempPath = Path.Combine(_libraryDirectory, $"translation_library.{Guid.NewGuid():N}.tmp");
+                var lines = snapshot
+                    .OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
                     .Select(kvp => $"{kvp.Key}|{kvp.Value}")
                     .ToList();
 
-                File.WriteAllLines(_libraryPath, lines);
-                _isDirty = false;
+                File.WriteAllLines(tempPath, lines);
+                File.Move(tempPath, _libraryPath, true);
+
+                lock (_lock)
+                {
+                    _isDirty = false;
+                }
             }
             catch (Exception ex)
             {
@@ -131,12 +165,18 @@ namespace English_Listen_WinUI.Services
 
         public int GetTranslationCount()
         {
-            return _translations.Count;
+            lock (_lock)
+            {
+                return _translations.Count;
+            }
         }
 
         public Dictionary<string, string> GetAllTranslations()
         {
-            return new Dictionary<string, string>(_translations, StringComparer.OrdinalIgnoreCase);
+            lock (_lock)
+            {
+                return new Dictionary<string, string>(_translations, StringComparer.OrdinalIgnoreCase);
+            }
         }
     }
 }
