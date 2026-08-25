@@ -12,11 +12,14 @@ namespace English_Listen_WinUI.Services
 {
     public class SpeechService : IDisposable
     {
-        private readonly object _synthesizerLock = new object();
+        private const int MaxSpeechTextLength = 5000;
+        private readonly object _synthesizerLock = new();
+        private readonly SemaphoreSlim _speechGate = new(1, 1);
         private string _engineType = "SAPI";
-        private bool _hasAudioDevice = false;
+        private bool _hasAudioDevice;
         private bool _isPaused;
         private bool _isSpeaking;
+        private bool _disposed;
         private SpeechSynthesizer? _synthesizer;
 
         public SpeechService()
@@ -28,13 +31,12 @@ namespace English_Listen_WinUI.Services
                 {
                     _synthesizer.SetOutputToDefaultAudioDevice();
                     _hasAudioDevice = true;
-                    Debug.WriteLine("SpeechService: 音频设备初始化成功");
                 }
                 catch (Exception ex)
                 {
                     _hasAudioDevice = false;
                     Debug.WriteLine($"SpeechService SetOutputToDefaultAudioDevice 失败: {ex.Message}");
-                    _synthesizer?.Dispose();
+                    _synthesizer.Dispose();
                     _synthesizer = null;
                 }
             }
@@ -48,8 +50,8 @@ namespace English_Listen_WinUI.Services
 
         public bool IsSpeaking
         {
-            get { return _isSpeaking; }
-            private set { _isSpeaking = value; }
+            get => _isSpeaking;
+            private set => _isSpeaking = value;
         }
 
         public string EngineType
@@ -58,26 +60,51 @@ namespace English_Listen_WinUI.Services
             set => _engineType = value;
         }
 
-        public bool IsWindowsTtsAvailable => _synthesizer != null;
+        public bool IsWindowsTtsAvailable
+        {
+            get
+            {
+                lock (_synthesizerLock)
+                {
+                    return !_disposed && _synthesizer != null;
+                }
+            }
+        }
 
         public bool HasAudioDevice => _hasAudioDevice;
-
         public string AudioDeviceStatus => _hasAudioDevice ? "音频设备正常" : "未检测到音频设备";
 
         public void Dispose()
         {
-            if (_synthesizer != null)
+            lock (_synthesizerLock)
             {
-                _synthesizer.Dispose();
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+                _isPaused = true;
+                try
+                {
+                    _synthesizer?.SpeakAsyncCancelAll();
+                }
+                catch
+                {
+                }
+
+                _synthesizer?.Dispose();
                 _synthesizer = null;
+                _hasAudioDevice = false;
             }
+
+            _speechGate.Dispose();
         }
 
         public bool CheckAudioDeviceAvailable()
         {
             lock (_synthesizerLock)
             {
-                if (_synthesizer == null) return false;
+                if (_disposed || _synthesizer == null)
+                    return false;
 
                 try
                 {
@@ -96,131 +123,146 @@ namespace English_Listen_WinUI.Services
         public VoiceInfo[] GetWindowsTtsVoices()
         {
             var voices = new List<VoiceInfo>();
-            if (_synthesizer == null) return voices.ToArray();
-
-            try
+            lock (_synthesizerLock)
             {
-                lock (_synthesizerLock)
+                if (_disposed || _synthesizer == null)
+                    return voices.ToArray();
+
+                try
                 {
-                    var installedVoices = _synthesizer.GetInstalledVoices();
-                    foreach (var voice in installedVoices)
+                    foreach (var voice in _synthesizer.GetInstalledVoices())
                     {
-                        if (voice != null && voice.Enabled)
+                        if (voice == null || !voice.Enabled)
+                            continue;
+
+                        var info = voice.VoiceInfo;
+                        var name = info.Name;
+                        var id = info.Id ?? string.Empty;
+                        var isNatural = id.StartsWith("Local-", StringComparison.OrdinalIgnoreCase)
+                            || name.IndexOf("Online", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                        voices.Add(new VoiceInfo
                         {
-                            var info = voice.VoiceInfo;
-                            var name = info.Name;
-                            var id = info.Id ?? "";
-                            // NaturalVoiceSAPIAdapter: Id starts with "Local-" (Narrator natural voices)
-                            // Regular SAPI: Id starts with "TTS_" (e.g. TTS_MS_EN-US_ZIRA_11.0)
-                            var isNatural = id.StartsWith("Local-", StringComparison.OrdinalIgnoreCase)
-                                            || name.IndexOf("Online", StringComparison.OrdinalIgnoreCase) >= 0;
-                            voices.Add(new VoiceInfo
-                            {
-                                Name = name,
-                                DisplayName = name,
-                                Culture = info.Culture.Name,
-                                Gender = VoiceGender.Female,
-                                IsNatural = isNatural
-                            });
-                        }
+                            Name = name,
+                            DisplayName = name,
+                            Culture = info.Culture?.Name ?? string.Empty,
+                            Gender = VoiceGender.Female,
+                            IsNatural = isNatural
+                        });
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"获取语音列表失败: {ex.Message}");
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"获取语音列表失败: {ex.Message}");
+                }
             }
 
             return voices.ToArray();
         }
 
-        private static bool IsNaturalVoiceId(string id)
-        {
-            return !string.IsNullOrEmpty(id) &&
-                   id.StartsWith("Local-", StringComparison.OrdinalIgnoreCase);
-        }
+        private static bool IsNaturalVoiceId(string? id) =>
+            !string.IsNullOrEmpty(id) && id.StartsWith("Local-", StringComparison.OrdinalIgnoreCase);
 
-        public bool SetWindowsTtsEnglishVoice(string voiceName)
-        {
-            if (_synthesizer == null || string.IsNullOrEmpty(voiceName)) return false;
+        public bool SetWindowsTtsEnglishVoice(string voiceName) => SelectVoice(voiceName);
+        public bool SetWindowsTtsChineseVoice(string voiceName) => SelectVoice(voiceName);
 
-            try
+        private bool SelectVoice(string voiceName)
+        {
+            if (string.IsNullOrWhiteSpace(voiceName) || voiceName.Length > 256)
+                return false;
+
+            lock (_synthesizerLock)
             {
-                lock (_synthesizerLock)
+                if (_disposed || _synthesizer == null)
+                    return false;
+
+                try
                 {
                     _synthesizer.SelectVoice(voiceName);
-                    Debug.WriteLine($"英文语音已设置为: {voiceName}");
                     return true;
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"设置英文语音失败: {ex.Message}");
-                return false;
-            }
-        }
-
-        public bool SetWindowsTtsChineseVoice(string voiceName)
-        {
-            if (_synthesizer == null || string.IsNullOrEmpty(voiceName)) return false;
-
-            try
-            {
-                lock (_synthesizerLock)
+                catch (Exception ex)
                 {
-                    _synthesizer.SelectVoice(voiceName);
-                    Debug.WriteLine($"中文语音已设置为: {voiceName}");
-                    return true;
+                    Debug.WriteLine($"设置语音失败: {ex.Message}");
+                    return false;
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"设置中文语音失败: {ex.Message}");
-                return false;
             }
         }
 
         public async Task SpeakAsync(string text, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(text)) return;
+            if (!IsValidSpeechText(text))
+                return;
 
-            if (_synthesizer == null) return;
+            await SpeakCoreAsync(text, null, cancellationToken).ConfigureAwait(false);
+        }
 
-            if (_isPaused) return;
+        public async Task SpeakAsync(string text, string voiceName, bool isEnglish)
+        {
+            if (!IsValidSpeechText(text))
+                return;
 
-            IsSpeaking = true;
+            await SpeakCoreAsync(text, voiceName, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        private static bool IsValidSpeechText(string? text) =>
+            !string.IsNullOrWhiteSpace(text) && text.Length <= MaxSpeechTextLength;
+
+        private async Task SpeakCoreAsync(string text, string? voiceName, CancellationToken cancellationToken)
+        {
+            await _speechGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                using (cancellationToken.Register(() =>
-                       {
-                           try
-                           {
-                               _synthesizer?.SpeakAsyncCancelAll();
-                           }
-                           catch
-                           {
-                           }
-                       }))
+                SpeechSynthesizer? synthesizer;
+                lock (_synthesizerLock)
                 {
-                    var tcs = new TaskCompletionSource<bool>();
-                    EventHandler<SpeakCompletedEventArgs>? handler = null;
-                    handler = (sender, args) =>
-                    {
-                        _synthesizer!.SpeakCompleted -= handler;
-                        tcs.TrySetResult(true);
-                    };
-                    _synthesizer.SpeakCompleted += handler;
+                    if (_disposed || _synthesizer == null || _isPaused)
+                        return;
 
-                    try
+                    synthesizer = _synthesizer;
+                    if (!string.IsNullOrWhiteSpace(voiceName))
                     {
-                        _synthesizer.SpeakAsync(text);
-                        cancellationToken.ThrowIfCancellationRequested();
-                        await tcs.Task;
+                        try
+                        {
+                            synthesizer.SelectVoice(voiceName);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"无法设置语音 {voiceName}，使用默认语音: {ex.Message}");
+                        }
                     }
-                    finally
+                }
+
+                IsSpeaking = true;
+                var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                EventHandler<SpeakCompletedEventArgs>? handler = null;
+                handler = (_, args) =>
+                {
+                    synthesizer.SpeakCompleted -= handler;
+                    completion.TrySetResult(true);
+                };
+
+                synthesizer.SpeakCompleted += handler;
+                try
+                {
+                    using var registration = cancellationToken.Register(() =>
                     {
-                        _synthesizer.SpeakCompleted -= handler;
-                    }
+                        try
+                        {
+                            synthesizer.SpeakAsyncCancelAll();
+                        }
+                        catch
+                        {
+                        }
+                    });
+
+                    synthesizer.SpeakAsync(text);
+                    await completion.Task.ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+                finally
+                {
+                    synthesizer.SpeakCompleted -= handler;
                 }
             }
             catch (OperationCanceledException)
@@ -234,68 +276,24 @@ namespace English_Listen_WinUI.Services
             finally
             {
                 IsSpeaking = false;
-            }
-        }
-
-        public async Task SpeakAsync(string text, string voiceName, bool isEnglish)
-        {
-            if (string.IsNullOrWhiteSpace(text) || _synthesizer == null) return;
-
-            try
-            {
-                if (!string.IsNullOrEmpty(voiceName))
-                {
-                    try
-                    {
-                        _synthesizer.SelectVoice(voiceName);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"无法设置语音 {voiceName}，使用默认语音: {ex.Message}");
-                    }
-                }
-
-                IsSpeaking = true;
-                var tcs = new TaskCompletionSource<bool>();
-                EventHandler<SpeakCompletedEventArgs>? handler = null;
-                handler = (sender, args) =>
-                {
-                    _synthesizer!.SpeakCompleted -= handler;
-                    tcs.TrySetResult(true);
-                };
-                _synthesizer.SpeakCompleted += handler;
-
-                try
-                {
-                    _synthesizer.SpeakAsync(text);
-                    await tcs.Task;
-                }
-                finally
-                {
-                    _synthesizer.SpeakCompleted -= handler;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"朗读失败: {ex.Message}");
-            }
-            finally
-            {
-                IsSpeaking = false;
+                _speechGate.Release();
             }
         }
 
         public void Stop()
         {
-            try
+            lock (_synthesizerLock)
             {
-                lock (_synthesizerLock)
+                if (_disposed || _synthesizer == null)
+                    return;
+
+                try
                 {
-                    _synthesizer?.SpeakAsyncCancelAll();
+                    _synthesizer.SpeakAsyncCancelAll();
                 }
-            }
-            catch
-            {
+                catch
+                {
+                }
             }
 
             IsSpeaking = false;
@@ -303,8 +301,11 @@ namespace English_Listen_WinUI.Services
 
         public void Pause()
         {
-            if (!_isPaused && _isSpeaking)
+            lock (_synthesizerLock)
             {
+                if (_disposed || _isPaused || !_isSpeaking)
+                    return;
+
                 _isPaused = true;
                 try
                 {
@@ -314,36 +315,37 @@ namespace English_Listen_WinUI.Services
                 {
                 }
             }
+
+            IsSpeaking = false;
         }
 
         public void Resume()
         {
-            if (_isPaused)
+            lock (_synthesizerLock)
             {
-                _isPaused = false;
+                if (!_disposed)
+                    _isPaused = false;
             }
         }
 
-        // ponytail: debug, remove after NaturalVoiceSAPIAdapter detection stable
         public string[] DumpRawVoiceInfo()
         {
             var lines = new List<string>();
             lock (_synthesizerLock)
             {
-                if (_synthesizer == null) return lines.ToArray();
+                if (_disposed || _synthesizer == null)
+                    return lines.ToArray();
+
                 try
                 {
-                    var installed = _synthesizer.GetInstalledVoices();
-                    foreach (var v in installed)
+                    foreach (var v in _synthesizer.GetInstalledVoices())
                     {
-                        if (v?.VoiceInfo == null) continue;
+                        if (v?.VoiceInfo == null)
+                            continue;
+
                         var info = v.VoiceInfo;
-                        var addInfo = string.Join("; ",
-                            info.AdditionalInfo?.Select(kv => $"{kv.Key}={kv.Value}") ?? Enumerable.Empty<string>());
-                        var isNatural = IsNaturalVoiceId(info.Id);
-                        lines.Add(
-                            $"Name=[{info.Name}] Id=[{info.Id}] Culture=[{info.Culture?.Name}] " +
-                            $"IsNatural={isNatural} AddInfo=[{addInfo}]");
+                        var addInfo = string.Join("; ", info.AdditionalInfo?.Select(kv => $"{kv.Key}={kv.Value}") ?? Enumerable.Empty<string>());
+                        lines.Add($"Name=[{info.Name}] Id=[{info.Id}] Culture=[{info.Culture?.Name}] IsNatural={IsNaturalVoiceId(info.Id)} AddInfo=[{addInfo}]");
                     }
                 }
                 catch (Exception ex)
