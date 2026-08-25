@@ -83,6 +83,7 @@ namespace English_Listen_WinUI.Services
 
                 _disposed = true;
                 _isPaused = true;
+                IsSpeaking = false;
                 try
                 {
                     _synthesizer?.SpeakAsyncCancelAll();
@@ -95,8 +96,6 @@ namespace English_Listen_WinUI.Services
                 _synthesizer = null;
                 _hasAudioDevice = false;
             }
-
-            _speechGate.Dispose();
         }
 
         public bool CheckAudioDeviceAvailable()
@@ -236,7 +235,7 @@ namespace English_Listen_WinUI.Services
                 IsSpeaking = true;
                 var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 EventHandler<SpeakCompletedEventArgs>? handler = null;
-                handler = (_, args) =>
+                handler = (_, _) =>
                 {
                     synthesizer.SpeakCompleted -= handler;
                     completion.TrySetResult(true);
